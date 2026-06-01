@@ -1,0 +1,32 @@
+version: '3.9'
+
+services:
+  postgres-test:
+    image: postgres:16-alpine
+    container_name: omnisupport-postgres-test
+    environment:
+      POSTGRES_USER: omnisupport
+      POSTGRES_PASSWORD: omnisupport_secret
+      POSTGRES_DB: omnisupport_test
+    ports:
+      - '5433:5432'
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U omnisupport -d omnisupport_test']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis-test:
+    image: redis:7-alpine
+    container_name: omnisupport-redis-test
+    ports:
+      - '6380:6379'
+    tmpfs:
+      - /data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10

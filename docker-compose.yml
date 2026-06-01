@@ -1,0 +1,204 @@
+version: '3.9'
+
+services:
+  # Application
+  app:
+    build:
+      context: .
+      dockerfile: docker/app/Dockerfile
+      target: production
+    container_name: omnisupport-app
+    restart: unless-stopped
+    ports:
+      - '${PORT:-3000}:3000'
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-omnisupport}:${POSTGRES_PASSWORD:-omnisupport_secret}@postgres:5432/${POSTGRES_DB:-omnisupport_db}?schema=public
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_ACCESS_EXPIRES_IN: ${JWT_ACCESS_EXPIRES_IN:-15m}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-30d}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-smtp}
+      EMAIL_FROM: ${EMAIL_FROM}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      WHATSAPP_PROVIDER: ${WHATSAPP_PROVIDER:-twilio}
+      WHATSAPP_ACCOUNT_SID: ${WHATSAPP_ACCOUNT_SID}
+      WHATSAPP_AUTH_TOKEN: ${WHATSAPP_AUTH_TOKEN}
+      WHATSAPP_FROM_NUMBER: ${WHATSAPP_FROM_NUMBER}
+      WHATSAPP_WEBHOOK_SECRET: ${WHATSAPP_WEBHOOK_SECRET}
+      STORAGE_PROVIDER: ${STORAGE_PROVIDER:-local}
+      LOCAL_STORAGE_PATH: /app/uploads
+      LOCAL_STORAGE_URL: http://localhost:3000/uploads
+      LOCAL_STORAGE_SECRET: ${LOCAL_STORAGE_SECRET}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3001}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3001}
+      RATE_LIMIT_WINDOW: ${RATE_LIMIT_WINDOW:-60000}
+      RATE_LIMIT_MAX_REQUESTS: ${RATE_LIMIT_MAX_REQUESTS:-100}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      GOOGLE_CALLBACK_URL: ${GOOGLE_CALLBACK_URL}
+      AI_PROVIDER: ${AI_PROVIDER:-openai}
+      AI_ESCALATION_THRESHOLD: ${AI_ESCALATION_THRESHOLD:-75}
+    volumes:
+      - uploads_data:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - omnisupport-network
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000/health/live']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Worker Process
+  worker:
+    build:
+      context: .
+      dockerfile: docker/worker/Dockerfile
+      target: production
+    container_name: omnisupport-worker
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-omnisupport}:${POSTGRES_PASSWORD:-omnisupport_secret}@postgres:5432/${POSTGRES_DB:-omnisupport_db}?schema=public
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-smtp}
+      EMAIL_FROM: ${EMAIL_FROM}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      WHATSAPP_ACCOUNT_SID: ${WHATSAPP_ACCOUNT_SID}
+      WHATSAPP_AUTH_TOKEN: ${WHATSAPP_AUTH_TOKEN}
+      WHATSAPP_FROM_NUMBER: ${WHATSAPP_FROM_NUMBER}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      AI_ESCALATION_THRESHOLD: ${AI_ESCALATION_THRESHOLD:-75}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - omnisupport-network
+
+  # PostgreSQL
+  postgres:
+    image: postgres:16-alpine
+    container_name: omnisupport-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-omnisupport}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-omnisupport_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-omnisupport_db}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    networks:
+      - omnisupport-network
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-omnisupport} -d ${POSTGRES_DB:-omnisupport_db}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    command:
+      - 'postgres'
+      - '-c'
+      - 'max_connections=200'
+      - '-c'
+      - 'shared_buffers=256MB'
+      - '-c'
+      - 'effective_cache_size=1GB'
+      - '-c'
+      - 'work_mem=4MB'
+      - '-c'
+      - 'maintenance_work_mem=64MB'
+      - '-c'
+      - 'log_min_duration_statement=1000'
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: omnisupport-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --save 60 1
+      --loglevel warning
+    volumes:
+      - redis_data:/data
+    ports:
+      - '${REDIS_PORT:-6379}:6379'
+    networks:
+      - omnisupport-network
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Commander (Dev Only)
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: omnisupport-redis-ui
+    restart: unless-stopped
+    environment:
+      REDIS_HOSTS: local:redis:6379
+    ports:
+      - '8081:8081'
+    networks:
+      - omnisupport-network
+    profiles:
+      - dev
+
+  # MailHog (Dev Only)
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: omnisupport-mailhog
+    restart: unless-stopped
+    ports:
+      - '1025:1025'   # SMTP
+      - '8025:8025'   # Web UI
+    networks:
+      - omnisupport-network
+    profiles:
+      - dev
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  uploads_data:
+    driver: local
+
+networks:
+  omnisupport-network:
+    driver: bridge
+    name: omnisupport-network
