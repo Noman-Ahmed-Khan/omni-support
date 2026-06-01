@@ -1,0 +1,40 @@
+name: Docker Build Check
+
+on:
+  pull_request:
+    paths:
+      - 'docker/**'
+      - 'Dockerfile*'
+      - 'docker-compose*.yml'
+      - 'src/**'
+      - 'package*.json'
+      - 'tsconfig*.json'
+      - 'prisma/**'
+
+jobs:
+  docker-build-check:
+    name: Validate Docker Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build app image (no push)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/app/Dockerfile
+          push: false
+          target: production
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build worker image (no push)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/worker/Dockerfile
+          push: false
+          target: production
