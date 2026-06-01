@@ -1,0 +1,750 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["fullTextSearch", "fullTextIndex"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ENUMS
+
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+  TRIAL
+  CANCELLED
+}
+
+enum UserRole {
+  PLATFORM_ADMIN
+  TENANT_MANAGER
+  AGENT
+  CUSTOMER
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  PENDING_VERIFICATION
+}
+
+enum CustomerStatus {
+  ACTIVE
+  INACTIVE
+  BLOCKED
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  PENDING_CUSTOMER
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum TicketCategory {
+  BILLING
+  TECHNICAL
+  ACCOUNT
+  REFUND
+  SHIPPING
+  GENERAL
+  OTHER
+}
+
+enum CommentType {
+  PUBLIC
+  INTERNAL
+}
+
+enum NotificationChannel {
+  EMAIL
+  WHATSAPP
+  WEBSOCKET
+  IN_APP
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  DELIVERED
+  FAILED
+  READ
+}
+
+enum ActivityEventType {
+  TICKET_CREATED
+  TICKET_ASSIGNED
+  TICKET_REASSIGNED
+  TICKET_STATUS_CHANGED
+  TICKET_PRIORITY_CHANGED
+  TICKET_ESCALATED
+  TICKET_RESOLVED
+  TICKET_CLOSED
+  COMMENT_ADDED
+  ATTACHMENT_ADDED
+  AI_CATEGORIZED
+  AI_ESCALATED
+  AI_SUMMARY_GENERATED
+  CUSTOMER_CREATED
+  CUSTOMER_UPDATED
+  CUSTOMER_RISK_UPDATED
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  EXPORT
+  SUSPEND
+  RESTORE
+  ESCALATE
+  ASSIGN
+}
+
+enum AIResultType {
+  CATEGORIZATION
+  SENTIMENT
+  URGENCY
+  RESPONSE_SUGGESTION
+  RESOLUTION_SUMMARY
+  RISK_SCORE
+}
+
+enum SentimentLabel {
+  POSITIVE
+  NEUTRAL
+  NEGATIVE
+  FRUSTRATED
+}
+
+enum AttachmentStatus {
+  PENDING
+  SCANNED
+  CLEAN
+  INFECTED
+  REJECTED
+}
+
+enum StorageProvider {
+  LOCAL
+  S3
+}
+
+enum MessagingProvider {
+  SMTP
+  SES
+  TWILIO
+}
+
+enum WebhookEventType {
+  WHATSAPP_INBOUND
+  WHATSAPP_STATUS
+  EMAIL_BOUNCE
+  EMAIL_DELIVERED
+}
+
+// TENANTS
+
+model Tenant {
+  id               String       @id @default(uuid())
+  name             String
+  slug             String       @unique
+  domain           String?      @unique
+  status           TenantStatus @default(TRIAL)
+  plan             String       @default("starter")
+  maxAgents        Int          @default(5)
+  maxCustomers     Int          @default(1000)
+  maxTicketsPerDay Int          @default(500)
+  logoUrl          String?
+  settings         Json         @default("{}")
+  metadata         Json         @default("{}")
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  suspendedAt      DateTime?
+  suspendedReason  String?
+
+  // Relations
+  users             User[]
+  customers         Customer[]
+  tickets           Ticket[]
+  notifications     Notification[]
+  auditLogs         AuditLog[]
+  activities        ActivityLog[]
+  integrations      TenantIntegration[]
+  analyticsSnapshots AnalyticsSnapshot[]
+  aiResults         AIResult[]
+
+  @@index([status])
+  @@index([slug])
+  @@index([createdAt])
+  @@map("tenants")
+}
+
+// USERS (Platform Admin + Tenant Users)
+
+model User {
+  id                    String     @id @default(uuid())
+  tenantId              String?    // null = Platform Admin
+  email                 String     @unique
+  passwordHash          String?
+  firstName             String
+  lastName              String
+  role                  UserRole
+  status                UserStatus @default(PENDING_VERIFICATION)
+  avatarUrl             String?
+  phone                 String?
+  timezone              String     @default("UTC")
+  locale                String     @default("en")
+  emailVerifiedAt       DateTime?
+  lastLoginAt           DateTime?
+  lastLoginIp           String?
+  failedLoginAttempts   Int        @default(0)
+  lockedUntil           DateTime?
+  metadata              Json       @default("{}")
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+
+  // Relations
+  tenant              Tenant?           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  refreshTokens       RefreshToken[]
+  oauthAccounts       OAuthAccount[]
+  assignedTickets     Ticket[]          @relation("AssignedAgent")
+  createdTickets      Ticket[]          @relation("TicketCreator")
+  comments            TicketComment[]
+  notifications       Notification[]
+  auditLogsAsActor    AuditLog[]        @relation("AuditActor")
+  passwordResetTokens PasswordResetToken[]
+  emailVerifyTokens   EmailVerifyToken[]
+  assignedCustomers   Customer[]        @relation("AssignedAgent")
+
+  @@index([tenantId])
+  @@index([email])
+  @@index([role])
+  @@index([status])
+  @@index([tenantId, role])
+  @@index([tenantId, status])
+  @@map("users")
+}
+
+// OAUTH ACCOUNTS
+
+model OAuthAccount {
+  id           String   @id @default(uuid())
+  userId       String
+  provider     String   // google, github, etc.
+  providerUid  String
+  accessToken  String?
+  refreshToken String?
+  expiresAt    DateTime?
+  profile      Json     @default("{}")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerUid])
+  @@index([userId])
+  @@map("oauth_accounts")
+}
+
+// REFRESH TOKENS
+
+model RefreshToken {
+  id          String    @id @default(uuid())
+  userId      String
+  tokenHash   String    @unique
+  familyId    String    // Token rotation family
+  isRevoked   Boolean   @default(false)
+  revokedAt   DateTime?
+  revokedReason String?
+  expiresAt   DateTime
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@index([familyId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+// PASSWORD RESET TOKENS
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@map("password_reset_tokens")
+}
+
+// EMAIL VERIFICATION TOKENS
+
+model EmailVerifyToken {
+  id        String   @id @default(uuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("email_verify_tokens")
+}
+
+// ROLES & PERMISSIONS (Configurable RBAC)
+
+model Role {
+  id          String   @id @default(uuid())
+  tenantId    String?  // null = system role
+  name        String
+  displayName String
+  description String?
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  permissions RolePermission[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(uuid())
+  resource    String   // tickets, customers, users
+  action      String   // create, read, update, delete
+  description String?
+  createdAt   DateTime @default(now())
+
+  roles RolePermission[]
+
+  @@unique([resource, action])
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  createdAt    DateTime @default(now())
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+// CUSTOMERS
+
+model Customer {
+  id              String         @id @default(uuid())
+  tenantId        String
+  assignedAgentId String?
+  fullName        String
+  email           String
+  phone           String?
+  company         String?
+  notes           String?
+  status          CustomerStatus @default(ACTIVE)
+  riskScore       Float?         @default(0)
+  riskLabel       String?        // LOW, MEDIUM, HIGH, CRITICAL
+  metadata        Json           @default("{}")
+  externalId      String?        // For CRM integrations
+  lastActivityAt  DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  // Full text search vector
+  searchVector    Unsupported("tsvector")?
+
+  // Relations
+  tenant        Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  assignedAgent User?           @relation("AssignedAgent", fields: [assignedAgentId], references: [id])
+  tickets       Ticket[]
+  activities    ActivityLog[]
+  notifications Notification[]
+  aiResults     AIResult[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, assignedAgentId])
+  @@index([tenantId, email])
+  @@index([riskScore])
+  @@index([createdAt])
+  @@map("customers")
+}
+
+// TICKETS
+
+model Ticket {
+  id              String         @id @default(uuid())
+  tenantId        String
+  ticketNumber    Int            // Auto-incremented per tenant
+  customerId      String
+  assignedAgentId String?
+  createdById     String
+  title           String
+  description     String
+  status          TicketStatus   @default(OPEN)
+  priority        TicketPriority @default(MEDIUM)
+  category        TicketCategory @default(GENERAL)
+  tags            String[]       @default([])
+  source          String         @default("web") // web, email, whatsapp, api
+  isEscalated     Boolean        @default(false)
+  escalatedAt     DateTime?
+  escalatedReason String?
+  resolvedAt      DateTime?
+  closedAt        DateTime?
+  firstResponseAt DateTime?
+  dueAt           DateTime?
+  slaBreached     Boolean        @default(false)
+  metadata        Json           @default("{}")
+  internalNotes   String?
+  externalRef     String?        // WhatsApp thread ID, email thread ID
+
+  // Full text search vector
+  searchVector    Unsupported("tsvector")?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  tenant        Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer      Customer        @relation(fields: [customerId], references: [id])
+  assignedAgent User?           @relation("AssignedAgent", fields: [assignedAgentId], references: [id])
+  createdBy     User            @relation("TicketCreator", fields: [createdById], references: [id])
+  comments      TicketComment[]
+  attachments   Attachment[]
+  activities    ActivityLog[]
+  notifications Notification[]
+  aiResults     AIResult[]
+
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, priority])
+  @@index([tenantId, assignedAgentId])
+  @@index([tenantId, customerId])
+  @@index([tenantId, category])
+  @@index([tenantId, isEscalated])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, status, priority])
+  @@index([tenantId, assignedAgentId, status])
+  @@index([dueAt])
+  @@index([slaBreached])
+  @@map("tickets")
+}
+
+// TICKET SEQUENCE (per-tenant auto-increment)
+
+model TicketSequence {
+  tenantId    String @id
+  lastNumber  Int    @default(0)
+
+  @@map("ticket_sequences")
+}
+
+// TICKET COMMENTS
+
+model TicketComment {
+  id          String      @id @default(uuid())
+  tenantId    String
+  ticketId    String
+  authorId    String
+  content     String
+  type        CommentType @default(PUBLIC)
+  isAiDraft   Boolean     @default(false)
+  aiDraftId   String?     // Reference to AIResult
+  editedAt    DateTime?
+  metadata    Json        @default("{}")
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  // Full text search vector
+  searchVector Unsupported("tsvector")?
+
+  // Relations
+  ticket      Ticket       @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author      User         @relation(fields: [authorId], references: [id])
+  attachments Attachment[]
+
+  @@index([tenantId])
+  @@index([ticketId])
+  @@index([tenantId, ticketId])
+  @@index([authorId])
+  @@index([createdAt])
+  @@map("ticket_comments")
+}
+
+// ATTACHMENTS
+
+model Attachment {
+  id              String           @id @default(uuid())
+  tenantId        String
+  ticketId        String?
+  commentId       String?
+  uploadedById    String
+  filename        String
+  originalName    String
+  mimeType        String
+  sizeBytes       BigInt
+  storageProvider StorageProvider  @default(S3)
+  storagePath     String
+  publicUrl       String?
+  status          AttachmentStatus @default(PENDING)
+  scanResult      String?
+  checksum        String?
+  metadata        Json             @default("{}")
+  expiresAt       DateTime?
+  createdAt       DateTime         @default(now())
+
+  // Relations
+  ticket  Ticket?        @relation(fields: [ticketId], references: [id])
+  comment TicketComment? @relation(fields: [commentId], references: [id])
+
+  @@index([tenantId])
+  @@index([ticketId])
+  @@index([commentId])
+  @@index([status])
+  @@map("attachments")
+}
+
+// ACTIVITY LOGS (Immutable Timeline)
+
+model ActivityLog {
+  id          String            @id @default(uuid())
+  tenantId    String
+  ticketId    String?
+  customerId  String?
+  actorId     String?
+  actorRole   String?
+  eventType   ActivityEventType
+  description String
+  oldValue    Json?
+  newValue    Json?
+  metadata    Json              @default("{}")
+  occurredAt  DateTime          @default(now())
+
+  // Relations
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ticket   Ticket?   @relation(fields: [ticketId], references: [id])
+  customer Customer? @relation(fields: [customerId], references: [id])
+
+  @@index([tenantId])
+  @@index([ticketId])
+  @@index([customerId])
+  @@index([tenantId, eventType])
+  @@index([occurredAt])
+  @@map("activity_logs")
+}
+
+// AUDIT LOGS (Security & Compliance - Immutable)
+
+model AuditLog {
+  id           String      @id @default(uuid())
+  tenantId     String?
+  actorId      String?
+  actorRole    String?
+  action       AuditAction
+  resource     String
+  resourceId   String?
+  oldValue     Json?
+  newValue     Json?
+  ipAddress    String?
+  userAgent    String?
+  correlationId String?
+  metadata     Json        @default("{}")
+  occurredAt   DateTime    @default(now())
+
+  // Relations
+  tenant Tenant? @relation(fields: [tenantId], references: [id])
+  actor  User?   @relation("AuditActor", fields: [actorId], references: [id])
+
+  @@index([tenantId])
+  @@index([actorId])
+  @@index([resource, resourceId])
+  @@index([action])
+  @@index([occurredAt])
+  @@index([tenantId, occurredAt])
+  @@map("audit_logs")
+}
+
+// NOTIFICATIONS
+
+model Notification {
+  id          String              @id @default(uuid())
+  tenantId    String
+  userId      String?
+  customerId  String?
+  ticketId    String?
+  channel     NotificationChannel
+  status      NotificationStatus  @default(PENDING)
+  subject     String?
+  content     String
+  metadata    Json                @default("{}")
+  scheduledAt DateTime?
+  sentAt      DateTime?
+  deliveredAt DateTime?
+  failedAt    DateTime?
+  failReason  String?
+  retryCount  Int                 @default(0)
+  maxRetries  Int                 @default(3)
+  readAt      DateTime?
+  createdAt   DateTime            @default(now())
+
+  // Relations
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user     User?     @relation(fields: [userId], references: [id])
+  customer Customer? @relation(fields: [customerId], references: [id])
+  ticket   Ticket?   @relation(fields: [ticketId], references: [id])
+
+  @@index([tenantId])
+  @@index([userId])
+  @@index([customerId])
+  @@index([ticketId])
+  @@index([status])
+  @@index([channel, status])
+  @@index([scheduledAt])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+// AI RESULTS
+
+model AIResult {
+  id              String       @id @default(uuid())
+  tenantId        String
+  ticketId        String?
+  customerId      String?
+  type            AIResultType
+  provider        String       @default("openai")
+  model           String
+  prompt          String?
+  result          Json
+  confidence      Float?
+  tokensUsed      Int?
+  processingMs    Int?
+  wasAccepted     Boolean?     // For response suggestions
+  acceptedAt      DateTime?
+  acceptedById    String?
+  metadata        Json         @default("{}")
+  createdAt       DateTime     @default(now())
+
+  // Relations
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ticket   Ticket?   @relation(fields: [ticketId], references: [id])
+  customer Customer? @relation(fields: [customerId], references: [id])
+
+  @@index([tenantId])
+  @@index([ticketId])
+  @@index([customerId])
+  @@index([type])
+  @@index([tenantId, type])
+  @@index([createdAt])
+  @@map("ai_results")
+}
+
+// ANALYTICS SNAPSHOTS (Reporting Warehouse)
+
+model AnalyticsSnapshot {
+  id                    String   @id @default(uuid())
+  tenantId              String
+  snapshotDate          DateTime @db.Date
+  totalTickets          Int      @default(0)
+  openTickets           Int      @default(0)
+  resolvedTickets       Int      @default(0)
+  closedTickets         Int      @default(0)
+  escalatedTickets      Int      @default(0)
+  avgResolutionTimeMs   BigInt?
+  avgFirstResponseTimeMs BigInt?
+  slaBreachedCount      Int      @default(0)
+  criticalTickets       Int      @default(0)
+  highTickets           Int      @default(0)
+  mediumTickets         Int      @default(0)
+  lowTickets            Int      @default(0)
+  totalCustomers        Int      @default(0)
+  activeAgents          Int      @default(0)
+  categoryDistribution  Json     @default("{}")
+  agentPerformance      Json     @default("{}")
+  sentimentDistribution Json     @default("{}")
+  createdAt             DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, snapshotDate])
+  @@index([tenantId])
+  @@index([snapshotDate])
+  @@index([tenantId, snapshotDate])
+  @@map("analytics_snapshots")
+}
+
+// TENANT INTEGRATIONS
+
+model TenantIntegration {
+  id           String   @id @default(uuid())
+  tenantId     String
+  provider     String   // whatsapp, slack, email
+  isEnabled    Boolean  @default(true)
+  config       Json     @default("{}")  // Encrypted
+  webhookUrl   String?
+  webhookSecret String? // Encrypted
+  lastSyncAt   DateTime?
+  metadata     Json     @default("{}")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, provider])
+  @@index([tenantId])
+  @@map("tenant_integrations")
+}
+
+// WEBHOOK EVENTS LOG
+
+model WebhookEvent {
+  id          String           @id @default(uuid())
+  tenantId    String?
+  eventType   WebhookEventType
+  provider    String
+  payload     Json
+  signature   String?
+  processed   Boolean          @default(false)
+  processedAt DateTime?
+  error       String?
+  retryCount  Int              @default(0)
+  createdAt   DateTime         @default(now())
+
+  @@index([tenantId])
+  @@index([processed])
+  @@index([eventType])
+  @@index([createdAt])
+  @@map("webhook_events")
+}
