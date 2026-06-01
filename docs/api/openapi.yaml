@@ -1,0 +1,3 @@
+# Placeholder: OpenAPI contract for OmniSupport HTTP APIs.
+# Current API behavior is defined by Express routes and DTO schemas in src/presentation.
+# Generate or author this once the public v1 route contract is frozen.
