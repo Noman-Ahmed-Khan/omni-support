@@ -1,0 +1,201 @@
+import { PrismaClient, Prisma } from '@prisma/client';
+import {
+  ITenantRepository,
+  TenantFilters,
+  PaginatedResult,
+} from '../../../domain/tenant/repositories/tenant.repository.interface';
+import { TenantEntity } from '../../../domain/tenant/entities/tenant.entity';
+import { TenantStatus } from '../../../domain/tenant/value-objects/tenant-status.vo';
+import { TenantSlug } from '../../../domain/tenant/value-objects/tenant-slug.vo';
+import { InfrastructureError } from '../../../shared/errors/infrastructure.error';
+
+export class TenantRepository implements ITenantRepository {
+  constructor(private readonly prisma: PrismaClient) {}
+
+  async findById(id: string): Promise<TenantEntity | null> {
+    try {
+      const record = await this.prisma.tenant.findUnique({
+        where: { id },
+      });
+
+      return record ? this.toDomain(record) : null;
+    } catch (error) {
+      throw new InfrastructureError('Failed to find tenant by id', { error });
+    }
+  }
+
+  async findBySlug(slug: string): Promise<TenantEntity | null> {
+    try {
+      const record = await this.prisma.tenant.findUnique({
+        where: { slug },
+      });
+
+      return record ? this.toDomain(record) : null;
+    } catch (error) {
+      throw new InfrastructureError('Failed to find tenant by slug', { error });
+    }
+  }
+
+  async findByDomain(domain: string): Promise<TenantEntity | null> {
+    try {
+      const record = await this.prisma.tenant.findUnique({
+        where: { domain },
+      });
+
+      return record ? this.toDomain(record) : null;
+    } catch (error) {
+      throw new InfrastructureError('Failed to find tenant by domain', {
+        error,
+      });
+    }
+  }
+
+  async findAll(
+    filters: TenantFilters,
+    page: number,
+    limit: number,
+  ): Promise<PaginatedResult<TenantEntity>> {
+    try {
+      const where: Prisma.TenantWhereInput = {};
+
+      if (filters.status) {
+        where.status = filters.status as any;
+      }
+
+      if (filters.plan) {
+        where.plan = filters.plan;
+      }
+
+      if (filters.search) {
+        where.OR = [
+          { name: { contains: filters.search, mode: 'insensitive' } },
+          { slug: { contains: filters.search, mode: 'insensitive' } },
+          { domain: { contains: filters.search, mode: 'insensitive' } },
+        ];
+      }
+
+      const skip = (page - 1) * limit;
+
+      const [records, total] = await Promise.all([
+        this.prisma.tenant.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy: { createdAt: 'desc' },
+        }),
+        this.prisma.tenant.count({ where }),
+      ]);
+
+      return {
+        data: records.map((r) => this.toDomain(r)),
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      };
+    } catch (error) {
+      throw new InfrastructureError('Failed to list tenants', { error });
+    }
+  }
+
+  async save(tenant: TenantEntity): Promise<TenantEntity> {
+    try {
+      const record = await this.prisma.tenant.create({
+        data: {
+          id: tenant.id,
+          name: tenant.name,
+          slug: tenant.slug,
+          status: tenant.status as any,
+          plan: tenant.plan,
+          domain: tenant.domain,
+          logoUrl: tenant.logoUrl,
+          maxAgents: tenant.maxAgents,
+          maxCustomers: tenant.maxCustomers,
+          maxTicketsPerDay: tenant.maxTicketsPerDay,
+          settings: tenant.settings as any,
+          suspendedAt: tenant.suspendedAt,
+          suspendedReason: tenant.suspendedReason,
+        },
+      });
+
+      return this.toDomain(record);
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new InfrastructureError('Tenant slug or domain already exists', {
+          code: 'DUPLICATE',
+        });
+      }
+      throw new InfrastructureError('Failed to save tenant', { error });
+    }
+  }
+
+  async update(tenant: TenantEntity): Promise<TenantEntity> {
+    try {
+      const record = await this.prisma.tenant.update({
+        where: { id: tenant.id },
+        data: {
+          name: tenant.name,
+          status: tenant.status as any,
+          plan: tenant.plan,
+          domain: tenant.domain,
+          logoUrl: tenant.logoUrl,
+          maxAgents: tenant.maxAgents,
+          maxCustomers: tenant.maxCustomers,
+          maxTicketsPerDay: tenant.maxTicketsPerDay,
+          settings: tenant.settings as any,
+          suspendedAt: tenant.suspendedAt,
+          suspendedReason: tenant.suspendedReason,
+          updatedAt: new Date(),
+        },
+      });
+
+      return this.toDomain(record);
+    } catch (error) {
+      throw new InfrastructureError('Failed to update tenant', { error });
+    }
+  }
+
+  async delete(id: string): Promise<void> {
+    try {
+      await this.prisma.tenant.delete({ where: { id } });
+    } catch (error) {
+      throw new InfrastructureError('Failed to delete tenant', { error });
+    }
+  }
+
+  async existsBySlug(slug: string): Promise<boolean> {
+    const count = await this.prisma.tenant.count({ where: { slug } });
+    return count > 0;
+  }
+
+  async existsByDomain(domain: string): Promise<boolean> {
+    const count = await this.prisma.tenant.count({ where: { domain } });
+    return count > 0;
+  }
+
+  async count(): Promise<number> {
+    return this.prisma.tenant.count();
+  }
+
+  private toDomain(record: any): TenantEntity {
+    return TenantEntity.reconstitute(record.id, {
+      name: record.name,
+      slug: TenantSlug.create(record.slug),
+      status: TenantStatus.create(record.status),
+      plan: record.plan,
+      domain: record.domain ?? undefined,
+      logoUrl: record.logoUrl ?? undefined,
+      maxAgents: record.maxAgents,
+      maxCustomers: record.maxCustomers,
+      maxTicketsPerDay: record.maxTicketsPerDay,
+      settings: (record.settings as Record<string, unknown>) ?? {},
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt,
+      suspendedAt: record.suspendedAt ?? undefined,
+      suspendedReason: record.suspendedReason ?? undefined,
+    });
+  }
+}
