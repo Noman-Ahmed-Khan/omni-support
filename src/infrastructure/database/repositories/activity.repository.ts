@@ -1,4 +1,9 @@
-import { PrismaClient } from '@prisma/client';
+import {
+  ActivityEventType,
+  ActivityLog,
+  Prisma,
+  PrismaClient,
+} from '@prisma/client';
 import { InfrastructureError } from '../../../shared/errors/infrastructure.error';
 
 export interface ActivityLogEntry {
@@ -26,11 +31,11 @@ export class ActivityRepository {
           customerId: entry.customerId,
           actorId: entry.actorId,
           actorRole: entry.actorRole,
-          eventType: entry.eventType as any,
+          eventType: entry.eventType as ActivityEventType,
           description: entry.description,
-          oldValue: entry.oldValue as any,
-          newValue: entry.newValue as any,
-          metadata: (entry.metadata ?? {}) as any,
+          oldValue: toInputJson(entry.oldValue),
+          newValue: toInputJson(entry.newValue),
+          metadata: toInputJson(entry.metadata ?? {}),
         },
       });
     } catch (error) {
@@ -43,7 +48,7 @@ export class ActivityRepository {
     tenantId: string,
     page: number = 1,
     limit: number = 50,
-  ) {
+  ): Promise<{ data: ActivityLog[]; total: number; page: number; limit: number; totalPages: number }> {
     try {
       const skip = (page - 1) * limit;
 
@@ -76,7 +81,7 @@ export class ActivityRepository {
     tenantId: string,
     page: number = 1,
     limit: number = 50,
-  ) {
+  ): Promise<{ data: ActivityLog[]; total: number; page: number; limit: number; totalPages: number }> {
     try {
       const skip = (page - 1) * limit;
 
@@ -103,4 +108,10 @@ export class ActivityRepository {
       });
     }
   }
+}
+
+function toInputJson(
+  value: Record<string, unknown> | undefined,
+): Prisma.InputJsonValue | undefined {
+  return value as Prisma.InputJsonValue | undefined;
 }

@@ -3,6 +3,7 @@ import helmet from 'helmet';
 import cors from 'cors';
 import compression from 'compression';
 import { json, urlencoded } from 'express';
+import { Container } from '../../container';
 import { appConfig } from '../../config/app.config';
 import { correlationMiddleware } from './middlewares/correlation.middleware';
 import { rateLimitMiddleware } from './middlewares/rate-limit.middleware';
@@ -12,7 +13,7 @@ import { createV1Router } from './routes/v1';
 import { createHealthRouter } from './routes/health.routes';
 import { logger } from '../../shared/utils/logger.util';
 
-export function createApp(container: any): Application {
+export function createApp(container: Container): Application {
   const app = express();
 
   // Security Headers
@@ -128,18 +129,16 @@ export function createApp(container: any): Application {
   return app;
 }
 
-// Extend Express Request type
-declare global {
-  namespace Express {
-    interface Request {
-      correlationId: string;
-      user?: {
-        id: string;
-        email: string;
-        role: string;
-        tenantId?: string;
-      };
+// Extend Express Request type via module augmentation
+declare module 'express-serve-static-core' {
+  interface Request {
+    correlationId: string;
+    user?: {
+      id: string;
+      email: string;
+      role: string;
       tenantId?: string;
-    }
+    };
+    tenantId?: string;
   }
 }

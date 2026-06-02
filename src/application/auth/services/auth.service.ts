@@ -1,6 +1,6 @@
 import argon2 from 'argon2';
 import crypto from 'crypto';
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient, UserRole } from '@prisma/client';
 import { TokenPair, TokenService } from './token.service';
 import { EmailQueue } from '../../../infrastructure/queue/queues/email.queue';
 import { AuditRepository } from '../../../infrastructure/database/repositories/audit.repository';
@@ -73,6 +73,12 @@ export class AuthService {
     const passwordHash = await this.hashPassword(dto.password);
     const userId = crypto.randomUUID();
 
+    const role: UserRole =
+      dto.role &&
+      ['PLATFORM_ADMIN', 'TENANT_MANAGER', 'AGENT', 'CUSTOMER'].includes(dto.role)
+        ? (dto.role as UserRole)
+        : 'AGENT';
+
     const user = await this.prisma.user.create({
       data: {
         id: userId,
@@ -80,7 +86,7 @@ export class AuthService {
         passwordHash,
         firstName: dto.firstName,
         lastName: dto.lastName,
-        role: (dto.role as any) ?? 'AGENT',
+        role,
         tenantId: dto.tenantId,
         status: 'PENDING_VERIFICATION',
       },
@@ -163,7 +169,9 @@ export class AuthService {
     if (!isValidPassword) {
       // Increment failed attempts
       const failedAttempts = user.failedLoginAttempts + 1;
-      const updateData: any = { failedLoginAttempts: failedAttempts };
+      const updateData: Prisma.UserUpdateInput = {
+        failedLoginAttempts: failedAttempts,
+      };
 
       if (failedAttempts >= 5) {
         updateData.lockedUntil = new Date(Date.now() + 15 * 60 * 1000);

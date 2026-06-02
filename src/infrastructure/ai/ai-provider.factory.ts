@@ -10,7 +10,7 @@ export class AIProviderFactory {
       return AIProviderFactory.instance;
     }
 
-    const provider = aiConfig.provider;
+    const provider: string = aiConfig.provider;
 
     switch (provider) {
       case 'openai':

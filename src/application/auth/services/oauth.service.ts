@@ -1,6 +1,6 @@
 import { OAuth2Client } from 'google-auth-library';
 import crypto from 'crypto';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, User } from '@prisma/client';
 import { TokenService } from './token.service';
 import { logger } from '../../../shared/utils/logger.util';
 
@@ -11,6 +11,13 @@ export interface GoogleUserInfo {
   lastName: string;
   avatarUrl?: string;
   emailVerified: boolean;
+}
+
+export interface GoogleTokens {
+  access_token?: string;
+  refresh_token?: string;
+  expiry_date?: number;
+  id_token?: string;
 }
 
 export class OAuthService {
@@ -44,7 +51,7 @@ export class OAuthService {
     refreshToken: string;
     expiresIn: number;
     isNewUser: boolean;
-    user: any;
+    user: User;
   }> {
     // Exchange code for tokens
     const { tokens } = await this.googleClient.getToken(code);
@@ -96,8 +103,8 @@ export class OAuthService {
 
   private async findOrCreateGoogleUser(
     googleUser: GoogleUserInfo,
-    tokens: any,
-  ): Promise<{ user: any; isNewUser: boolean }> {
+    tokens: GoogleTokens,
+  ): Promise<{ user: User; isNewUser: boolean }> {
     // Check existing OAuth account
     const existingOAuth = await this.prisma.oAuthAccount.findUnique({
       where: {

@@ -1,6 +1,9 @@
 import rateLimit from 'express-rate-limit';
-import { RedisStore } from 'rate-limit-redis';
+import { RedisStore, type RedisReply } from 'rate-limit-redis';
 import { getRedisClient } from '../../../infrastructure/cache/redis.client';
+
+const redisSendCommand = (...args: string[]): Promise<RedisReply> =>
+  getRedisClient().sendCommand(args);
 
 // Global rate limit
 export const rateLimitMiddleware = rateLimit({
@@ -22,8 +25,7 @@ export const rateLimitMiddleware = rateLimit({
     });
   },
   store: new RedisStore({
-    sendCommand: (...args: string[]) =>
-      (getRedisClient() as any).sendCommand(args),
+    sendCommand: redisSendCommand,
   }),
 });
 
@@ -44,8 +46,7 @@ export const authRateLimitMiddleware = rateLimit({
     });
   },
   store: new RedisStore({
-    sendCommand: (...args: string[]) =>
-      (getRedisClient() as any).sendCommand(args),
+    sendCommand: redisSendCommand,
   }),
 });
 

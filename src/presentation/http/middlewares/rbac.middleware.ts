@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction, RequestHandler } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { PermissionCacheStrategy } from '../../../infrastructure/cache/strategies/permission.cache';
 import { ForbiddenError, UnauthorizedError } from '../../../shared/errors/application.error';
@@ -8,13 +8,13 @@ export function requirePermission(resource: string, action: string) {
   return function permissionMiddleware(
     _prisma: PrismaClient,
     _permissionCache: PermissionCacheStrategy,
-  ) {
-    return async (
+  ): RequestHandler {
+    return (
       req: Request,
       _res: Response,
       next: NextFunction,
-    ): Promise<void> => {
-      try {
+    ): void => {
+      void (async (): Promise<void> => {
         if (!req.user) {
           throw new UnauthorizedError('Authentication required');
         }
@@ -43,19 +43,17 @@ export function requirePermission(resource: string, action: string) {
         }
 
         next();
-      } catch (error) {
-        next(error);
-      }
+      })().catch(next);
     };
   };
 }
 
-export function requireRole(...roles: string[]) {
-  return async (
+export function requireRole(...roles: string[]): RequestHandler {
+  return (
     req: Request,
     _res: Response,
     next: NextFunction,
-  ): Promise<void> => {
+  ): void => {
     try {
       if (!req.user) {
         throw new UnauthorizedError('Authentication required');

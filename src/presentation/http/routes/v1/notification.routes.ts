@@ -2,9 +2,11 @@ import { Router } from 'express';
 import { createAuthMiddleware } from '../../middlewares/auth.middleware';
 import { createTenantMiddleware } from '../../middlewares/tenant.middleware';
 import { PrismaClient } from '@prisma/client';
+import { Container } from '../../../../container';
 import { successResponse, paginatedResponse } from '../../dtos/common/response.dto';
+import { asyncHandler } from '../../utils/async-handler';
 
-export function createNotificationRoutes(container: any): Router {
+export function createNotificationRoutes(container: Container): Router {
   const router = Router();
   const authMiddleware = createAuthMiddleware(container.resolve('tokenService'));
   const tenantMiddleware = createTenantMiddleware(container.resolve('prisma'));
@@ -13,8 +15,9 @@ export function createNotificationRoutes(container: any): Router {
   router.use(authMiddleware, tenantMiddleware);
 
   // Get user notifications
-  router.get('/', async (req, res, next) => {
-    try {
+  router.get(
+    '/',
+    asyncHandler(async (req, res) => {
       const page = Number(req.query.page ?? 1);
       const limit = Number(req.query.limit ?? 20);
       const skip = (page - 1) * limit;
@@ -38,14 +41,13 @@ export function createNotificationRoutes(container: any): Router {
       ]);
 
       res.status(200).json(paginatedResponse(notifications, total, page, limit));
-    } catch (error) {
-      next(error);
-    }
-  });
+    }),
+  );
 
   // Mark notification as read
-  router.patch('/:id/read', async (req, res, next) => {
-    try {
+  router.patch(
+    '/:id/read',
+    asyncHandler(async (req, res) => {
       await prisma.notification.updateMany({
         where: {
           id: req.params.id,
@@ -56,14 +58,13 @@ export function createNotificationRoutes(container: any): Router {
       });
 
       res.status(200).json(successResponse({ message: 'Marked as read' }));
-    } catch (error) {
-      next(error);
-    }
-  });
+    }),
+  );
 
   // Mark all as read
-  router.patch('/mark-all-read', async (req, res, next) => {
-    try {
+  router.patch(
+    '/mark-all-read',
+    asyncHandler(async (req, res) => {
       await prisma.notification.updateMany({
         where: {
           userId: req.user!.id,
@@ -74,10 +75,8 @@ export function createNotificationRoutes(container: any): Router {
       });
 
       res.status(200).json(successResponse({ message: 'All notifications marked as read' }));
-    } catch (error) {
-      next(error);
-    }
-  });
+    }),
+  );
 
   return router;
 }

@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { ParamsDictionary } from 'express-serve-static-core';
 import { TenantEntity } from '../../../domain/tenant/entities/tenant.entity';
 import { successResponse, paginatedResponse } from '../dtos/common/response.dto';
 import { CreateTenantHandler } from '../../../application/tenant/handlers/create-tenant.handler';
@@ -7,6 +8,11 @@ import { SuspendTenantHandler } from '../../../application/tenant/handlers/suspe
 import { RestoreTenantHandler } from '../../../application/tenant/handlers/restore-tenant.handler';
 import { GetTenantHandler } from '../../../application/tenant/handlers/get-tenant.handler';
 import { ListTenantsHandler } from '../../../application/tenant/handlers/list-tenants.handler';
+import {
+  CreateTenantDto,
+  UpdateTenantDto,
+  SuspendTenantDto,
+} from '../dtos/tenant/tenant.dto';
 
 export class TenantController {
   constructor(
@@ -18,7 +24,11 @@ export class TenantController {
     private readonly listTenantsHandler: ListTenantsHandler,
   ) {}
 
-  async create(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async create(
+    req: Request<ParamsDictionary, unknown, CreateTenantDto, unknown>,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const saved = await this.createTenantHandler.execute({
         actorId: req.user!.id,
@@ -37,19 +47,29 @@ export class TenantController {
     }
   }
 
-  async findAll(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async findAll(
+    req: Request<ParamsDictionary, unknown, unknown, {
+      page?: string;
+      limit?: string;
+      status?: string;
+      plan?: string;
+      search?: string;
+    }>,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
-      const { page, limit, status, plan, search } = req.query as any;
+      const { page, limit, status, plan, search } = req.query;
 
       const result = await this.listTenantsHandler.execute({
         filters: { status, plan, search },
         page: Number(page ?? 1),
         limit: Number(limit ?? 20),
-      }) as any;
+      });
 
       res.status(200).json(
         paginatedResponse(
-          result.data.map(this.toTenantResponse),
+          result.data.map((tenant) => this.toTenantResponse(tenant)),
           result.total,
           result.page,
           result.limit,
@@ -72,7 +92,11 @@ export class TenantController {
     }
   }
 
-  async update(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async update(
+    req: Request<ParamsDictionary, unknown, UpdateTenantDto, unknown>,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const updated = await this.updateTenantHandler.execute({
         tenantId: req.params.id,
@@ -87,7 +111,11 @@ export class TenantController {
     }
   }
 
-  async suspend(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async suspend(
+    req: Request<ParamsDictionary, unknown, SuspendTenantDto, unknown>,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const updated = await this.suspendTenantHandler.execute({
         tenantId: req.params.id,
@@ -102,7 +130,11 @@ export class TenantController {
     }
   }
 
-  async restore(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async restore(
+    req: Request<ParamsDictionary, unknown, unknown, unknown>,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const updated = await this.restoreTenantHandler.execute({
         tenantId: req.params.id,

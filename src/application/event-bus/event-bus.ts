@@ -28,11 +28,12 @@ export class InProcessEventBus implements IEventBus {
 
     results.forEach((result, index) => {
       if (result.status === 'rejected') {
+        const reason: unknown = result.reason;
         logger.error('Event handler failed', {
           eventType: event.eventType,
           eventId: event.eventId,
           handlerIndex: index,
-          error: result.reason,
+          error: reason,
         });
       }
     });
@@ -51,7 +52,9 @@ export class InProcessEventBus implements IEventBus {
     if (!this.handlers.has(eventType)) {
       this.handlers.set(eventType, []);
     }
-    this.handlers.get(eventType)!.push(handler as EventHandler);
+    this.handlers
+      .get(eventType)!
+      .push(handler);
 
     logger.debug('Event handler registered', { eventType });
   }

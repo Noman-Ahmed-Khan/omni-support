@@ -1,4 +1,4 @@
-import { Worker, Job } from 'bullmq';
+import { Worker, Job, ConnectionOptions } from 'bullmq';
 import { getRedisClient } from '../../cache/redis.client';
 import { QueueName } from '../queue.factory';
 import { NotificationJobData } from '../queues/notification.queue';
@@ -21,7 +21,7 @@ export function createNotificationWorker(
       await handler(job.data);
     },
     {
-      connection: connection as any,
+      connection: connection as unknown as ConnectionOptions,
       concurrency: 20,
     },
   );

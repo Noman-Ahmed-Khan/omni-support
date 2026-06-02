@@ -1,18 +1,44 @@
-import { Request, Response, NextFunction } from 'express';
-import { ZodSchema, ZodError } from 'zod';
+import { Request, Response, NextFunction, RequestHandler } from 'express';
+import { ParamsDictionary } from 'express-serve-static-core';
+import { ZodError, ZodTypeAny, z } from 'zod';
 import { ValidationError } from '../../../shared/errors/domain.error';
 
 type ValidationTarget = 'body' | 'query' | 'params';
 
-export function validate(
-  schema: ZodSchema,
+export function validate<T extends ZodTypeAny>(
+  schema: T,
+): RequestHandler<ParamsDictionary, unknown, z.infer<T>, unknown>;
+export function validate<T extends ZodTypeAny>(
+  schema: T,
+  target: 'query',
+): RequestHandler<ParamsDictionary, unknown, unknown, z.infer<T>>;
+export function validate<T extends ZodTypeAny>(
+  schema: T,
+  target: 'params',
+): RequestHandler<z.infer<T>, unknown, unknown, unknown>;
+export function validate<T extends ZodTypeAny>(
+  schema: T,
   target: ValidationTarget = 'body',
-) {
-  return (req: Request, _res: Response, next: NextFunction): void => {
+): RequestHandler {
+  return (
+    req: Request<ParamsDictionary, unknown, unknown, unknown>,
+    _res: Response,
+    next: NextFunction,
+  ): void => {
     try {
       const data = req[target];
-      const parsed = schema.parse(data);
-      req[target] = parsed;
+      const parsed: unknown = schema.parse(data);
+
+      if (target === 'body') {
+        (req as Request<ParamsDictionary, unknown, z.infer<T>, unknown>).body =
+          parsed;
+      } else if (target === 'query') {
+        (req as Request<ParamsDictionary, unknown, unknown, z.infer<T>>).query =
+          parsed;
+      } else {
+        (req as Request<z.infer<T>, unknown, unknown, unknown>).params = parsed;
+      }
+
       next();
     } catch (error) {
       if (error instanceof ZodError) {

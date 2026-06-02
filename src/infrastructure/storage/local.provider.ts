@@ -41,7 +41,7 @@ export class LocalStorageProvider implements IStorageProvider {
     }
   }
 
-  async getSignedUrl(
+  getSignedUrl(
     storagePath: string,
     options: SignedUrlOptions = {},
   ): Promise<string> {
@@ -53,7 +53,9 @@ export class LocalStorageProvider implements IStorageProvider {
       .update(`${storagePath}:${expires}`)
       .digest('hex');
 
-    return `${this.baseUrl}/${storagePath}?token=${token}&expires=${expires}`;
+    return Promise.resolve(
+      `${this.baseUrl}/${storagePath}?token=${token}&expires=${expires}`,
+    );
   }
 
   async delete(storagePath: string): Promise<void> {

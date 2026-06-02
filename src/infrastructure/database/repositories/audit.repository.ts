@@ -1,5 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import { AuditAction, AuditLog, Prisma, PrismaClient } from '@prisma/client';
 import { InfrastructureError } from '../../../shared/errors/infrastructure.error';
+import { logger } from '../../../shared/utils/logger.util';
 
 export interface AuditLogEntry {
   tenantId?: string;
@@ -26,21 +27,21 @@ export class AuditRepository {
           tenantId: entry.tenantId,
           actorId: entry.actorId,
           actorRole: entry.actorRole,
-          action: entry.action as any,
+          action: entry.action as AuditAction,
           resource: entry.resource,
           resourceId: entry.resourceId,
-          oldValue: entry.oldValue as any,
-          newValue: entry.newValue as any,
+          oldValue: toInputJson(entry.oldValue),
+          newValue: toInputJson(entry.newValue),
           ipAddress: entry.ipAddress,
           userAgent: entry.userAgent,
           correlationId: entry.correlationId,
-          metadata: (entry.metadata ?? {}) as any,
+          metadata: toInputJson(entry.metadata ?? {}),
         },
       });
     } catch (error) {
       // Audit log failures should not crash the application
-      // but must be logged to stderr
-      console.error('AUDIT LOG FAILURE:', error);
+      // but must be logged
+      logger.error('AUDIT LOG FAILURE', { error });
     }
   }
 
@@ -48,7 +49,7 @@ export class AuditRepository {
     tenantId: string,
     page: number = 1,
     limit: number = 50,
-  ) {
+  ): Promise<{ data: AuditLog[]; total: number; page: number; limit: number; totalPages: number }> {
     try {
       const skip = (page - 1) * limit;
 
@@ -78,7 +79,7 @@ export class AuditRepository {
     resource: string,
     resourceId: string,
     tenantId?: string,
-  ) {
+  ): Promise<AuditLog[]> {
     try {
       return this.prisma.auditLog.findMany({
         where: { resource, resourceId, tenantId },
@@ -90,4 +91,10 @@ export class AuditRepository {
       });
     }
   }
+}
+
+function toInputJson(
+  value: Record<string, unknown> | undefined,
+): Prisma.InputJsonValue | undefined {
+  return value as Prisma.InputJsonValue | undefined;
 }

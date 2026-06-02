@@ -273,7 +273,9 @@ export class TokenService {
     return crypto.randomBytes(32).toString('hex');
   }
 
-  async hashToken(token: string): Promise<string> {
-    return crypto.createHash('sha256').update(token).digest('hex');
+  hashToken(token: string): Promise<string> {
+    return Promise.resolve(
+      crypto.createHash('sha256').update(token).digest('hex'),
+    );
   }
 }

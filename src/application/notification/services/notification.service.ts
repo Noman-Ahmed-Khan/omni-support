@@ -380,7 +380,7 @@ export class NotificationService {
     userId?: string;
     customerId?: string;
     ticketId?: string;
-    channel: string;
+    channel: import('../../../domain/notification/value-objects/notification-channel.vo').NotificationChannelValue;
     subject?: string;
     content: string;
   }): Promise<void> {
@@ -391,7 +391,7 @@ export class NotificationService {
         userId: data.userId,
         customerId: data.customerId,
         ticketId: data.ticketId,
-        channel: data.channel as any,
+        channel: data.channel,
         subject: data.subject,
         content: data.content,
         status: 'SENT',

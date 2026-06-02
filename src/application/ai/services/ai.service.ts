@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { AIResult, PrismaClient, Prisma } from '@prisma/client';
 import { IAIProvider } from '../../../infrastructure/ai/ai-provider.interface';
 import { ITicketRepository } from '../../../domain/ticket/repositories/ticket.repository.interface';
 import { CustomerService } from '../../customer/services/customer.service';
@@ -54,7 +54,7 @@ export class AIService {
           type: 'CATEGORIZATION',
           provider: 'openai',
           model: 'gpt-4o-mini',
-          result: result as any,
+          result: toInputJson(result),
           confidence: result.confidence,
           processingMs: Date.now() - startTime,
         },
@@ -105,7 +105,7 @@ export class AIService {
           type: 'SENTIMENT',
           provider: 'openai',
           model: 'gpt-4o-mini',
-          result: result as any,
+          result: toInputJson(result),
           confidence: result.confidence,
           processingMs: Date.now() - startTime,
         },
@@ -168,7 +168,7 @@ export class AIService {
           type: 'URGENCY',
           provider: 'openai',
           model: 'gpt-4o-mini',
-          result: result as any,
+          result: toInputJson(result),
           confidence: result.score / 100,
           processingMs: Date.now() - startTime,
         },
@@ -251,7 +251,7 @@ export class AIService {
           type: 'RESPONSE_SUGGESTION',
           provider: 'openai',
           model: 'gpt-4o-mini',
-          result: result as any,
+          result: toInputJson(result),
           processingMs: Date.now() - startTime,
           wasAccepted: false,
         },
@@ -319,7 +319,7 @@ ${commentsText}
           type: 'RESOLUTION_SUMMARY',
           provider: 'openai',
           model: 'gpt-4o-mini',
-          result: result as any,
+          result: toInputJson(result),
           processingMs: Date.now() - startTime,
         },
       });
@@ -386,8 +386,8 @@ ${commentsText}
       const avgSentiment =
         recentSentiments.length > 0
           ? recentSentiments.reduce((sum, s) => {
-              const result = s.result as any;
-              return sum + (result.score ?? 0);
+              const sentiment = s.result as Prisma.JsonObject | null | undefined;
+              return sum + ((sentiment?.score as number) ?? 0);
             }, 0) / recentSentiments.length
           : 0;
 
@@ -412,7 +412,7 @@ ${commentsText}
           type: 'RISK_SCORE',
           provider: 'openai',
           model: 'gpt-4o-mini',
-          result: result as any,
+          result: toInputJson(result),
           confidence: result.score / 100,
           processingMs: Date.now() - startTime,
         },
@@ -454,10 +454,14 @@ ${commentsText}
     });
   }
 
-  async getTicketAIResults(ticketId: string, tenantId: string): Promise<any[]> {
+  async getTicketAIResults(ticketId: string, tenantId: string): Promise<AIResult[]> {
     return this.prisma.aIResult.findMany({
       where: { ticketId, tenantId },
       orderBy: { createdAt: 'desc' },
     });
   }
+}
+
+function toInputJson(value: unknown): Prisma.InputJsonValue {
+  return value as Prisma.InputJsonValue;
 }

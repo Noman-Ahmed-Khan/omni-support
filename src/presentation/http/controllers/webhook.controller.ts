@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { IWhatsAppProvider } from '../../../infrastructure/messaging/whatsapp/whatsapp-provider.interface';
 import { TicketService } from '../../../application/ticket/services/ticket.service';
 import { logger } from '../../../shared/utils/logger.util';
@@ -20,7 +20,8 @@ export class WebhookController {
     try {
       // Verify webhook signature
       const signature = req.headers['x-twilio-signature'] as string;
-      const rawBody = JSON.stringify(req.body);
+      const webhookPayload: unknown = req.body;
+      const rawBody = JSON.stringify(webhookPayload);
 
       if (!this.whatsAppProvider.verifyWebhook(signature, rawBody)) {
         logger.warn('WhatsApp webhook signature verification failed', {
@@ -30,7 +31,7 @@ export class WebhookController {
         return;
       }
 
-      const message = this.whatsAppProvider.parseInboundMessage(req.body);
+      const message = this.whatsAppProvider.parseInboundMessage(webhookPayload);
 
       if (!message) {
         res.status(200).send('OK');
@@ -43,13 +44,13 @@ export class WebhookController {
           id: crypto.randomUUID(),
           eventType: 'WHATSAPP_INBOUND',
           provider: 'twilio',
-          payload: req.body as any,
+          payload: webhookPayload as Prisma.InputJsonValue,
           signature,
         },
       });
 
       // Process inbound message asynchronously
-      this.processInboundWhatsApp(message).catch((error) => {
+      void this.processInboundWhatsApp(message).catch((error: unknown) => {
         logger.error('Failed to process inbound WhatsApp message', { error });
       });
 
@@ -60,7 +61,9 @@ export class WebhookController {
     }
   }
 
-  private async processInboundWhatsApp(message: any): Promise<void> {
+  private async processInboundWhatsApp(
+    message: { from: string; body: string },
+  ): Promise<void> {
     const { from, body } = message;
 
     // Try to find existing ticket by phone/external ref
@@ -112,13 +115,14 @@ export class WebhookController {
     }
   }
 
-  async handleWhatsAppStatus(
+  handleWhatsAppStatus(
     req: Request,
     res: Response,
     _next: NextFunction,
-  ): Promise<void> {
+  ): void {
     // Handle delivery status updates
-    logger.debug('WhatsApp status update', { body: req.body });
+    const body: unknown = req.body;
+    logger.debug('WhatsApp status update', { body });
     res.status(200).send('OK');
   }
 }

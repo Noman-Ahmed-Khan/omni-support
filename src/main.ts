@@ -3,7 +3,7 @@ import { connectDatabase, prisma } from './infrastructure/database/prisma.client
 import { createRedisClient } from './infrastructure/cache/redis.client';
 import { HttpServer } from './presentation/http/server';
 import { createApp } from './presentation/http/app';
-import { buildContainer } from './container';
+import { buildContainer, Container } from './container';
 import { createAIWorker } from './infrastructure/queue/workers/ai.worker';
 import { createEmailWorker } from './infrastructure/queue/workers/email.worker';
 import { createNotificationWorker } from './infrastructure/queue/workers/notification.worker';
@@ -16,7 +16,7 @@ import { CalculateRiskScoreHandler } from './application/ai/handlers/calculate-r
 import { SMTPEmailProvider } from './infrastructure/messaging/email/smtp.provider';
 import { logger } from './shared/utils/logger.util';
 
-async function bootstrap() {
+async function bootstrap(): Promise<void> {
   logger.info('Starting OmniSupport Platform...');
 
   try {
@@ -27,7 +27,7 @@ async function bootstrap() {
     const redis = await createRedisClient();
 
     // Create HTTP server (temporary - to get wsGateway for container)
-    const tempServer = new HttpServer(createApp({}));
+    const tempServer = new HttpServer(createApp({} as Container));
     const wsGateway = tempServer.getWebSocketGateway();
 
     // Build DI container
@@ -56,7 +56,7 @@ async function bootstrap() {
   }
 }
 
-function startWorkers(container: any): void {
+function startWorkers(container: Container): void {
   const categorizeTicketHandler: CategorizeTicketHandler = container.resolve('categorizeTicketHandler');
   const analyzeSentimentHandler: AnalyzeSentimentHandler = container.resolve('analyzeSentimentHandler');
   const predictUrgencyHandler: PredictUrgencyHandler = container.resolve('predictUrgencyHandler');
@@ -110,12 +110,13 @@ function startWorkers(container: any): void {
   });
 
   // Notification Worker
-  createNotificationWorker(async (data) => {
+  createNotificationWorker((data) => {
     logger.debug('Processing notification', { channel: data.channel });
     // Route to appropriate channel
+    return Promise.resolve();
   });
 
   logger.info('Background workers started');
 }
 
-bootstrap();
+void bootstrap();

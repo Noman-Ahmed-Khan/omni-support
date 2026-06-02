@@ -1,4 +1,9 @@
-import { PrismaClient, Prisma } from '@prisma/client';
+import {
+  Customer,
+  CustomerStatus as PrismaCustomerStatus,
+  PrismaClient,
+  Prisma,
+} from '@prisma/client';
 import {
   CustomerFilters,
   ICustomerRepository,
@@ -6,6 +11,7 @@ import {
   PaginationOptions,
 } from '../../../domain/customer/repositories/customer.repository.interface';
 import { CustomerEntity } from '../../../domain/customer/entities/customer.entity';
+import { CustomerStatusEnum } from '../../../domain/customer/entities/customer.entity';
 import { Email } from '../../../domain/user/value-objects/email.vo';
 import { InfrastructureError } from '../../../shared/errors/infrastructure.error';
 
@@ -85,10 +91,10 @@ export class CustomerRepository implements ICustomerRepository {
           phone: customer.phone,
           company: customer.company,
           notes: customer.notes,
-          status: customer.status as any,
+          status: customer.status as PrismaCustomerStatus,
           riskScore: customer.riskScore,
           riskLabel: customer.riskLabel,
-          metadata: customer.metadata as any,
+          metadata: toInputJson(customer.metadata),
           externalId: customer.externalId,
         },
       });
@@ -117,10 +123,10 @@ export class CustomerRepository implements ICustomerRepository {
           phone: customer.phone,
           company: customer.company,
           notes: customer.notes,
-          status: customer.status as any,
+          status: customer.status as PrismaCustomerStatus,
           riskScore: customer.riskScore,
           riskLabel: customer.riskLabel,
-          metadata: customer.metadata as any,
+          metadata: toInputJson(customer.metadata),
           lastActivityAt: customer.lastActivityAt,
           updatedAt: new Date(),
         },
@@ -169,7 +175,7 @@ export class CustomerRepository implements ICustomerRepository {
     };
 
     if (filters.status) {
-      where.status = filters.status as any;
+      where.status = filters.status as PrismaCustomerStatus;
     }
 
     if (filters.assignedAgentId) {
@@ -217,7 +223,7 @@ export class CustomerRepository implements ICustomerRepository {
     return validSortFields[sortBy ?? 'createdAt'] ?? { createdAt: 'desc' };
   }
 
-  private toDomain(record: any): CustomerEntity {
+  private toDomain(record: Customer): CustomerEntity {
     return CustomerEntity.reconstitute(record.id, {
       tenantId: record.tenantId,
       assignedAgentId: record.assignedAgentId ?? undefined,
@@ -226,7 +232,7 @@ export class CustomerRepository implements ICustomerRepository {
       phone: record.phone ?? undefined,
       company: record.company ?? undefined,
       notes: record.notes ?? undefined,
-      status: record.status,
+      status: record.status as CustomerStatusEnum,
       riskScore: record.riskScore ?? 0,
       riskLabel: record.riskLabel ?? undefined,
       metadata: (record.metadata as Record<string, unknown>) ?? {},
@@ -236,4 +242,8 @@ export class CustomerRepository implements ICustomerRepository {
       updatedAt: record.updatedAt,
     });
   }
+}
+
+function toInputJson(value: unknown): Prisma.InputJsonValue {
+  return value as Prisma.InputJsonValue;
 }

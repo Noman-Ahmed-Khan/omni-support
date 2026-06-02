@@ -1,4 +1,11 @@
-import { PrismaClient, Prisma } from '@prisma/client';
+import {
+  PrismaClient,
+  Prisma,
+  Ticket,
+  TicketCategory as PrismaTicketCategory,
+  TicketPriority as PrismaTicketPriority,
+  TicketStatus as PrismaTicketStatus,
+} from '@prisma/client';
 import {
   ITicketRepository,
   TicketFilters,
@@ -108,9 +115,9 @@ export class TicketRepository implements ITicketRepository {
           createdById: ticket.createdById,
           title: ticket.title,
           description: ticket.description,
-          status: ticket.status as any,
-          priority: ticket.priority as any,
-          category: ticket.category as any,
+          status: ticket.status as PrismaTicketStatus,
+          priority: ticket.priority as PrismaTicketPriority,
+          category: ticket.category as PrismaTicketCategory,
           tags: ticket.tags,
           source: ticket.source,
           isEscalated: ticket.isEscalated,
@@ -121,7 +128,7 @@ export class TicketRepository implements ITicketRepository {
           firstResponseAt: ticket.firstResponseAt,
           dueAt: ticket.dueAt,
           slaBreached: ticket.slaBreached,
-          metadata: ticket.metadata as any,
+          metadata: toInputJson(ticket.metadata),
         },
       });
 
@@ -139,9 +146,9 @@ export class TicketRepository implements ITicketRepository {
           assignedAgentId: ticket.assignedAgentId,
           title: ticket.title,
           description: ticket.description,
-          status: ticket.status as any,
-          priority: ticket.priority as any,
-          category: ticket.category as any,
+          status: ticket.status as PrismaTicketStatus,
+          priority: ticket.priority as PrismaTicketPriority,
+          category: ticket.category as PrismaTicketCategory,
           tags: ticket.tags,
           isEscalated: ticket.isEscalated,
           escalatedAt: ticket.escalatedAt,
@@ -151,7 +158,7 @@ export class TicketRepository implements ITicketRepository {
           firstResponseAt: ticket.firstResponseAt,
           dueAt: ticket.dueAt,
           slaBreached: ticket.slaBreached,
-          metadata: ticket.metadata as any,
+          metadata: toInputJson(ticket.metadata),
           updatedAt: new Date(),
         },
       });
@@ -258,18 +265,18 @@ export class TicketRepository implements ITicketRepository {
 
     if (filters.status) {
       where.status = Array.isArray(filters.status)
-        ? { in: filters.status as any[] }
-        : (filters.status as any);
+        ? { in: filters.status as PrismaTicketStatus[] }
+        : (filters.status as PrismaTicketStatus);
     }
 
     if (filters.priority) {
       where.priority = Array.isArray(filters.priority)
-        ? { in: filters.priority as any[] }
-        : (filters.priority as any);
+        ? { in: filters.priority as PrismaTicketPriority[] }
+        : (filters.priority as PrismaTicketPriority);
     }
 
     if (filters.category) {
-      where.category = filters.category as any;
+      where.category = filters.category as PrismaTicketCategory;
     }
 
     if (filters.assignedAgentId) {
@@ -329,7 +336,7 @@ export class TicketRepository implements ITicketRepository {
     return validSortFields[sortBy ?? 'createdAt'] ?? { createdAt: 'desc' };
   }
 
-  private toDomain(record: any): TicketEntity {
+  private toDomain(record: Ticket): TicketEntity {
     return TicketEntity.reconstitute(record.id, {
       tenantId: record.tenantId,
       ticketNumber: record.ticketNumber,
@@ -356,4 +363,8 @@ export class TicketRepository implements ITicketRepository {
       updatedAt: record.updatedAt,
     });
   }
+}
+
+function toInputJson(value: unknown): Prisma.InputJsonValue {
+  return value as Prisma.InputJsonValue;
 }

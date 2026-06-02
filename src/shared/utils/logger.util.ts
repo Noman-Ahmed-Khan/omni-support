@@ -10,10 +10,13 @@ const consoleFormat = winston.format.combine(
   winston.format.colorize(),
   winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
   winston.format.printf(({ level, message, timestamp, ...meta }) => {
+    const timestampText = typeof timestamp === 'string' ? timestamp : '';
+    const messageText =
+      typeof message === 'string' ? message : JSON.stringify(message);
     const metaStr = Object.keys(meta).length
       ? ` ${JSON.stringify(meta)}`
       : '';
-    return `${timestamp} [${level}]: ${message}${metaStr}`;
+    return `${timestampText} [${level}]: ${messageText}${metaStr}`;
   }),
 );
 
@@ -30,6 +33,6 @@ export const logger = winston.createLogger({
 });
 
 // Add correlation ID to logger
-export function createRequestLogger(correlationId: string, tenantId?: string) {
+export function createRequestLogger(correlationId: string, tenantId?: string): winston.Logger {
   return logger.child({ correlationId, tenantId });
 }

@@ -1,4 +1,9 @@
-import { PrismaClient, Prisma } from '@prisma/client';
+import {
+  PrismaClient,
+  Prisma,
+  Tenant,
+  TenantStatus as PrismaTenantStatus,
+} from '@prisma/client';
 import {
   ITenantRepository,
   TenantFilters,
@@ -59,7 +64,7 @@ export class TenantRepository implements ITenantRepository {
       const where: Prisma.TenantWhereInput = {};
 
       if (filters.status) {
-        where.status = filters.status as any;
+        where.status = filters.status as PrismaTenantStatus;
       }
 
       if (filters.plan) {
@@ -105,14 +110,14 @@ export class TenantRepository implements ITenantRepository {
           id: tenant.id,
           name: tenant.name,
           slug: tenant.slug,
-          status: tenant.status as any,
+          status: tenant.status as PrismaTenantStatus,
           plan: tenant.plan,
           domain: tenant.domain,
           logoUrl: tenant.logoUrl,
           maxAgents: tenant.maxAgents,
           maxCustomers: tenant.maxCustomers,
           maxTicketsPerDay: tenant.maxTicketsPerDay,
-          settings: tenant.settings as any,
+          settings: toInputJson(tenant.settings),
           suspendedAt: tenant.suspendedAt,
           suspendedReason: tenant.suspendedReason,
         },
@@ -138,14 +143,14 @@ export class TenantRepository implements ITenantRepository {
         where: { id: tenant.id },
         data: {
           name: tenant.name,
-          status: tenant.status as any,
+          status: tenant.status as PrismaTenantStatus,
           plan: tenant.plan,
           domain: tenant.domain,
           logoUrl: tenant.logoUrl,
           maxAgents: tenant.maxAgents,
           maxCustomers: tenant.maxCustomers,
           maxTicketsPerDay: tenant.maxTicketsPerDay,
-          settings: tenant.settings as any,
+          settings: toInputJson(tenant.settings),
           suspendedAt: tenant.suspendedAt,
           suspendedReason: tenant.suspendedReason,
           updatedAt: new Date(),
@@ -180,7 +185,7 @@ export class TenantRepository implements ITenantRepository {
     return this.prisma.tenant.count();
   }
 
-  private toDomain(record: any): TenantEntity {
+  private toDomain(record: Tenant): TenantEntity {
     return TenantEntity.reconstitute(record.id, {
       name: record.name,
       slug: TenantSlug.create(record.slug),
@@ -198,4 +203,8 @@ export class TenantRepository implements ITenantRepository {
       suspendedReason: record.suspendedReason ?? undefined,
     });
   }
+}
+
+function toInputJson(value: unknown): Prisma.InputJsonValue {
+  return value as Prisma.InputJsonValue;
 }

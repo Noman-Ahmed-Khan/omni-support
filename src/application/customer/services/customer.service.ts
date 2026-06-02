@@ -1,6 +1,11 @@
 import crypto from 'crypto';
-import { ICustomerRepository } from '../../../domain/customer/repositories/customer.repository.interface';
-import { CustomerEntity } from '../../../domain/customer/entities/customer.entity';
+import {
+  ICustomerRepository,
+  CustomerFilters,
+  PaginationOptions,
+  PaginatedResult,
+} from '../../../domain/customer/repositories/customer.repository.interface';
+import { CustomerEntity, CustomerStatusEnum } from '../../../domain/customer/entities/customer.entity';
 import { Email } from '../../../domain/user/value-objects/email.vo';
 import { IEventBus } from '../../event-bus/event-bus.interface';
 import { ActivityRepository } from '../../../infrastructure/database/repositories/activity.repository';
@@ -67,7 +72,7 @@ export class CustomerService {
       phone: dto.phone,
       company: dto.company,
       notes: dto.notes,
-      status: 'ACTIVE' as any,
+      status: CustomerStatusEnum.ACTIVE,
       riskScore: 0,
       metadata: {},
       externalId: dto.externalId,
@@ -182,7 +187,10 @@ export class CustomerService {
     return this.getCustomerOrThrow(customerId, tenantId);
   }
 
-  async listCustomers(filters: any, pagination: any): Promise<any> {
+  async listCustomers(
+    filters: CustomerFilters,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<CustomerEntity>> {
     return this.customerRepo.findAll(filters, pagination);
   }
 
@@ -191,7 +199,13 @@ export class CustomerService {
     tenantId: string,
     page: number = 1,
     limit: number = 50,
-  ): Promise<any> {
+  ): Promise<{
+    data: unknown[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
     await this.getCustomerOrThrow(customerId, tenantId);
     return this.activityRepo.findByCustomer(customerId, tenantId, page, limit);
   }

@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import { z } from 'zod';
 import {
   IAIProvider,
   AICompletionOptions,
@@ -19,6 +20,16 @@ export class OpenAIProvider implements IAIProvider {
 
   constructor(apiKey: string) {
     this.client = new OpenAI({ apiKey });
+  }
+
+  private parseJson<T>(content: string, schema: z.ZodType<T>): T | null {
+    try {
+      const parsed: unknown = JSON.parse(content);
+      const result = schema.safeParse(parsed);
+      return result.success ? result.data : null;
+    } catch {
+      return null;
+    }
   }
 
   async complete(options: AICompletionOptions): Promise<AICompletionResult> {
@@ -74,16 +85,22 @@ Description: ${description}`,
       maxTokens: 200,
     });
 
-    try {
-      const parsed = JSON.parse(result.content);
-      return {
-        category: parsed.category ?? 'GENERAL',
-        confidence: parsed.confidence ?? 0.5,
-        reasoning: parsed.reasoning ?? '',
-      };
-    } catch {
+    const schema = z.object({
+      category: z.string().optional(),
+      confidence: z.number().optional(),
+      reasoning: z.string().optional(),
+    });
+
+    const parsed = this.parseJson(result.content, schema);
+    if (!parsed) {
       return { category: 'GENERAL', confidence: 0.5, reasoning: 'Parse error' };
     }
+
+    return {
+      category: parsed.category ?? 'GENERAL',
+      confidence: parsed.confidence ?? 0.5,
+      reasoning: parsed.reasoning ?? '',
+    };
   }
 
   async analyzeSentiment(text: string): Promise<AISentimentResult> {
@@ -106,16 +123,22 @@ Respond with valid JSON: {"score": number (-1 to 1), "label": string, "confidenc
       maxTokens: 150,
     });
 
-    try {
-      const parsed = JSON.parse(result.content);
-      return {
-        score: parsed.score ?? 0,
-        label: parsed.label ?? 'NEUTRAL',
-        confidence: parsed.confidence ?? 0.5,
-      };
-    } catch {
+    const schema = z.object({
+      score: z.number().optional(),
+      label: z.string().optional(),
+      confidence: z.number().optional(),
+    });
+
+    const parsed = this.parseJson(result.content, schema);
+    if (!parsed) {
       return { score: 0, label: 'NEUTRAL', confidence: 0.5 };
     }
+
+    return {
+      score: parsed.score ?? 0,
+      label: parsed.label ?? 'NEUTRAL',
+      confidence: parsed.confidence ?? 0.5,
+    };
   }
 
   async predictUrgency(
@@ -143,16 +166,22 @@ Description: ${description}`,
       maxTokens: 200,
     });
 
-    try {
-      const parsed = JSON.parse(result.content);
-      return {
-        score: parsed.score ?? 50,
-        recommendedPriority: parsed.recommendedPriority ?? 'MEDIUM',
-        reasoning: parsed.reasoning ?? '',
-      };
-    } catch {
+    const schema = z.object({
+      score: z.number().optional(),
+      recommendedPriority: z.string().optional(),
+      reasoning: z.string().optional(),
+    });
+
+    const parsed = this.parseJson(result.content, schema);
+    if (!parsed) {
       return { score: 50, recommendedPriority: 'MEDIUM', reasoning: '' };
     }
+
+    return {
+      score: parsed.score ?? 50,
+      recommendedPriority: parsed.recommendedPriority ?? 'MEDIUM',
+      reasoning: parsed.reasoning ?? '',
+    };
   }
 
   async suggestResponse(
@@ -181,16 +210,22 @@ Generate a suggested response:`,
       maxTokens: 500,
     });
 
-    try {
-      const parsed = JSON.parse(result.content);
-      return {
-        content: parsed.content ?? '',
-        tone: parsed.tone ?? 'professional',
-        reasoning: parsed.reasoning ?? '',
-      };
-    } catch {
+    const schema = z.object({
+      content: z.string().optional(),
+      tone: z.string().optional(),
+      reasoning: z.string().optional(),
+    });
+
+    const parsed = this.parseJson(result.content, schema);
+    if (!parsed) {
       return { content: '', tone: 'professional', reasoning: '' };
     }
+
+    return {
+      content: parsed.content ?? '',
+      tone: parsed.tone ?? 'professional',
+      reasoning: parsed.reasoning ?? '',
+    };
   }
 
   async generateResolutionSummary(
@@ -214,16 +249,22 @@ resolutionType must be one of: FIXED, WORKAROUND, INFORMATION_PROVIDED, ESCALATE
       maxTokens: 400,
     });
 
-    try {
-      const parsed = JSON.parse(result.content);
-      return {
-        summary: parsed.summary ?? '',
-        keyPoints: parsed.keyPoints ?? [],
-        resolutionType: parsed.resolutionType ?? 'OTHER',
-      };
-    } catch {
+    const schema = z.object({
+      summary: z.string().optional(),
+      keyPoints: z.array(z.string()).optional(),
+      resolutionType: z.string().optional(),
+    });
+
+    const parsed = this.parseJson(result.content, schema);
+    if (!parsed) {
       return { summary: '', keyPoints: [], resolutionType: 'OTHER' };
     }
+
+    return {
+      summary: parsed.summary ?? '',
+      keyPoints: parsed.keyPoints ?? [],
+      resolutionType: parsed.resolutionType ?? 'OTHER',
+    };
   }
 
   async calculateRiskScore(
@@ -248,15 +289,21 @@ Respond with valid JSON: {"score": number, "label": string, "factors": string[]}
       maxTokens: 300,
     });
 
-    try {
-      const parsed = JSON.parse(result.content);
-      return {
-        score: parsed.score ?? 0,
-        label: parsed.label ?? 'LOW',
-        factors: parsed.factors ?? [],
-      };
-    } catch {
+    const schema = z.object({
+      score: z.number().optional(),
+      label: z.string().optional(),
+      factors: z.array(z.string()).optional(),
+    });
+
+    const parsed = this.parseJson(result.content, schema);
+    if (!parsed) {
       return { score: 0, label: 'LOW', factors: [] };
     }
+
+    return {
+      score: parsed.score ?? 0,
+      label: parsed.label ?? 'LOW',
+      factors: parsed.factors ?? [],
+    };
   }
 }

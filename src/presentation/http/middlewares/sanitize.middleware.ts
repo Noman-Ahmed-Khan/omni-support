@@ -35,7 +35,8 @@ export function sanitizeMiddleware(
   // for ticket descriptions, comments etc.
   // Use parameterized queries (Prisma) for SQL injection protection
   if (req.query) {
-    req.query = sanitizeValue(req.query) as any;
+    const sanitizedQuery = sanitizeValue(req.query);
+    req.query = sanitizedQuery as typeof req.query;
   }
 
   // Sanitize specific dangerous headers

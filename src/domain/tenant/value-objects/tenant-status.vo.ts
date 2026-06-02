@@ -15,11 +15,11 @@ export class TenantStatus {
     return new TenantStatus(value as TenantStatusEnum);
   }
 
-  static active() {
+  static active(): TenantStatus {
     return new TenantStatus(TenantStatusEnum.ACTIVE);
   }
 
-  static trial() {
+  static trial(): TenantStatus {
     return new TenantStatus(TenantStatusEnum.TRIAL);
   }
 

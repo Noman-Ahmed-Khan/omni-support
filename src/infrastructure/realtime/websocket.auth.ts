@@ -3,6 +3,7 @@ import { parse } from 'url';
 import jwt from 'jsonwebtoken';
 import { jwtConfig } from '../../config/jwt.config';
 import { logger } from '../../shared/utils/logger.util';
+import { AccessTokenPayload } from '../../application/auth/services/token.service';
 
 export interface WSAuthResult {
   userId: string;
@@ -11,24 +12,27 @@ export interface WSAuthResult {
 }
 
 export class WebSocketAuth {
-  async authenticate(
+  authenticate(
     request: IncomingMessage,
   ): Promise<WSAuthResult | null> {
     try {
       const token = this.extractToken(request);
 
-      if (!token) return null;
+      if (!token) return Promise.resolve(null);
 
-      const payload = jwt.verify(token, jwtConfig.accessSecret) as any;
+      const payload = jwt.verify(
+        token,
+        jwtConfig.accessSecret,
+      ) as AccessTokenPayload;
 
-      return {
+      return Promise.resolve({
         userId: payload.sub,
         tenantId: payload.tenantId,
         role: payload.role,
-      };
+      });
     } catch (error) {
       logger.warn('WebSocket authentication failed', { error });
-      return null;
+      return Promise.resolve(null);
     }
   }
 

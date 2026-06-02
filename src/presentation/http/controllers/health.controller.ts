@@ -3,6 +3,12 @@ import { PrismaClient } from '@prisma/client';
 import { RedisClientType } from 'redis';
 import { WebSocketGateway } from '../../../infrastructure/realtime/websocket.gateway';
 
+interface HealthCheck {
+  status: 'ok' | 'error';
+  latencyMs?: number;
+  error?: string;
+}
+
 export class HealthController {
   constructor(
     private readonly prisma: PrismaClient,
@@ -53,7 +59,7 @@ export class HealthController {
     });
   }
 
-  private async runChecks(): Promise<Record<string, any>> {
+  private async runChecks(): Promise<Record<string, HealthCheck>> {
     const [dbCheck, redisCheck] = await Promise.allSettled([
       this.checkDatabase(),
       this.checkRedis(),
@@ -71,13 +77,13 @@ export class HealthController {
     };
   }
 
-  private async checkDatabase(): Promise<{ status: string; latencyMs?: number }> {
+  private async checkDatabase(): Promise<HealthCheck> {
     const start = Date.now();
     await this.prisma.$queryRaw`SELECT 1`;
     return { status: 'ok', latencyMs: Date.now() - start };
   }
 
-  private async checkRedis(): Promise<{ status: string; latencyMs?: number }> {
+  private async checkRedis(): Promise<HealthCheck> {
     const start = Date.now();
     await this.redis.ping();
     return { status: 'ok', latencyMs: Date.now() - start };

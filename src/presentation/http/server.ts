@@ -43,8 +43,11 @@ export class HttpServer {
     logger.info('Graceful shutdown initiated...');
 
     // Stop accepting new connections
-    this.server.close(async () => {
-      logger.info('HTTP server closed');
+    await new Promise<void>((resolve) => {
+      this.server.close(() => {
+        logger.info('HTTP server closed');
+        resolve();
+      });
     });
 
     // Shutdown WebSocket
@@ -71,20 +74,20 @@ export class HttpServer {
     const signals = ['SIGTERM', 'SIGINT', 'SIGUSR2'];
 
     signals.forEach((signal) => {
-      process.on(signal, async () => {
+      process.on(signal, () => {
         logger.info(`Received ${signal}`);
-        await this.shutdown();
+        void this.shutdown();
       });
     });
 
     process.on('uncaughtException', (error) => {
       logger.error('Uncaught exception', { error });
-      this.shutdown();
+      void this.shutdown();
     });
 
     process.on('unhandledRejection', (reason) => {
       logger.error('Unhandled rejection', { reason });
-      this.shutdown();
+      void this.shutdown();
     });
   }
 }

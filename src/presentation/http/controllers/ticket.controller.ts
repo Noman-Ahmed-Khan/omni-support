@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { ParamsDictionary } from 'express-serve-static-core';
 import { CreateTicketHandler } from '../../../application/ticket/handlers/create-ticket.handler';
 import { UpdateTicketHandler } from '../../../application/ticket/handlers/update-ticket.handler';
 import { AssignTicketHandler } from '../../../application/ticket/handlers/assign-ticket.handler';
@@ -8,6 +9,16 @@ import { AddCommentHandler } from '../../../application/ticket/handlers/add-comm
 import { GetTicketHandler } from '../../../application/ticket/handlers/get-ticket.handler';
 import { ListTicketsHandler } from '../../../application/ticket/handlers/list-tickets.handler';
 import { TicketHistoryHandler } from '../../../application/ticket/handlers/ticket-history.handler';
+import { TicketEntity } from '../../../domain/ticket/entities/ticket.entity';
+import {
+  CreateTicketDto,
+  UpdateTicketDto,
+  AssignTicketDto,
+  ChangeStatusDto,
+  EscalateTicketDto,
+  AddCommentDto,
+  ListTicketsQueryDto,
+} from '../dtos/ticket/ticket.dto';
 import {
   successResponse,
   paginatedResponse,
@@ -26,7 +37,11 @@ export class TicketController {
     private readonly ticketHistoryHandler: TicketHistoryHandler,
   ) {}
 
-  async create(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async create(
+    req: Request<ParamsDictionary, unknown, CreateTicketDto, unknown>,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const ticket = await this.createTicketHandler.execute({
         tenantId: req.tenantId!,
@@ -49,7 +64,11 @@ export class TicketController {
     }
   }
 
-  async findAll(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async findAll(
+    req: Request<ParamsDictionary, unknown, unknown, ListTicketsQueryDto>,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const {
         page,
@@ -66,7 +85,7 @@ export class TicketController {
         dateFrom,
         dateTo,
         tags,
-      } = req.query as any;
+      } = req.query;
 
       // Agents can only see their own tickets
       const effectiveAgentId =
@@ -87,11 +106,11 @@ export class TicketController {
           tags,
         },
         pagination: { page: Number(page), limit: Number(limit), sortBy, sortOrder },
-      }) as any;
+      });
 
       res.status(200).json(
         paginatedResponse(
-          result.data.map(this.toTicketResponse),
+          result.data.map((ticket) => this.toTicketResponse(ticket)),
           result.total,
           result.page,
           result.limit,
@@ -129,7 +148,11 @@ export class TicketController {
     }
   }
 
-  async update(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async update(
+    req: Request<ParamsDictionary, unknown, UpdateTicketDto, unknown>,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const ticket = await this.updateTicketHandler.execute({
         tenantId: req.tenantId!,
@@ -137,6 +160,7 @@ export class TicketController {
         updatedById: req.user!.id,
         updatedByRole: req.user!.role,
         ...req.body,
+        dueAt: req.body.dueAt ? new Date(req.body.dueAt) : undefined,
       });
 
       res.status(200).json(successResponse(this.toTicketResponse(ticket)));
@@ -145,7 +169,11 @@ export class TicketController {
     }
   }
 
-  async assign(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async assign(
+    req: Request<ParamsDictionary, unknown, AssignTicketDto, unknown>,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const ticket = await this.assignTicketHandler.execute({
         tenantId: req.tenantId!,
@@ -161,7 +189,11 @@ export class TicketController {
     }
   }
 
-  async changeStatus(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async changeStatus(
+    req: Request<ParamsDictionary, unknown, ChangeStatusDto, unknown>,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const ticket = await this.changeTicketStatusHandler.execute({
         tenantId: req.tenantId!,
@@ -177,7 +209,11 @@ export class TicketController {
     }
   }
 
-  async escalate(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async escalate(
+    req: Request<ParamsDictionary, unknown, EscalateTicketDto, unknown>,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const ticket = await this.escalateTicketHandler.execute({
         tenantId: req.tenantId!,
@@ -193,7 +229,11 @@ export class TicketController {
     }
   }
 
-  async addComment(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async addComment(
+    req: Request<ParamsDictionary, unknown, AddCommentDto, unknown>,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const comment = await this.addCommentHandler.execute({
         tenantId: req.tenantId!,
@@ -210,7 +250,11 @@ export class TicketController {
     }
   }
 
-  async getHistory(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async getHistory(
+    req: Request<ParamsDictionary, unknown, unknown, { page?: string; limit?: string }>,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const { page, limit } = req.query;
 
@@ -219,7 +263,7 @@ export class TicketController {
         tenantId: req.tenantId!,
         page: Number(page ?? 1),
         limit: Number(limit ?? 50),
-      }) as any;
+      });
 
       res.status(200).json(
         paginatedResponse(
@@ -234,7 +278,7 @@ export class TicketController {
     }
   }
 
-  private toTicketResponse(ticket: any): Record<string, unknown> {
+  private toTicketResponse(ticket: TicketEntity): Record<string, unknown> {
     return {
       id: ticket.id,
       tenantId: ticket.tenantId,

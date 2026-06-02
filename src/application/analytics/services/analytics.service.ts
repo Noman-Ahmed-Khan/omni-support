@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { CacheService } from '../../../infrastructure/cache/cache.service';
 import { logger } from '../../../shared/utils/logger.util';
 
@@ -251,8 +251,8 @@ export class AnalyticsService {
           closedTickets: metrics.ticketsByStatus['CLOSED'] ?? 0,
           escalatedTickets: metrics.escalatedTickets,
           criticalTickets: metrics.criticalTickets,
-          categoryDistribution: metrics.ticketsByCategory as any,
-          agentPerformance: metrics.agentWorkload as any,
+          categoryDistribution: toInputJson(metrics.ticketsByCategory),
+          agentPerformance: toInputJson(metrics.agentWorkload),
         },
         create: {
           tenantId,
@@ -263,8 +263,8 @@ export class AnalyticsService {
           closedTickets: metrics.ticketsByStatus['CLOSED'] ?? 0,
           escalatedTickets: metrics.escalatedTickets,
           criticalTickets: metrics.criticalTickets,
-          categoryDistribution: metrics.ticketsByCategory as any,
-          agentPerformance: metrics.agentWorkload as any,
+          categoryDistribution: toInputJson(metrics.ticketsByCategory),
+          agentPerformance: toInputJson(metrics.agentWorkload),
         },
       });
 
@@ -274,7 +274,13 @@ export class AnalyticsService {
     }
   }
 
-  async getPlatformMetrics(): Promise<any> {
+  async getPlatformMetrics(): Promise<{
+    totalTenants: number;
+    activeTenants: number;
+    totalTickets: number;
+    totalUsers: number;
+    timestamp: Date;
+  }> {
     const cacheKey = 'platform:metrics';
 
     return this.cache.getOrSet(
@@ -299,4 +305,8 @@ export class AnalyticsService {
       { ttl: 300 },
     );
   }
+}
+
+function toInputJson(value: unknown): Prisma.InputJsonValue {
+  return value as Prisma.InputJsonValue;
 }

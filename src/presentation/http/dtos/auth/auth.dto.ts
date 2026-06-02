@@ -53,3 +53,4 @@ export type LoginDto = z.infer<typeof loginSchema>;
 export type RefreshTokenDto = z.infer<typeof refreshTokenSchema>;
 export type ForgotPasswordDto = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordDto = z.infer<typeof resetPasswordSchema>;
+export type VerifyEmailDto = z.infer<typeof verifyEmailSchema>;

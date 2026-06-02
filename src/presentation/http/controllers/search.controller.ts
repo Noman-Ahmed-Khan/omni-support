@@ -1,28 +1,36 @@
 import { Request, Response, NextFunction } from 'express';
+import { ParamsDictionary } from 'express-serve-static-core';
 import { SearchService } from '../../../application/search/services/search.service';
 import { successResponse } from '../dtos/common/response.dto';
+
+interface SearchQuery {
+  q?: string;
+  types?: string;
+  page?: string;
+  limit?: string;
+}
 
 export class SearchController {
   constructor(private readonly searchService: SearchService) {}
 
-  async search(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async search(
+    req: Request<ParamsDictionary, unknown, unknown, SearchQuery>,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
-      const {
-        q,
-        types,
-        page,
-        limit,
-      } = req.query as {
-        q: string;
-        types?: string;
-        page?: string;
-        limit?: string;
-      };
+      const { q, types, page, limit } = req.query;
+      const parsedTypes = types
+        ? types
+            .split(',')
+            .map((type) => type.trim())
+            .filter(Boolean) as ('ticket' | 'customer' | 'comment')[]
+        : undefined;
 
       const result = await this.searchService.search({
         tenantId: req.tenantId!,
         query: q ?? '',
-        types: types?.split(',') as any[],
+        types: parsedTypes,
         page: Number(page ?? 1),
         limit: Number(limit ?? 20),
       });

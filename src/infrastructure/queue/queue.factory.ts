@@ -1,4 +1,4 @@
-import { Queue, QueueOptions } from 'bullmq';
+import { ConnectionOptions, Queue, QueueOptions } from 'bullmq';
 import { getRedisClient } from '../cache/redis.client';
 import { logger } from '../../shared/utils/logger.util';
 
@@ -35,7 +35,7 @@ export function createQueue(name: QueueName): Queue {
 
   const queue = new Queue(name, {
     ...defaultQueueOptions,
-    connection: connection as any,
+    connection: connection as unknown as ConnectionOptions,
   });
 
   queue.on('error', (error) => {

@@ -1,8 +1,8 @@
 export interface ListTicketsQuery {
   filters: {
     tenantId: string;
-    status?: string;
-    priority?: string;
+    status?: string | string[];
+    priority?: string | string[];
     category?: string;
     assignedAgentId?: string;
     customerId?: string;

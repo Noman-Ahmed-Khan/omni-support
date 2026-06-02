@@ -16,9 +16,9 @@ export class TicketStatus {
     return new TicketStatus(value as TicketStatusEnum);
   }
 
-  static open() { return new TicketStatus(TicketStatusEnum.OPEN); }
-  static inProgress() { return new TicketStatus(TicketStatusEnum.IN_PROGRESS); }
-  static resolved() { return new TicketStatus(TicketStatusEnum.RESOLVED); }
+  static open(): TicketStatus { return new TicketStatus(TicketStatusEnum.OPEN); }
+  static inProgress(): TicketStatus { return new TicketStatus(TicketStatusEnum.IN_PROGRESS); }
+  static resolved(): TicketStatus { return new TicketStatus(TicketStatusEnum.RESOLVED); }
 
   canTransitionTo(next: TicketStatus): boolean {
     const transitions: Record<TicketStatusEnum, TicketStatusEnum[]> = {
@@ -44,7 +44,7 @@ export class TicketStatus {
     };
 
     return transitions[this.value].includes(
-      next.value as TicketStatusEnum
+      next.value
     );
   }
 

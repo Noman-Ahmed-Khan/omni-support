@@ -15,7 +15,7 @@ export class TicketPriority {
     return new TicketPriority(value as TicketPriorityEnum);
   }
 
-  static medium() { return new TicketPriority(TicketPriorityEnum.MEDIUM); }
+  static medium(): TicketPriority { return new TicketPriority(TicketPriorityEnum.MEDIUM); }
 
   numericValue(): number {
     const map: Record<TicketPriorityEnum, number> = {

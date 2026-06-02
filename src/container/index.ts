@@ -105,7 +105,7 @@ export class Container {
   }
 }
 
-export async function buildContainer(
+export function buildContainer(
   prisma: PrismaClient,
   redis: RedisClientType,
   wsGateway: WebSocketGateway,
@@ -387,5 +387,5 @@ export async function buildContainer(
 
   logger.info('DI container built successfully');
 
-  return container;
+  return Promise.resolve(container);
 }

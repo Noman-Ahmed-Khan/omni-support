@@ -1,6 +1,34 @@
 import { PrismaClient } from '@prisma/client';
 import { logger } from '../../../shared/utils/logger.util';
 
+type TicketSearchRow = {
+  id: string;
+  ticket_number: number;
+  title: string;
+  description: string;
+  status: string;
+  priority: string;
+  rank: string;
+};
+
+type CustomerSearchRow = {
+  id: string;
+  full_name: string;
+  email: string;
+  company?: string | null;
+  status: string;
+  rank: string;
+};
+
+type CommentSearchRow = {
+  id: string;
+  ticket_id: string;
+  content: string;
+  ticket_number: number;
+  ticket_title: string;
+  rank: string;
+};
+
 export interface SearchResult {
   type: 'ticket' | 'customer' | 'comment';
   id: string;
@@ -78,7 +106,7 @@ export class SearchService {
     query: string,
   ): Promise<SearchResult[]> {
     try {
-      const results = await this.prisma.$queryRaw<any[]>`
+      const results = await this.prisma.$queryRaw<TicketSearchRow[]>`
         SELECT
           id,
           ticket_number,
@@ -115,7 +143,7 @@ export class SearchService {
     query: string,
   ): Promise<SearchResult[]> {
     try {
-      const results = await this.prisma.$queryRaw<any[]>`
+      const results = await this.prisma.$queryRaw<CustomerSearchRow[]>`
         SELECT
           id,
           full_name,
@@ -151,7 +179,7 @@ export class SearchService {
     query: string,
   ): Promise<SearchResult[]> {
     try {
-      const results = await this.prisma.$queryRaw<any[]>`
+      const results = await this.prisma.$queryRaw<CommentSearchRow[]>`
         SELECT
           tc.id,
           tc.ticket_id,

@@ -9,7 +9,7 @@ import { InfrastructureError } from '../../../shared/errors/infrastructure.error
 import { logger } from '../../../shared/utils/logger.util';
 
 export class SMTPEmailProvider implements IEmailProvider {
-  private readonly transporter: Transporter;
+  private readonly transporter: Transporter<SmtpSentMessageInfo>;
 
   constructor() {
     this.transporter = nodemailer.createTransport({
@@ -48,8 +48,8 @@ export class SMTPEmailProvider implements IEmailProvider {
 
       return {
         messageId: result.messageId,
-        accepted: result.accepted as string[],
-        rejected: result.rejected as string[],
+        accepted: result.accepted,
+        rejected: result.rejected,
       };
     } catch (error) {
       logger.error('Email send failed', { error, to: payload.to });
@@ -65,4 +65,10 @@ export class SMTPEmailProvider implements IEmailProvider {
       return false;
     }
   }
+}
+
+interface SmtpSentMessageInfo {
+  messageId: string;
+  accepted: string[];
+  rejected: string[];
 }

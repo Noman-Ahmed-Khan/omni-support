@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { Container } from '../../../../container';
 import { createAuthRoutes } from './auth.routes';
 import { createTenantRoutes } from './tenant.routes';
 import { createTicketRoutes } from './ticket.routes';
@@ -8,7 +9,7 @@ import { createSearchRoutes } from './search.routes';
 import { createWebhookRoutes } from './webhook.routes';
 import { createNotificationRoutes } from './notification.routes';
 
-export function createV1Router(container: any): Router {
+export function createV1Router(container: Container): Router {
   const router = Router();
 
   router.use('/auth', createAuthRoutes(container));

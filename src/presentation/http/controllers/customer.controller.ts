@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { ParamsDictionary } from 'express-serve-static-core';
 import { CreateCustomerHandler } from '../../../application/customer/handlers/create-customer.handler';
 import { UpdateCustomerHandler } from '../../../application/customer/handlers/update-customer.handler';
 import { DeleteCustomerHandler } from '../../../application/customer/handlers/delete-customer.handler';
@@ -6,6 +7,12 @@ import { GetCustomerHandler } from '../../../application/customer/handlers/get-c
 import { ListCustomersHandler } from '../../../application/customer/handlers/list-customers.handler';
 import { CustomerTimelineHandler } from '../../../application/customer/handlers/customer-timeline.handler';
 import { TriggerRiskScoreHandler } from '../../../application/customer/handlers/trigger-risk-score.handler';
+import { CustomerEntity } from '../../../domain/customer/entities/customer.entity';
+import {
+  CreateCustomerDto,
+  UpdateCustomerDto,
+  ListCustomersQueryDto,
+} from '../dtos/customer/customer.dto';
 import {
   successResponse,
   paginatedResponse,
@@ -22,7 +29,11 @@ export class CustomerController {
     private readonly triggerRiskScoreHandler: TriggerRiskScoreHandler,
   ) {}
 
-  async create(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async create(
+    req: Request<ParamsDictionary, unknown, CreateCustomerDto, unknown>,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const customer = await this.createCustomerHandler.execute({
         tenantId: req.tenantId!,
@@ -43,7 +54,11 @@ export class CustomerController {
     }
   }
 
-  async findAll(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async findAll(
+    req: Request<ParamsDictionary, unknown, unknown, ListCustomersQueryDto>,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const {
         page,
@@ -54,7 +69,7 @@ export class CustomerController {
         assignedAgentId,
         riskLabel,
         search,
-      } = req.query as any;
+      } = req.query;
 
       const effectiveAgentId =
         req.user!.role === 'AGENT' ? req.user!.id : assignedAgentId;
@@ -68,11 +83,11 @@ export class CustomerController {
           search,
         },
         pagination: { page: Number(page), limit: Number(limit), sortBy, sortOrder },
-      }) as any;
+      });
 
       res.status(200).json(
         paginatedResponse(
-          result.data.map(this.toCustomerResponse),
+          result.data.map((customer) => this.toCustomerResponse(customer)),
           result.total,
           result.page,
           result.limit,
@@ -83,7 +98,11 @@ export class CustomerController {
     }
   }
 
-  async findOne(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async findOne(
+    req: Request<ParamsDictionary>,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const customer = await this.getCustomerHandler.execute({
         customerId: req.params.id,
@@ -96,7 +115,11 @@ export class CustomerController {
     }
   }
 
-  async update(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async update(
+    req: Request<ParamsDictionary, unknown, UpdateCustomerDto, unknown>,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const customer = await this.updateCustomerHandler.execute({
         tenantId: req.tenantId!,
@@ -127,7 +150,11 @@ export class CustomerController {
     }
   }
 
-  async getTimeline(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async getTimeline(
+    req: Request<ParamsDictionary, unknown, unknown, { page?: string; limit?: string }>,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const { page, limit } = req.query;
 
@@ -136,7 +163,7 @@ export class CustomerController {
         tenantId: req.tenantId!,
         page: Number(page ?? 1),
         limit: Number(limit ?? 50),
-      }) as any;
+      });
 
       res.status(200).json(
         paginatedResponse(
@@ -166,7 +193,7 @@ export class CustomerController {
     }
   }
 
-  private toCustomerResponse(customer: any): Record<string, unknown> {
+  private toCustomerResponse(customer: CustomerEntity): Record<string, unknown> {
     return {
       id: customer.id,
       tenantId: customer.tenantId,

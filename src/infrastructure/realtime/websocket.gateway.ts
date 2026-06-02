@@ -22,7 +22,7 @@ export interface WSMessage {
 export class WebSocketGateway {
   private wss: WebSocketServer;
   private clients: Map<string, WSClient> = new Map();
-  private pingInterval: NodeJS.Timer | null = null;
+  private pingInterval: NodeJS.Timeout | null = null;
   private readonly roomManager: RoomManager;
   private readonly wsAuth: WebSocketAuth;
 
@@ -44,7 +44,9 @@ export class WebSocketGateway {
   }
 
   private initialize(): void {
-    this.wss.on('connection', this.handleConnection.bind(this));
+    this.wss.on('connection', (socket, request) => {
+      void this.handleConnection(socket, request);
+    });
     this.wss.on('error', (error) => {
       logger.error('WebSocket server error', { error });
     });
@@ -105,7 +107,19 @@ export class WebSocketGateway {
       });
 
       socket.on('message', (data) => {
-        this.handleMessage(clientId, client, data.toString());
+        // Ensure we stringify the incoming payload safely
+        let raw: string;
+        if (typeof data === 'string') raw = data;
+        else if (data instanceof Buffer) raw = data.toString();
+        else {
+          try {
+            raw = JSON.stringify(data);
+          } catch {
+            raw = String(data);
+          }
+        }
+
+        this.handleMessage(clientId, client, raw);
       });
 
       socket.on('pong', () => {
@@ -271,7 +285,7 @@ export class WebSocketGateway {
 
   async shutdown(): Promise<void> {
     if (this.pingInterval) {
-      clearInterval(this.pingInterval as any);
+      clearInterval(this.pingInterval);
     }
 
     this.clients.forEach((client) => {

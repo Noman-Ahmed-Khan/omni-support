@@ -1,5 +1,10 @@
 import crypto from 'crypto';
-import { ITicketRepository } from '../../../domain/ticket/repositories/ticket.repository.interface';
+import {
+  ITicketRepository,
+  TicketFilters,
+  PaginationOptions,
+  PaginatedResult,
+} from '../../../domain/ticket/repositories/ticket.repository.interface';
 import { ICustomerRepository } from '../../../domain/customer/repositories/customer.repository.interface';
 import { TicketEntity } from '../../../domain/ticket/entities/ticket.entity';
 import { TicketStatus } from '../../../domain/ticket/value-objects/ticket-status.vo';
@@ -376,7 +381,17 @@ export class TicketService {
     return updated;
   }
 
-  async addComment(dto: AddCommentDto): Promise<any> {
+  async addComment(
+    dto: AddCommentDto,
+  ): Promise<import('@prisma/client').TicketComment & {
+    author: {
+      id: string;
+      firstName: string;
+      lastName: string;
+      role: string;
+      avatarUrl: string | null;
+    };
+  }> {
     const ticket = await this.getTicketOrThrow(dto.ticketId, dto.tenantId);
 
     // Validate author exists
@@ -465,9 +480,9 @@ export class TicketService {
   }
 
   async listTickets(
-    filters: any,
-    pagination: any,
-  ): Promise<any> {
+    filters: TicketFilters,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<TicketEntity>> {
     return this.ticketRepo.findAll(filters, pagination);
   }
 
@@ -476,7 +491,13 @@ export class TicketService {
     tenantId: string,
     page: number = 1,
     limit: number = 50,
-  ): Promise<any> {
+  ): Promise<{
+    data: import('@prisma/client').ActivityLog[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
     // Verify ticket belongs to tenant
     await this.getTicketOrThrow(ticketId, tenantId);
 
