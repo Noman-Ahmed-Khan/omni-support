@@ -71,7 +71,9 @@ export class UserEntity extends AggregateRoot {
 
   static create(id: string, props: UserProps): UserEntity {
     const user = new UserEntity(id, props);
-    user.addDomainEvent(new UserCreatedEvent(id, props.email.toString(), props.role.toString()));
+    user.addDomainEvent(
+      new UserCreatedEvent(id, props.email.toString(), props.role.toString()),
+    );
     return user;
   }
 
@@ -119,20 +121,52 @@ export class UserEntity extends AggregateRoot {
   }
 
   // Getters
-  get tenantId(): string | undefined { return this._tenantId; }
-  get email(): string { return this._email.toString(); }
-  get passwordHash(): string | undefined { return this._passwordHash; }
-  get firstName(): string { return this._firstName; }
-  get lastName(): string { return this._lastName; }
-  get role(): string { return this._role.toString(); }
-  get status(): string { return this._status; }
-  get avatarUrl(): string | undefined { return this._avatarUrl; }
-  get phone(): string | undefined { return this._phone; }
-  get timezone(): string { return this._timezone; }
-  get locale(): string { return this._locale; }
-  get emailVerifiedAt(): Date | undefined { return this._emailVerifiedAt; }
-  get lastLoginAt(): Date | undefined { return this._lastLoginAt; }
-  get lastLoginIp(): string | undefined { return this._lastLoginIp; }
-  get failedLoginAttempts(): number { return this._failedLoginAttempts; }
-  get lockedUntil(): Date | undefined { return this._lockedUntil; }
+  get tenantId(): string | undefined {
+    return this._tenantId;
+  }
+  get email(): string {
+    return this._email.toString();
+  }
+  get passwordHash(): string | undefined {
+    return this._passwordHash;
+  }
+  get firstName(): string {
+    return this._firstName;
+  }
+  get lastName(): string {
+    return this._lastName;
+  }
+  get role(): string {
+    return this._role.toString();
+  }
+  get status(): string {
+    return this._status;
+  }
+  get avatarUrl(): string | undefined {
+    return this._avatarUrl;
+  }
+  get phone(): string | undefined {
+    return this._phone;
+  }
+  get timezone(): string {
+    return this._timezone;
+  }
+  get locale(): string {
+    return this._locale;
+  }
+  get emailVerifiedAt(): Date | undefined {
+    return this._emailVerifiedAt;
+  }
+  get lastLoginAt(): Date | undefined {
+    return this._lastLoginAt;
+  }
+  get lastLoginIp(): string | undefined {
+    return this._lastLoginIp;
+  }
+  get failedLoginAttempts(): number {
+    return this._failedLoginAttempts;
+  }
+  get lockedUntil(): Date | undefined {
+    return this._lockedUntil;
+  }
 }

@@ -7,8 +7,7 @@ export function correlationMiddleware(
   next: NextFunction,
 ): void {
   const correlationId =
-    (req.headers['x-correlation-id'] as string) ||
-    crypto.randomUUID();
+    (req.headers['x-correlation-id'] as string) || crypto.randomUUID();
 
   req.correlationId = correlationId;
   res.setHeader('X-Correlation-ID', correlationId);

@@ -1,4 +1,4 @@
-import { OAuth2Client } from 'google-auth-library';
+import { OAuth2Client, type Credentials } from 'google-auth-library';
 import crypto from 'crypto';
 import { PrismaClient, User } from '@prisma/client';
 import { TokenService } from './token.service';
@@ -13,12 +13,7 @@ export interface GoogleUserInfo {
   emailVerified: boolean;
 }
 
-export interface GoogleTokens {
-  access_token?: string;
-  refresh_token?: string;
-  expiry_date?: number;
-  id_token?: string;
-}
+export type GoogleTokens = Credentials;
 
 export class OAuthService {
   private readonly googleClient: OAuth2Client;
@@ -76,10 +71,7 @@ export class OAuthService {
     };
 
     // Find or create user
-    const { user, isNewUser } = await this.findOrCreateGoogleUser(
-      googleUser,
-      tokens,
-    );
+    const { user, isNewUser } = await this.findOrCreateGoogleUser(googleUser, tokens);
 
     const tokenPair = await this.tokenService.createTokenPair(
       user.id,
@@ -123,9 +115,7 @@ export class OAuthService {
         data: {
           accessToken: tokens.access_token,
           refreshToken: tokens.refresh_token ?? existingOAuth.refreshToken,
-          expiresAt: tokens.expiry_date
-            ? new Date(tokens.expiry_date)
-            : undefined,
+          expiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : undefined,
         },
       });
 
@@ -146,9 +136,7 @@ export class OAuthService {
           providerUid: googleUser.googleId,
           accessToken: tokens.access_token,
           refreshToken: tokens.refresh_token,
-          expiresAt: tokens.expiry_date
-            ? new Date(tokens.expiry_date)
-            : undefined,
+          expiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : undefined,
         },
       });
 
@@ -177,9 +165,7 @@ export class OAuthService {
           providerUid: googleUser.googleId,
           accessToken: tokens.access_token,
           refreshToken: tokens.refresh_token,
-          expiresAt: tokens.expiry_date
-            ? new Date(tokens.expiry_date)
-            : undefined,
+          expiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : undefined,
         },
       });
 

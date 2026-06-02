@@ -33,10 +33,7 @@ export class S3StorageProvider implements IStorageProvider {
     this.bucket = storageConfig.aws.bucket;
   }
 
-  async upload(
-    buffer: Buffer,
-    options: UploadOptions,
-  ): Promise<UploadResult> {
+  async upload(buffer: Buffer, options: UploadOptions): Promise<UploadResult> {
     try {
       const storagePath = this.buildStoragePath(options);
 

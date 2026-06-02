@@ -5,7 +5,10 @@ import {
   PaginationOptions,
   PaginatedResult,
 } from '../../../domain/customer/repositories/customer.repository.interface';
-import { CustomerEntity, CustomerStatusEnum } from '../../../domain/customer/entities/customer.entity';
+import {
+  CustomerEntity,
+  CustomerStatusEnum,
+} from '../../../domain/customer/entities/customer.entity';
 import { Email } from '../../../domain/user/value-objects/email.vo';
 import { IEventBus } from '../../event-bus/event-bus.interface';
 import { ActivityRepository } from '../../../infrastructure/database/repositories/activity.repository';
@@ -51,10 +54,7 @@ export class CustomerService {
 
   async createCustomer(dto: CreateCustomerDto): Promise<CustomerEntity> {
     // Check for duplicate email within tenant
-    const exists = await this.customerRepo.existsByEmail(
-      dto.email,
-      dto.tenantId,
-    );
+    const exists = await this.customerRepo.existsByEmail(dto.email, dto.tenantId);
 
     if (exists) {
       throw new ConflictError(
@@ -112,10 +112,7 @@ export class CustomerService {
   }
 
   async updateCustomer(dto: UpdateCustomerDto): Promise<CustomerEntity> {
-    const customer = await this.getCustomerOrThrow(
-      dto.customerId,
-      dto.tenantId,
-    );
+    const customer = await this.getCustomerOrThrow(dto.customerId, dto.tenantId);
 
     const oldValues: Record<string, unknown> = {};
     const newValues: Record<string, unknown> = {};
@@ -180,10 +177,7 @@ export class CustomerService {
     });
   }
 
-  async getCustomer(
-    customerId: string,
-    tenantId: string,
-  ): Promise<CustomerEntity> {
+  async getCustomer(customerId: string, tenantId: string): Promise<CustomerEntity> {
     return this.getCustomerOrThrow(customerId, tenantId);
   }
 
@@ -210,10 +204,7 @@ export class CustomerService {
     return this.activityRepo.findByCustomer(customerId, tenantId, page, limit);
   }
 
-  async triggerRiskScoreUpdate(
-    customerId: string,
-    tenantId: string,
-  ): Promise<void> {
+  async triggerRiskScoreUpdate(customerId: string, tenantId: string): Promise<void> {
     const customer = await this.getCustomerOrThrow(customerId, tenantId);
 
     await this.aiQueue.add({

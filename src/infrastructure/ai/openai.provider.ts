@@ -141,10 +141,7 @@ Respond with valid JSON: {"score": number (-1 to 1), "label": string, "confidenc
     };
   }
 
-  async predictUrgency(
-    title: string,
-    description: string,
-  ): Promise<AIUrgencyResult> {
+  async predictUrgency(title: string, description: string): Promise<AIUrgencyResult> {
     const result = await this.complete({
       messages: [
         {
@@ -228,9 +225,7 @@ Generate a suggested response:`,
     };
   }
 
-  async generateResolutionSummary(
-    ticketContext: string,
-  ): Promise<AIResolutionSummary> {
+  async generateResolutionSummary(ticketContext: string): Promise<AIResolutionSummary> {
     const result = await this.complete({
       messages: [
         {
@@ -267,9 +262,7 @@ resolutionType must be one of: FIXED, WORKAROUND, INFORMATION_PROVIDED, ESCALATE
     };
   }
 
-  async calculateRiskScore(
-    customerContext: string,
-  ): Promise<AIRiskScore> {
+  async calculateRiskScore(customerContext: string): Promise<AIRiskScore> {
     const result = await this.complete({
       messages: [
         {

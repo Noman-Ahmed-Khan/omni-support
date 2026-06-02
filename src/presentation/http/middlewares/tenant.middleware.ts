@@ -1,6 +1,9 @@
 import { Request, Response, NextFunction, RequestHandler } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { ForbiddenError, UnauthorizedError } from '../../../shared/errors/application.error';
+import {
+  ForbiddenError,
+  UnauthorizedError,
+} from '../../../shared/errors/application.error';
 
 export function createTenantMiddleware(prisma: PrismaClient): RequestHandler {
   return function tenantMiddleware(

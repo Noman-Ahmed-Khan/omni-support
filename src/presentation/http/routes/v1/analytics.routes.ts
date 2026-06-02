@@ -29,9 +29,7 @@ export function createAnalyticsRoutes(container: Container): Router {
   router.get(
     '/platform',
     requireRole('PLATFORM_ADMIN'),
-    asyncHandler((req, res, next) =>
-      controller.getPlatformMetrics(req, res, next),
-    ),
+    asyncHandler((req, res, next) => controller.getPlatformMetrics(req, res, next)),
   );
 
   return router;

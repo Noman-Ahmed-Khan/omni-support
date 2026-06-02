@@ -53,9 +53,7 @@ export class TenantEntity extends AggregateRoot {
 
   static create(id: string, props: TenantProps): TenantEntity {
     const tenant = new TenantEntity(id, props);
-    tenant.addDomainEvent(
-      new TenantCreatedEvent(id, props.name, props.slug.toString())
-    );
+    tenant.addDomainEvent(new TenantCreatedEvent(id, props.name, props.slug.toString()));
     return tenant;
   }
 
@@ -70,9 +68,7 @@ export class TenantEntity extends AggregateRoot {
     this._status = TenantStatus.create('SUSPENDED');
     this._suspendedAt = new Date();
     this._suspendedReason = reason;
-    this.addDomainEvent(
-      new TenantSuspendedEvent(this.id, reason)
-    );
+    this.addDomainEvent(new TenantSuspendedEvent(this.id, reason));
   }
 
   activate(): void {
@@ -94,16 +90,40 @@ export class TenantEntity extends AggregateRoot {
   }
 
   // Getters
-  get name(): string { return this._name; }
-  get slug(): string { return this._slug.toString(); }
-  get status(): string { return this._status.toString(); }
-  get plan(): string { return this._plan; }
-  get domain(): string | undefined { return this._domain; }
-  get logoUrl(): string | undefined { return this._logoUrl; }
-  get maxAgents(): number { return this._maxAgents; }
-  get maxCustomers(): number { return this._maxCustomers; }
-  get maxTicketsPerDay(): number { return this._maxTicketsPerDay; }
-  get settings(): Record<string, unknown> { return { ...this._settings }; }
-  get suspendedAt(): Date | undefined { return this._suspendedAt; }
-  get suspendedReason(): string | undefined { return this._suspendedReason; }
+  get name(): string {
+    return this._name;
+  }
+  get slug(): string {
+    return this._slug.toString();
+  }
+  get status(): string {
+    return this._status.toString();
+  }
+  get plan(): string {
+    return this._plan;
+  }
+  get domain(): string | undefined {
+    return this._domain;
+  }
+  get logoUrl(): string | undefined {
+    return this._logoUrl;
+  }
+  get maxAgents(): number {
+    return this._maxAgents;
+  }
+  get maxCustomers(): number {
+    return this._maxCustomers;
+  }
+  get maxTicketsPerDay(): number {
+    return this._maxTicketsPerDay;
+  }
+  get settings(): Record<string, unknown> {
+    return { ...this._settings };
+  }
+  get suspendedAt(): Date | undefined {
+    return this._suspendedAt;
+  }
+  get suspendedReason(): string | undefined {
+    return this._suspendedReason;
+  }
 }

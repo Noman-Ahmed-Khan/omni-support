@@ -74,7 +74,9 @@ export function createNotificationRoutes(container: Container): Router {
         data: { readAt: new Date(), status: 'READ' },
       });
 
-      res.status(200).json(successResponse({ message: 'All notifications marked as read' }));
+      res
+        .status(200)
+        .json(successResponse({ message: 'All notifications marked as read' }));
     }),
   );
 

@@ -18,10 +18,7 @@ export class LocalStorageProvider implements IStorageProvider {
     this.baseUrl = process.env.LOCAL_STORAGE_URL ?? 'http://localhost:3000/uploads';
   }
 
-  async upload(
-    buffer: Buffer,
-    options: UploadOptions,
-  ): Promise<UploadResult> {
+  async upload(buffer: Buffer, options: UploadOptions): Promise<UploadResult> {
     try {
       const storagePath = this.buildStoragePath(options);
       const fullPath = path.join(this.basePath, storagePath);
@@ -41,10 +38,7 @@ export class LocalStorageProvider implements IStorageProvider {
     }
   }
 
-  getSignedUrl(
-    storagePath: string,
-    options: SignedUrlOptions = {},
-  ): Promise<string> {
+  getSignedUrl(storagePath: string, options: SignedUrlOptions = {}): Promise<string> {
     // For local storage, return a token-based URL
     const expiresIn = options.expiresIn ?? 3600;
     const expires = Date.now() + expiresIn * 1000;

@@ -17,9 +17,7 @@ import {
 export function createAuthRoutes(container: Container): Router {
   const router = Router();
   const controller: AuthController = container.resolve('authController');
-  const authMiddleware = createAuthMiddleware(
-    container.resolve('tokenService'),
-  );
+  const authMiddleware = createAuthMiddleware(container.resolve('tokenService'));
 
   // Public routes with strict rate limiting
   router.post(
@@ -76,9 +74,7 @@ export function createAuthRoutes(container: Container): Router {
     asyncHandler((req, res, next) => controller.logout(req, res, next)),
   );
 
-  router.get('/me', authMiddleware, (req, res, next) =>
-    controller.me(req, res, next),
-  );
+  router.get('/me', authMiddleware, (req, res, next) => controller.me(req, res, next));
 
   return router;
 }

@@ -30,11 +30,9 @@ export function validate<T extends ZodTypeAny>(
       const parsed: unknown = schema.parse(data);
 
       if (target === 'body') {
-        (req as Request<ParamsDictionary, unknown, z.infer<T>, unknown>).body =
-          parsed;
+        (req as Request<ParamsDictionary, unknown, z.infer<T>, unknown>).body = parsed;
       } else if (target === 'query') {
-        (req as Request<ParamsDictionary, unknown, unknown, z.infer<T>>).query =
-          parsed;
+        (req as Request<ParamsDictionary, unknown, unknown, z.infer<T>>).query = parsed;
       } else {
         (req as Request<z.infer<T>, unknown, unknown, unknown>).params = parsed;
       }

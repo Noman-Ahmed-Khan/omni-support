@@ -1,11 +1,7 @@
 import { z } from 'zod';
 
 export const createCustomerSchema = z.object({
-  fullName: z
-    .string()
-    .min(2, 'Full name must be at least 2 characters')
-    .max(200)
-    .trim(),
+  fullName: z.string().min(2, 'Full name must be at least 2 characters').max(200).trim(),
   email: z.string().email('Invalid email address').toLowerCase(),
   phone: z
     .string()

@@ -1,7 +1,10 @@
 import { Request, Response, NextFunction, RequestHandler } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { PermissionCacheStrategy } from '../../../infrastructure/cache/strategies/permission.cache';
-import { ForbiddenError, UnauthorizedError } from '../../../shared/errors/application.error';
+import {
+  ForbiddenError,
+  UnauthorizedError,
+} from '../../../shared/errors/application.error';
 import { logger } from '../../../shared/utils/logger.util';
 
 export function requirePermission(resource: string, action: string) {
@@ -9,11 +12,7 @@ export function requirePermission(resource: string, action: string) {
     _prisma: PrismaClient,
     _permissionCache: PermissionCacheStrategy,
   ): RequestHandler {
-    return (
-      req: Request,
-      _res: Response,
-      next: NextFunction,
-    ): void => {
+    return (req: Request, _res: Response, next: NextFunction): void => {
       void (async (): Promise<void> => {
         if (!req.user) {
           throw new UnauthorizedError('Authentication required');
@@ -37,9 +36,7 @@ export function requirePermission(resource: string, action: string) {
             correlationId: req.correlationId,
           });
 
-          throw new ForbiddenError(
-            `You don't have permission to ${action} ${resource}`,
-          );
+          throw new ForbiddenError(`You don't have permission to ${action} ${resource}`);
         }
 
         next();
@@ -49,11 +46,7 @@ export function requirePermission(resource: string, action: string) {
 }
 
 export function requireRole(...roles: string[]): RequestHandler {
-  return (
-    req: Request,
-    _res: Response,
-    next: NextFunction,
-  ): void => {
+  return (req: Request, _res: Response, next: NextFunction): void => {
     try {
       if (!req.user) {
         throw new UnauthorizedError('Authentication required');

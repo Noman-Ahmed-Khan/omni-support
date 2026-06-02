@@ -4,9 +4,7 @@ import { CustomerService } from '../services/customer.service';
 export class CustomerTimelineHandler {
   constructor(private readonly customerService: CustomerService) {}
 
-  async execute(
-    query: CustomerTimelineQuery,
-  ): Promise<{
+  async execute(query: CustomerTimelineQuery): Promise<{
     data: unknown[];
     total: number;
     page: number;

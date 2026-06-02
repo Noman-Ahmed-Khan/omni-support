@@ -14,10 +14,9 @@ export class PermissionCacheStrategy {
   constructor(private readonly cache: CacheService) {}
 
   async getPermissions(userId: string): Promise<CachedPermissions | null> {
-    return this.cache.get<CachedPermissions>(
-      CacheService.permissionKey(userId),
-      { ttl: this.TTL },
-    );
+    return this.cache.get<CachedPermissions>(CacheService.permissionKey(userId), {
+      ttl: this.TTL,
+    });
   }
 
   async setPermissions(permissions: CachedPermissions): Promise<void> {

@@ -18,10 +18,7 @@ import { InfrastructureError } from '../../../shared/errors/infrastructure.error
 export class CustomerRepository implements ICustomerRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async findById(
-    id: string,
-    tenantId: string,
-  ): Promise<CustomerEntity | null> {
+  async findById(id: string, tenantId: string): Promise<CustomerEntity | null> {
     try {
       const record = await this.prisma.customer.findFirst({
         where: { id, tenantId },
@@ -33,10 +30,7 @@ export class CustomerRepository implements ICustomerRepository {
     }
   }
 
-  async findByEmail(
-    email: string,
-    tenantId: string,
-  ): Promise<CustomerEntity | null> {
+  async findByEmail(email: string, tenantId: string): Promise<CustomerEntity | null> {
     try {
       const record = await this.prisma.customer.findFirst({
         where: { email: email.toLowerCase(), tenantId },
@@ -57,10 +51,7 @@ export class CustomerRepository implements ICustomerRepository {
     try {
       const where = this.buildWhereClause(filters);
       const skip = (pagination.page - 1) * pagination.limit;
-      const orderBy = this.buildOrderBy(
-        pagination.sortBy,
-        pagination.sortOrder,
-      );
+      const orderBy = this.buildOrderBy(pagination.sortBy, pagination.sortOrder);
 
       const [records, total] = await Promise.all([
         this.prisma.customer.findMany({ where, skip, take: pagination.limit, orderBy }),
@@ -167,9 +158,7 @@ export class CustomerRepository implements ICustomerRepository {
     return records.map((r) => this.toDomain(r));
   }
 
-  private buildWhereClause(
-    filters: CustomerFilters,
-  ): Prisma.CustomerWhereInput {
+  private buildWhereClause(filters: CustomerFilters): Prisma.CustomerWhereInput {
     const where: Prisma.CustomerWhereInput = {
       tenantId: filters.tenantId,
     };
@@ -209,10 +198,7 @@ export class CustomerRepository implements ICustomerRepository {
     sortBy?: string,
     sortOrder: 'asc' | 'desc' = 'desc',
   ): Prisma.CustomerOrderByWithRelationInput {
-    const validSortFields: Record<
-      string,
-      Prisma.CustomerOrderByWithRelationInput
-    > = {
+    const validSortFields: Record<string, Prisma.CustomerOrderByWithRelationInput> = {
       createdAt: { createdAt: sortOrder },
       updatedAt: { updatedAt: sortOrder },
       fullName: { fullName: sortOrder },

@@ -1,9 +1,4 @@
-import {
-  ActivityEventType,
-  ActivityLog,
-  Prisma,
-  PrismaClient,
-} from '@prisma/client';
+import { ActivityEventType, ActivityLog, Prisma, PrismaClient } from '@prisma/client';
 import { InfrastructureError } from '../../../shared/errors/infrastructure.error';
 
 export interface ActivityLogEntry {
@@ -48,7 +43,13 @@ export class ActivityRepository {
     tenantId: string,
     page: number = 1,
     limit: number = 50,
-  ): Promise<{ data: ActivityLog[]; total: number; page: number; limit: number; totalPages: number }> {
+  ): Promise<{
+    data: ActivityLog[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
     try {
       const skip = (page - 1) * limit;
 
@@ -81,7 +82,13 @@ export class ActivityRepository {
     tenantId: string,
     page: number = 1,
     limit: number = 50,
-  ): Promise<{ data: ActivityLog[]; total: number; page: number; limit: number; totalPages: number }> {
+  ): Promise<{
+    data: ActivityLog[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
     try {
       const skip = (page - 1) * limit;
 

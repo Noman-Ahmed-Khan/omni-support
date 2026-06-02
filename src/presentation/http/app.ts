@@ -85,7 +85,7 @@ export function createApp(container: Container): Application {
   // Request ID & Correlation
   app.use(correlationMiddleware);
 
-  // Input Sanitization 
+  // Input Sanitization
   app.use(sanitizeMiddleware);
 
   // Rate Limiting (global)

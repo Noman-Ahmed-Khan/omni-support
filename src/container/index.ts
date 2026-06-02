@@ -179,11 +179,7 @@ export function buildContainer(
   const tokenService = new TokenService(prisma);
   container.register('tokenService', tokenService);
 
-  const notificationService = new NotificationService(
-    prisma,
-    emailQueue,
-    wsGateway,
-  );
+  const notificationService = new NotificationService(prisma, emailQueue, wsGateway);
   container.register('notificationService', notificationService);
 
   const customerService = new CustomerService(
@@ -222,7 +218,10 @@ export function buildContainer(
   container.register('predictUrgencyHandler', new PredictUrgencyHandler(aiService));
   container.register('suggestResponseHandler', new SuggestResponseHandler(aiService));
   container.register('generateSummaryHandler', new GenerateSummaryHandler(aiService));
-  container.register('calculateRiskScoreHandler', new CalculateRiskScoreHandler(aiService));
+  container.register(
+    'calculateRiskScoreHandler',
+    new CalculateRiskScoreHandler(aiService),
+  );
 
   const authService = new AuthService(
     prisma,
@@ -248,7 +247,10 @@ export function buildContainer(
   container.register('createTicketHandler', new CreateTicketHandler(ticketService));
   container.register('updateTicketHandler', new UpdateTicketHandler(ticketService));
   container.register('assignTicketHandler', new AssignTicketHandler(ticketService));
-  container.register('changeTicketStatusHandler', new ChangeTicketStatusHandler(ticketService));
+  container.register(
+    'changeTicketStatusHandler',
+    new ChangeTicketStatusHandler(ticketService),
+  );
   container.register('escalateTicketHandler', new EscalateTicketHandler(ticketService));
   container.register('addCommentHandler', new AddCommentHandler(ticketService));
   container.register('closeTicketHandler', new CloseTicketHandler(ticketService));
@@ -262,13 +264,31 @@ export function buildContainer(
   container.register('deleteCustomerHandler', new DeleteCustomerHandler(customerService));
   container.register('getCustomerHandler', new GetCustomerHandler(customerService));
   container.register('listCustomersHandler', new ListCustomersHandler(customerService));
-  container.register('customerTimelineHandler', new CustomerTimelineHandler(customerService));
-  container.register('triggerRiskScoreHandler', new TriggerRiskScoreHandler(customerService));
+  container.register(
+    'customerTimelineHandler',
+    new CustomerTimelineHandler(customerService),
+  );
+  container.register(
+    'triggerRiskScoreHandler',
+    new TriggerRiskScoreHandler(customerService),
+  );
 
-  container.register('createTenantHandler', new CreateTenantHandler(tenantRepo, auditRepo, eventBus));
-  container.register('updateTenantHandler', new UpdateTenantHandler(tenantRepo, auditRepo));
-  container.register('suspendTenantHandler', new SuspendTenantHandler(tenantRepo, auditRepo, eventBus));
-  container.register('restoreTenantHandler', new RestoreTenantHandler(tenantRepo, auditRepo));
+  container.register(
+    'createTenantHandler',
+    new CreateTenantHandler(tenantRepo, auditRepo, eventBus),
+  );
+  container.register(
+    'updateTenantHandler',
+    new UpdateTenantHandler(tenantRepo, auditRepo),
+  );
+  container.register(
+    'suspendTenantHandler',
+    new SuspendTenantHandler(tenantRepo, auditRepo, eventBus),
+  );
+  container.register(
+    'restoreTenantHandler',
+    new RestoreTenantHandler(tenantRepo, auditRepo),
+  );
   container.register('getTenantHandler', new GetTenantHandler(tenantRepo));
   container.register('listTenantsHandler', new ListTenantsHandler(tenantRepo));
 
@@ -294,10 +314,7 @@ export function buildContainer(
     createTicketEscalatedHandler(notificationService, prisma),
   );
 
-  eventBus.subscribe(
-    'TICKET_RESOLVED',
-    createTicketResolvedHandler(notificationService),
-  );
+  eventBus.subscribe('TICKET_RESOLVED', createTicketResolvedHandler(notificationService));
 
   eventBus.subscribe(
     'COMMENT_ADDED',
@@ -361,29 +378,16 @@ export function buildContainer(
     ),
   );
 
-  container.register(
-    'analyticsController',
-    new AnalyticsController(analyticsService),
-  );
+  container.register('analyticsController', new AnalyticsController(analyticsService));
 
-  container.register(
-    'searchController',
-    new SearchController(searchService),
-  );
+  container.register('searchController', new SearchController(searchService));
 
   container.register(
     'webhookController',
-    new WebhookController(
-      whatsAppProvider,
-      ticketService,
-      prisma,
-    ),
+    new WebhookController(whatsAppProvider, ticketService, prisma),
   );
 
-  container.register(
-    'healthController',
-    new HealthController(prisma, redis, wsGateway),
-  );
+  container.register('healthController', new HealthController(prisma, redis, wsGateway));
 
   logger.info('DI container built successfully');
 

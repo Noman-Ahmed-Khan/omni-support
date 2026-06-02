@@ -10,10 +10,7 @@ import {
   UnauthorizedError,
   ForbiddenError,
 } from '../../../shared/errors/application.error';
-import {
-  ConflictError,
-  ValidationError,
-} from '../../../shared/errors/domain.error';
+import { ConflictError, ValidationError } from '../../../shared/errors/domain.error';
 import { logger } from '../../../shared/utils/logger.util';
 import { appConfig } from '../../../config/app.config';
 
@@ -108,11 +105,7 @@ export class AuthService {
     await this.emailQueue.addUrgent({
       to: user.email,
       subject: 'Verify your OmniSupport account',
-      html: this.buildVerificationEmailHtml(
-        user.firstName,
-        rawToken,
-        userId,
-      ),
+      html: this.buildVerificationEmailHtml(user.firstName, rawToken, userId),
     });
 
     await this.auditRepo.create({
@@ -141,12 +134,8 @@ export class AuthService {
 
     // Check if account is locked
     if (user.lockedUntil && user.lockedUntil > new Date()) {
-      const minutesLeft = Math.ceil(
-        (user.lockedUntil.getTime() - Date.now()) / 60000,
-      );
-      throw new UnauthorizedError(
-        `Account locked. Try again in ${minutesLeft} minutes`,
-      );
+      const minutesLeft = Math.ceil((user.lockedUntil.getTime() - Date.now()) / 60000);
+      throw new UnauthorizedError(`Account locked. Try again in ${minutesLeft} minutes`);
     }
 
     // Check account status
@@ -161,10 +150,7 @@ export class AuthService {
     }
 
     // Verify password
-    const isValidPassword = await argon2.verify(
-      user.passwordHash,
-      dto.password,
-    );
+    const isValidPassword = await argon2.verify(user.passwordHash, dto.password);
 
     if (!isValidPassword) {
       // Increment failed attempts
@@ -191,9 +177,7 @@ export class AuthService {
 
     // Check email verification for non-admin users
     if (!user.emailVerifiedAt && user.role !== 'PLATFORM_ADMIN') {
-      throw new ForbiddenError(
-        'Please verify your email address before logging in',
-      );
+      throw new ForbiddenError('Please verify your email address before logging in');
     }
 
     // Check tenant status if tenant user
@@ -203,15 +187,11 @@ export class AuthService {
       });
 
       if (tenant?.status === 'SUSPENDED') {
-        throw new ForbiddenError(
-          'Your organization account has been suspended',
-        );
+        throw new ForbiddenError('Your organization account has been suspended');
       }
 
       if (tenant?.status === 'CANCELLED') {
-        throw new ForbiddenError(
-          'Your organization account has been cancelled',
-        );
+        throw new ForbiddenError('Your organization account has been cancelled');
       }
     }
 
@@ -401,11 +381,7 @@ export class AuthService {
     ipAddress?: string,
     userAgent?: string,
   ): Promise<TokenPair> {
-    return this.tokenService.rotateRefreshToken(
-      refreshToken,
-      ipAddress,
-      userAgent,
-    );
+    return this.tokenService.rotateRefreshToken(refreshToken, ipAddress, userAgent);
   }
 
   private async hashPassword(password: string): Promise<string> {
@@ -433,10 +409,7 @@ export class AuthService {
     `;
   }
 
-  private buildPasswordResetEmailHtml(
-    firstName: string,
-    token: string,
-  ): string {
+  private buildPasswordResetEmailHtml(firstName: string, token: string): string {
     const resetUrl = `${appConfig.frontendUrl}/reset-password?token=${token}`;
     return `
       <h1>Reset your password, ${firstName}</h1>

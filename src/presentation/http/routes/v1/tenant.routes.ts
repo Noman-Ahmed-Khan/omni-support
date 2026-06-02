@@ -14,9 +14,7 @@ import {
 export function createTenantRoutes(container: Container): Router {
   const router = Router();
   const controller: TenantController = container.resolve('tenantController');
-  const authMiddleware = createAuthMiddleware(
-    container.resolve('tokenService'),
-  );
+  const authMiddleware = createAuthMiddleware(container.resolve('tokenService'));
 
   router.use(authMiddleware);
 

@@ -101,10 +101,7 @@ export class SearchService {
     return { results: paginated, total: results.length };
   }
 
-  private async searchTickets(
-    tenantId: string,
-    query: string,
-  ): Promise<SearchResult[]> {
+  private async searchTickets(tenantId: string, query: string): Promise<SearchResult[]> {
     try {
       const results = await this.prisma.$queryRaw<TicketSearchRow[]>`
         SELECT
@@ -174,10 +171,7 @@ export class SearchService {
     }
   }
 
-  private async searchComments(
-    tenantId: string,
-    query: string,
-  ): Promise<SearchResult[]> {
+  private async searchComments(tenantId: string, query: string): Promise<SearchResult[]> {
     try {
       const results = await this.prisma.$queryRaw<CommentSearchRow[]>`
         SELECT

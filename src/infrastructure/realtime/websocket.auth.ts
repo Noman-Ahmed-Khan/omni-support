@@ -12,18 +12,13 @@ export interface WSAuthResult {
 }
 
 export class WebSocketAuth {
-  authenticate(
-    request: IncomingMessage,
-  ): Promise<WSAuthResult | null> {
+  authenticate(request: IncomingMessage): Promise<WSAuthResult | null> {
     try {
       const token = this.extractToken(request);
 
       if (!token) return Promise.resolve(null);
 
-      const payload = jwt.verify(
-        token,
-        jwtConfig.accessSecret,
-      ) as AccessTokenPayload;
+      const payload = jwt.verify(token, jwtConfig.accessSecret) as AccessTokenPayload;
 
       return Promise.resolve({
         userId: payload.sub,

@@ -15,9 +15,7 @@ export class NotFoundError extends BaseError {
   readonly errorCode = 'NOT_FOUND';
 
   constructor(resource: string, id?: string) {
-    super(
-      id ? `${resource} with id '${id}' not found` : `${resource} not found`,
-    );
+    super(id ? `${resource} with id '${id}' not found` : `${resource} not found`);
   }
 }
 

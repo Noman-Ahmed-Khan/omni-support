@@ -4,16 +4,14 @@ import { QueueName } from '../queue.factory';
 import { AIJobData } from '../queues/ai.queue';
 import { logger } from '../../../shared/utils/logger.util';
 
-export function createAIWorker(
-  handlers: {
-    categorize: (data: AIJobData) => Promise<void>;
-    sentiment: (data: AIJobData) => Promise<void>;
-    urgency: (data: AIJobData) => Promise<void>;
-    'suggest-response': (data: AIJobData) => Promise<void>;
-    summarize: (data: AIJobData) => Promise<void>;
-    'risk-score': (data: AIJobData) => Promise<void>;
-  },
-): Worker {
+export function createAIWorker(handlers: {
+  categorize: (data: AIJobData) => Promise<void>;
+  sentiment: (data: AIJobData) => Promise<void>;
+  urgency: (data: AIJobData) => Promise<void>;
+  'suggest-response': (data: AIJobData) => Promise<void>;
+  summarize: (data: AIJobData) => Promise<void>;
+  'risk-score': (data: AIJobData) => Promise<void>;
+}): Worker {
   const connection = getRedisClient();
 
   const worker = new Worker(

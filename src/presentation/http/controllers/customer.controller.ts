@@ -13,10 +13,7 @@ import {
   UpdateCustomerDto,
   ListCustomersQueryDto,
 } from '../dtos/customer/customer.dto';
-import {
-  successResponse,
-  paginatedResponse,
-} from '../dtos/common/response.dto';
+import { successResponse, paginatedResponse } from '../dtos/common/response.dto';
 
 export class CustomerController {
   constructor(
@@ -165,14 +162,11 @@ export class CustomerController {
         limit: Number(limit ?? 50),
       });
 
-      res.status(200).json(
-        paginatedResponse(
-          timeline.data,
-          timeline.total,
-          timeline.page,
-          timeline.limit,
-        ),
-      );
+      res
+        .status(200)
+        .json(
+          paginatedResponse(timeline.data, timeline.total, timeline.page, timeline.limit),
+        );
     } catch (error) {
       next(error);
     }
@@ -185,9 +179,7 @@ export class CustomerController {
         tenantId: req.tenantId!,
       });
 
-      res.status(202).json(
-        successResponse({ message: 'Risk score calculation queued' }),
-      );
+      res.status(202).json(successResponse({ message: 'Risk score calculation queued' }));
     } catch (error) {
       next(error);
     }

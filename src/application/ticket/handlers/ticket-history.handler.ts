@@ -4,9 +4,7 @@ import { TicketService } from '../services/ticket.service';
 export class TicketHistoryHandler {
   constructor(private readonly ticketService: TicketService) {}
 
-  async execute(
-    query: TicketHistoryQuery,
-  ): Promise<{
+  async execute(query: TicketHistoryQuery): Promise<{
     data: unknown[];
     total: number;
     page: number;

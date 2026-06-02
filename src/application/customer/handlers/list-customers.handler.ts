@@ -6,9 +6,7 @@ import { CustomerEntity } from '../../../domain/customer/entities/customer.entit
 export class ListCustomersHandler {
   constructor(private readonly customerService: CustomerService) {}
 
-  async execute(
-    query: ListCustomersQuery,
-  ): Promise<PaginatedResult<CustomerEntity>> {
+  async execute(query: ListCustomersQuery): Promise<PaginatedResult<CustomerEntity>> {
     return this.customerService.listCustomers(query.filters, query.pagination);
   }
 }

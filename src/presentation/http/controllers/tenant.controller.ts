@@ -48,13 +48,18 @@ export class TenantController {
   }
 
   async findAll(
-    req: Request<ParamsDictionary, unknown, unknown, {
-      page?: string;
-      limit?: string;
-      status?: string;
-      plan?: string;
-      search?: string;
-    }>,
+    req: Request<
+      ParamsDictionary,
+      unknown,
+      unknown,
+      {
+        page?: string;
+        limit?: string;
+        status?: string;
+        plan?: string;
+        search?: string;
+      }
+    >,
     res: Response,
     next: NextFunction,
   ): Promise<void> {

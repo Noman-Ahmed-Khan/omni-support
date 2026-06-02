@@ -33,10 +33,7 @@ export class AIService {
     if (!data.ticketId) return;
 
     try {
-      const ticket = await this.ticketRepo.findById(
-        data.ticketId,
-        data.tenantId,
-      );
+      const ticket = await this.ticketRepo.findById(data.ticketId, data.tenantId);
       if (!ticket) return;
 
       const startTime = Date.now();
@@ -77,7 +74,11 @@ export class AIService {
       // Send realtime update
       this.wsGateway.sendToTicket(data.ticketId, {
         event: 'ai:categorized',
-        data: { ticketId: data.ticketId, category: result.category, confidence: result.confidence },
+        data: {
+          ticketId: data.ticketId,
+          category: result.category,
+          confidence: result.confidence,
+        },
       });
 
       logger.info('AI categorization complete', {
@@ -118,10 +119,7 @@ export class AIService {
 
       // Auto-escalate if sentiment is very negative / frustrated
       if (result.label === 'FRUSTRATED' && result.confidence >= 0.8) {
-        const ticket = await this.ticketRepo.findById(
-          data.ticketId,
-          data.tenantId,
-        );
+        const ticket = await this.ticketRepo.findById(data.ticketId, data.tenantId);
 
         if (ticket && !ticket.isEscalated && ticket.isActive()) {
           await this.ticketService.escalateTicket({
@@ -148,10 +146,7 @@ export class AIService {
     if (!data.ticketId) return;
 
     try {
-      const ticket = await this.ticketRepo.findById(
-        data.ticketId,
-        data.tenantId,
-      );
+      const ticket = await this.ticketRepo.findById(data.ticketId, data.tenantId);
       if (!ticket) return;
 
       const startTime = Date.now();
@@ -216,10 +211,7 @@ export class AIService {
     if (!data.ticketId) return;
 
     try {
-      const ticket = await this.ticketRepo.findById(
-        data.ticketId,
-        data.tenantId,
-      );
+      const ticket = await this.ticketRepo.findById(data.ticketId, data.tenantId);
       if (!ticket) return;
 
       // Get recent comments for context
@@ -282,10 +274,7 @@ export class AIService {
     if (!data.ticketId) return;
 
     try {
-      const ticket = await this.ticketRepo.findById(
-        data.ticketId,
-        data.tenantId,
-      );
+      const ticket = await this.ticketRepo.findById(data.ticketId, data.tenantId);
       if (!ticket) return;
 
       // Build full ticket context
@@ -379,9 +368,7 @@ ${commentsText}
         (t) => !['RESOLVED', 'CLOSED'].includes(t.status),
       ).length;
 
-      const escalatedCount = customerData.tickets.filter(
-        (t) => t.isEscalated,
-      ).length;
+      const escalatedCount = customerData.tickets.filter((t) => t.isEscalated).length;
 
       const avgSentiment =
         recentSentiments.length > 0
@@ -396,9 +383,7 @@ ${commentsText}
         unresolvedTickets: unresolvedCount,
         escalatedTickets: escalatedCount,
         avgSentimentScore: avgSentiment,
-        recentTicketPriorities: customerData.tickets
-          .slice(0, 5)
-          .map((t) => t.priority),
+        recentTicketPriorities: customerData.tickets.slice(0, 5).map((t) => t.priority),
       });
 
       const startTime = Date.now();

@@ -2,37 +2,19 @@ import { z } from 'zod';
 
 export const createTicketSchema = z.object({
   customerId: z.string().uuid('Invalid customer ID'),
-  title: z
-    .string()
-    .min(5, 'Title must be at least 5 characters')
-    .max(500)
-    .trim(),
+  title: z.string().min(5, 'Title must be at least 5 characters').max(500).trim(),
   description: z
     .string()
     .min(10, 'Description must be at least 10 characters')
     .max(50000)
     .trim(),
-  priority: z
-    .enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'])
-    .optional()
-    .default('MEDIUM'),
+  priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).optional().default('MEDIUM'),
   category: z
-    .enum([
-      'BILLING',
-      'TECHNICAL',
-      'ACCOUNT',
-      'REFUND',
-      'SHIPPING',
-      'GENERAL',
-      'OTHER',
-    ])
+    .enum(['BILLING', 'TECHNICAL', 'ACCOUNT', 'REFUND', 'SHIPPING', 'GENERAL', 'OTHER'])
     .optional()
     .default('GENERAL'),
   tags: z.array(z.string().max(50)).max(10).optional().default([]),
-  source: z
-    .enum(['web', 'email', 'whatsapp', 'api'])
-    .optional()
-    .default('web'),
+  source: z.enum(['web', 'email', 'whatsapp', 'api']).optional().default('web'),
   assignedAgentId: z.string().uuid().optional(),
   dueAt: z.string().datetime().optional(),
 });
@@ -42,15 +24,7 @@ export const updateTicketSchema = z.object({
   description: z.string().min(10).max(50000).trim().optional(),
   priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).optional(),
   category: z
-    .enum([
-      'BILLING',
-      'TECHNICAL',
-      'ACCOUNT',
-      'REFUND',
-      'SHIPPING',
-      'GENERAL',
-      'OTHER',
-    ])
+    .enum(['BILLING', 'TECHNICAL', 'ACCOUNT', 'REFUND', 'SHIPPING', 'GENERAL', 'OTHER'])
     .optional(),
   tags: z.array(z.string().max(50)).max(10).optional(),
   dueAt: z.string().datetime().optional(),
@@ -61,13 +35,7 @@ export const assignTicketSchema = z.object({
 });
 
 export const changeStatusSchema = z.object({
-  status: z.enum([
-    'OPEN',
-    'IN_PROGRESS',
-    'PENDING_CUSTOMER',
-    'RESOLVED',
-    'CLOSED',
-  ]),
+  status: z.enum(['OPEN', 'IN_PROGRESS', 'PENDING_CUSTOMER', 'RESOLVED', 'CLOSED']),
 });
 
 export const escalateTicketSchema = z.object({
@@ -79,11 +47,7 @@ export const escalateTicketSchema = z.object({
 });
 
 export const addCommentSchema = z.object({
-  content: z
-    .string()
-    .min(1, 'Comment cannot be empty')
-    .max(50000)
-    .trim(),
+  content: z.string().min(1, 'Comment cannot be empty').max(50000).trim(),
   type: z.enum(['PUBLIC', 'INTERNAL']).default('PUBLIC'),
 });
 

@@ -18,14 +18,8 @@ export interface SignedUrlOptions {
 }
 
 export interface IStorageProvider {
-  upload(
-    buffer: Buffer,
-    options: UploadOptions,
-  ): Promise<UploadResult>;
-  getSignedUrl(
-    storagePath: string,
-    options?: SignedUrlOptions,
-  ): Promise<string>;
+  upload(buffer: Buffer, options: UploadOptions): Promise<UploadResult>;
+  getSignedUrl(storagePath: string, options?: SignedUrlOptions): Promise<string>;
   delete(storagePath: string): Promise<void>;
   exists(storagePath: string): Promise<boolean>;
 }

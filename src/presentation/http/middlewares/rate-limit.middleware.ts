@@ -41,8 +41,7 @@ export const authRateLimitMiddleware = rateLimit({
       type: 'https://omnisupport.io/errors/rate-limit',
       title: 'Too Many Auth Attempts',
       status: 429,
-      detail:
-        'Too many authentication attempts. Please wait 15 minutes.',
+      detail: 'Too many authentication attempts. Please wait 15 minutes.',
     });
   },
   store: new RedisStore({

@@ -19,10 +19,7 @@ import {
   AddCommentDto,
   ListTicketsQueryDto,
 } from '../dtos/ticket/ticket.dto';
-import {
-  successResponse,
-  paginatedResponse,
-} from '../dtos/common/response.dto';
+import { successResponse, paginatedResponse } from '../dtos/common/response.dto';
 
 export class TicketController {
   constructor(
@@ -129,10 +126,7 @@ export class TicketController {
       });
 
       // Agents can only view their assigned tickets
-      if (
-        req.user!.role === 'AGENT' &&
-        ticket.assignedAgentId !== req.user!.id
-      ) {
+      if (req.user!.role === 'AGENT' && ticket.assignedAgentId !== req.user!.id) {
         res.status(403).json({
           type: 'https://omnisupport.io/errors/forbidden',
           title: 'Forbidden',
@@ -265,14 +259,11 @@ export class TicketController {
         limit: Number(limit ?? 50),
       });
 
-      res.status(200).json(
-        paginatedResponse(
-          history.data,
-          history.total,
-          history.page,
-          history.limit,
-        ),
-      );
+      res
+        .status(200)
+        .json(
+          paginatedResponse(history.data, history.total, history.page, history.limit),
+        );
     } catch (error) {
       next(error);
     }

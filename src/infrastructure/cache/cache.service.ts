@@ -29,11 +29,7 @@ export class CacheService {
     }
   }
 
-  async set<T>(
-    key: string,
-    value: T,
-    options?: CacheOptions,
-  ): Promise<void> {
+  async set<T>(key: string, value: T, options?: CacheOptions): Promise<void> {
     try {
       const fullKey = this.buildKey(key, options?.prefix);
       const ttl = options?.ttl ?? this.defaultTTL;
@@ -107,9 +103,7 @@ export class CacheService {
 
   // Tenant-aware cache key builder
   static tenantKey(tenantId: string, resource: string, id?: string): string {
-    return id
-      ? `tenant:${tenantId}:${resource}:${id}`
-      : `tenant:${tenantId}:${resource}`;
+    return id ? `tenant:${tenantId}:${resource}:${id}` : `tenant:${tenantId}:${resource}`;
   }
 
   // Permission cache key

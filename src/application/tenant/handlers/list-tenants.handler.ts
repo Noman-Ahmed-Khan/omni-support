@@ -1,4 +1,7 @@
-import { ITenantRepository, PaginatedResult } from '../../../domain/tenant/repositories/tenant.repository.interface';
+import {
+  ITenantRepository,
+  PaginatedResult,
+} from '../../../domain/tenant/repositories/tenant.repository.interface';
 import { TenantEntity } from '../../../domain/tenant/entities/tenant.entity';
 import { ListTenantsQuery } from '../queries/list-tenants.query';
 

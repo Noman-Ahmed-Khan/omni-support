@@ -26,10 +26,7 @@ export class WebSocketGateway {
   private readonly roomManager: RoomManager;
   private readonly wsAuth: WebSocketAuth;
 
-  constructor(
-    server: Server,
-    wsAuth: WebSocketAuth,
-  ) {
+  constructor(server: Server, wsAuth: WebSocketAuth) {
     this.wsAuth = wsAuth;
     this.roomManager = new RoomManager();
 
@@ -140,11 +137,7 @@ export class WebSocketGateway {
     }
   }
 
-  private handleMessage(
-    clientId: string,
-    client: WSClient,
-    rawData: string,
-  ): void {
+  private handleMessage(clientId: string, client: WSClient, rawData: string): void {
     try {
       const message = JSON.parse(rawData) as WSMessage;
 
@@ -166,11 +159,7 @@ export class WebSocketGateway {
     }
   }
 
-  private handleSubscribe(
-    clientId: string,
-    client: WSClient,
-    room?: string,
-  ): void {
+  private handleSubscribe(clientId: string, client: WSClient, room?: string): void {
     if (!room) return;
 
     // Validate room access
@@ -191,11 +180,7 @@ export class WebSocketGateway {
     });
   }
 
-  private handleUnsubscribe(
-    clientId: string,
-    client: WSClient,
-    room?: string,
-  ): void {
+  private handleUnsubscribe(clientId: string, client: WSClient, room?: string): void {
     if (!room) return;
     this.roomManager.leaveRoom(clientId, room);
     client.rooms.delete(room);

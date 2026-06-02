@@ -3,11 +3,7 @@ import { TokenService } from '../../../application/auth/services/token.service';
 import { UnauthorizedError } from '../../../shared/errors/application.error';
 
 export function createAuthMiddleware(tokenService: TokenService) {
-  return function authMiddleware(
-    req: Request,
-    _res: Response,
-    next: NextFunction,
-  ): void {
+  return function authMiddleware(req: Request, _res: Response, next: NextFunction): void {
     try {
       const token = extractBearerToken(req);
 

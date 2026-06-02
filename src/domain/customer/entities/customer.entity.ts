@@ -68,7 +68,7 @@ export class CustomerEntity extends AggregateRoot {
         props.tenantId,
         props.email.toString(),
         props.fullName,
-      )
+      ),
     );
     return customer;
   }
@@ -90,7 +90,7 @@ export class CustomerEntity extends AggregateRoot {
         previousScore,
         riskScore.value,
         riskScore.riskLabel,
-      )
+      ),
     );
   }
 
@@ -119,17 +119,43 @@ export class CustomerEntity extends AggregateRoot {
   }
 
   // Getters
-  get tenantId(): string { return this._tenantId; }
-  get assignedAgentId(): string | undefined { return this._assignedAgentId; }
-  get fullName(): string { return this._fullName; }
-  get email(): string { return this._email.toString(); }
-  get phone(): string | undefined { return this._phone; }
-  get company(): string | undefined { return this._company; }
-  get notes(): string | undefined { return this._notes; }
-  get status(): string { return this._status; }
-  get riskScore(): number { return this._riskScore; }
-  get riskLabel(): string | undefined { return this._riskLabel; }
-  get metadata(): Record<string, unknown> { return { ...this._metadata }; }
-  get externalId(): string | undefined { return this._externalId; }
-  get lastActivityAt(): Date | undefined { return this._lastActivityAt; }
+  get tenantId(): string {
+    return this._tenantId;
+  }
+  get assignedAgentId(): string | undefined {
+    return this._assignedAgentId;
+  }
+  get fullName(): string {
+    return this._fullName;
+  }
+  get email(): string {
+    return this._email.toString();
+  }
+  get phone(): string | undefined {
+    return this._phone;
+  }
+  get company(): string | undefined {
+    return this._company;
+  }
+  get notes(): string | undefined {
+    return this._notes;
+  }
+  get status(): string {
+    return this._status;
+  }
+  get riskScore(): number {
+    return this._riskScore;
+  }
+  get riskLabel(): string | undefined {
+    return this._riskLabel;
+  }
+  get metadata(): Record<string, unknown> {
+    return { ...this._metadata };
+  }
+  get externalId(): string | undefined {
+    return this._externalId;
+  }
+  get lastActivityAt(): Date | undefined {
+    return this._lastActivityAt;
+  }
 }

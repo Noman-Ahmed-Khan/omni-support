@@ -19,12 +19,8 @@ import {
 export function createTicketRoutes(container: Container): Router {
   const router = Router();
   const controller: TicketController = container.resolve('ticketController');
-  const authMiddleware = createAuthMiddleware(
-    container.resolve('tokenService'),
-  );
-  const tenantMiddleware = createTenantMiddleware(
-    container.resolve('prisma'),
-  );
+  const authMiddleware = createAuthMiddleware(container.resolve('tokenService'));
+  const tenantMiddleware = createTenantMiddleware(container.resolve('prisma'));
 
   // All ticket routes require auth + tenant
   router.use(authMiddleware, tenantMiddleware);

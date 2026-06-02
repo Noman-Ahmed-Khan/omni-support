@@ -9,22 +9,22 @@ const storageConfigSchema = z.object({
     bucket: z.string(),
     endpoint: z.string().optional(),
   }),
-  allowedMimeTypes: z.array(z.string()).default([
-    'image/jpeg',
-    'image/png',
-    'image/gif',
-    'image/webp',
-    'application/pdf',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'application/vnd.ms-excel',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'text/plain',
-    'text/csv',
-  ]),
-  maxFileSizeBytes: z.coerce
-    .number()
-    .default(10 * 1024 * 1024), // 10MB
+  allowedMimeTypes: z
+    .array(z.string())
+    .default([
+      'image/jpeg',
+      'image/png',
+      'image/gif',
+      'image/webp',
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'text/plain',
+      'text/csv',
+    ]),
+  maxFileSizeBytes: z.coerce.number().default(10 * 1024 * 1024), // 10MB
 });
 
 export const storageConfig = storageConfigSchema.parse({

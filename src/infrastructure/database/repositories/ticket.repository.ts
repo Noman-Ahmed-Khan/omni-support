@@ -57,10 +57,7 @@ export class TicketRepository implements ITicketRepository {
       const where = this.buildWhereClause(filters);
       const skip = (pagination.page - 1) * pagination.limit;
 
-      const orderBy = this.buildOrderBy(
-        pagination.sortBy,
-        pagination.sortOrder,
-      );
+      const orderBy = this.buildOrderBy(pagination.sortBy, pagination.sortOrder);
 
       const [records, total] = await Promise.all([
         this.prisma.ticket.findMany({
@@ -89,10 +86,7 @@ export class TicketRepository implements ITicketRepository {
     tenantId: string,
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<TicketEntity>> {
-    return this.findAll(
-      { tenantId, assignedAgentId: agentId },
-      pagination,
-    );
+    return this.findAll({ tenantId, assignedAgentId: agentId }, pagination);
   }
 
   async findByCustomerId(
@@ -321,10 +315,7 @@ export class TicketRepository implements ITicketRepository {
     sortBy?: string,
     sortOrder: 'asc' | 'desc' = 'desc',
   ): Prisma.TicketOrderByWithRelationInput {
-    const validSortFields: Record<
-      string,
-      Prisma.TicketOrderByWithRelationInput
-    > = {
+    const validSortFields: Record<string, Prisma.TicketOrderByWithRelationInput> = {
       createdAt: { createdAt: sortOrder },
       updatedAt: { updatedAt: sortOrder },
       priority: { priority: sortOrder },

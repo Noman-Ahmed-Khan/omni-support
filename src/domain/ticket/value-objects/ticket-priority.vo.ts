@@ -15,7 +15,9 @@ export class TicketPriority {
     return new TicketPriority(value as TicketPriorityEnum);
   }
 
-  static medium(): TicketPriority { return new TicketPriority(TicketPriorityEnum.MEDIUM); }
+  static medium(): TicketPriority {
+    return new TicketPriority(TicketPriorityEnum.MEDIUM);
+  }
 
   numericValue(): number {
     const map: Record<TicketPriorityEnum, number> = {
@@ -27,12 +29,20 @@ export class TicketPriority {
     return map[this.value];
   }
 
-  isCritical(): boolean { return this.value === TicketPriorityEnum.CRITICAL; }
-  isHigh(): boolean { return this.value === TicketPriorityEnum.HIGH; }
+  isCritical(): boolean {
+    return this.value === TicketPriorityEnum.CRITICAL;
+  }
+  isHigh(): boolean {
+    return this.value === TicketPriorityEnum.HIGH;
+  }
   isHigherThan(other: TicketPriority): boolean {
     return this.numericValue() > other.numericValue();
   }
 
-  toString(): string { return this.value; }
-  equals(other: TicketPriority): boolean { return this.value === other.value; }
+  toString(): string {
+    return this.value;
+  }
+  equals(other: TicketPriority): boolean {
+    return this.value === other.value;
+  }
 }

@@ -7,7 +7,7 @@ import { UnauthorizedError } from '../../../shared/errors/application.error';
 import { logger } from '../../../shared/utils/logger.util';
 
 export interface AccessTokenPayload {
-  sub: string;       // userId
+  sub: string; // userId
   tenantId?: string;
   role: string;
   email: string;
@@ -36,11 +36,7 @@ export class TokenService {
       audience: 'omnisupport-api',
     };
 
-    return jwt.sign(
-      { ...payload, type: 'access' },
-      jwtConfig.accessSecret,
-      options,
-    );
+    return jwt.sign({ ...payload, type: 'access' }, jwtConfig.accessSecret, options);
   }
 
   generateRefreshToken(userId: string, familyId: string): string {
@@ -103,9 +99,7 @@ export class TokenService {
       parallelism: 1,
     });
 
-    const expiresAt = new Date(
-      Date.now() + jwtConfig.refreshExpiresInMs,
-    );
+    const expiresAt = new Date(Date.now() + jwtConfig.refreshExpiresInMs);
 
     await this.prisma.refreshToken.create({
       data: {
@@ -129,7 +123,9 @@ export class TokenService {
     oldRefreshToken: string,
     ipAddress?: string,
     userAgent?: string,
-  ): Promise<TokenPair & { userId: string; tenantId?: string; role: string; email: string }> {
+  ): Promise<
+    TokenPair & { userId: string; tenantId?: string; role: string; email: string }
+  > {
     const payload = this.verifyRefreshToken(oldRefreshToken);
     const { sub: userId, familyId } = payload;
 
@@ -168,10 +164,7 @@ export class TokenService {
     }
 
     // Verify hash matches
-    const isValid = await argon2.verify(
-      activeToken.tokenHash,
-      oldRefreshToken,
-    );
+    const isValid = await argon2.verify(activeToken.tokenHash, oldRefreshToken);
 
     if (!isValid) {
       throw new UnauthorizedError('Invalid refresh token');
@@ -249,10 +242,7 @@ export class TokenService {
     });
   }
 
-  private async revokeTokenFamily(
-    familyId: string,
-    reason: string,
-  ): Promise<void> {
+  private async revokeTokenFamily(familyId: string, reason: string): Promise<void> {
     await this.prisma.refreshToken.updateMany({
       where: { familyId },
       data: {
@@ -274,8 +264,6 @@ export class TokenService {
   }
 
   hashToken(token: string): Promise<string> {
-    return Promise.resolve(
-      crypto.createHash('sha256').update(token).digest('hex'),
-    );
+    return Promise.resolve(crypto.createHash('sha256').update(token).digest('hex'));
   }
 }

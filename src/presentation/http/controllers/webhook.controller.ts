@@ -61,9 +61,10 @@ export class WebhookController {
     }
   }
 
-  private async processInboundWhatsApp(
-    message: { from: string; body: string },
-  ): Promise<void> {
+  private async processInboundWhatsApp(message: {
+    from: string;
+    body: string;
+  }): Promise<void> {
     const { from, body } = message;
 
     // Try to find existing ticket by phone/external ref
@@ -115,11 +116,7 @@ export class WebhookController {
     }
   }
 
-  handleWhatsAppStatus(
-    req: Request,
-    res: Response,
-    _next: NextFunction,
-  ): void {
+  handleWhatsAppStatus(req: Request, res: Response, _next: NextFunction): void {
     // Handle delivery status updates
     const body: unknown = req.body;
     logger.debug('WhatsApp status update', { body });

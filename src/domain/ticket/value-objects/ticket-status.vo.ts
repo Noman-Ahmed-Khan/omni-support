@@ -16,16 +16,19 @@ export class TicketStatus {
     return new TicketStatus(value as TicketStatusEnum);
   }
 
-  static open(): TicketStatus { return new TicketStatus(TicketStatusEnum.OPEN); }
-  static inProgress(): TicketStatus { return new TicketStatus(TicketStatusEnum.IN_PROGRESS); }
-  static resolved(): TicketStatus { return new TicketStatus(TicketStatusEnum.RESOLVED); }
+  static open(): TicketStatus {
+    return new TicketStatus(TicketStatusEnum.OPEN);
+  }
+  static inProgress(): TicketStatus {
+    return new TicketStatus(TicketStatusEnum.IN_PROGRESS);
+  }
+  static resolved(): TicketStatus {
+    return new TicketStatus(TicketStatusEnum.RESOLVED);
+  }
 
   canTransitionTo(next: TicketStatus): boolean {
     const transitions: Record<TicketStatusEnum, TicketStatusEnum[]> = {
-      [TicketStatusEnum.OPEN]: [
-        TicketStatusEnum.IN_PROGRESS,
-        TicketStatusEnum.CLOSED,
-      ],
+      [TicketStatusEnum.OPEN]: [TicketStatusEnum.IN_PROGRESS, TicketStatusEnum.CLOSED],
       [TicketStatusEnum.IN_PROGRESS]: [
         TicketStatusEnum.PENDING_CUSTOMER,
         TicketStatusEnum.RESOLVED,
@@ -36,21 +39,22 @@ export class TicketStatus {
         TicketStatusEnum.RESOLVED,
         TicketStatusEnum.CLOSED,
       ],
-      [TicketStatusEnum.RESOLVED]: [
-        TicketStatusEnum.CLOSED,
-        TicketStatusEnum.OPEN,
-      ],
+      [TicketStatusEnum.RESOLVED]: [TicketStatusEnum.CLOSED, TicketStatusEnum.OPEN],
       [TicketStatusEnum.CLOSED]: [],
     };
 
-    return transitions[this.value].includes(
-      next.value
-    );
+    return transitions[this.value].includes(next.value);
   }
 
-  isResolved(): boolean { return this.value === TicketStatusEnum.RESOLVED; }
-  isClosed(): boolean { return this.value === TicketStatusEnum.CLOSED; }
-  isOpen(): boolean { return this.value === TicketStatusEnum.OPEN; }
+  isResolved(): boolean {
+    return this.value === TicketStatusEnum.RESOLVED;
+  }
+  isClosed(): boolean {
+    return this.value === TicketStatusEnum.CLOSED;
+  }
+  isOpen(): boolean {
+    return this.value === TicketStatusEnum.OPEN;
+  }
   isActive(): boolean {
     return [
       TicketStatusEnum.OPEN,
@@ -59,6 +63,10 @@ export class TicketStatus {
     ].includes(this.value);
   }
 
-  toString(): string { return this.value; }
-  equals(other: TicketStatus): boolean { return this.value === other.value; }
+  toString(): string {
+    return this.value;
+  }
+  equals(other: TicketStatus): boolean {
+    return this.value === other.value;
+  }
 }

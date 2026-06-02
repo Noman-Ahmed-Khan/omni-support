@@ -57,51 +57,69 @@ async function bootstrap(): Promise<void> {
 }
 
 function startWorkers(container: Container): void {
-  const categorizeTicketHandler: CategorizeTicketHandler = container.resolve('categorizeTicketHandler');
-  const analyzeSentimentHandler: AnalyzeSentimentHandler = container.resolve('analyzeSentimentHandler');
-  const predictUrgencyHandler: PredictUrgencyHandler = container.resolve('predictUrgencyHandler');
-  const suggestResponseHandler: SuggestResponseHandler = container.resolve('suggestResponseHandler');
-  const generateSummaryHandler: GenerateSummaryHandler = container.resolve('generateSummaryHandler');
-  const calculateRiskScoreHandler: CalculateRiskScoreHandler = container.resolve('calculateRiskScoreHandler');
+  const categorizeTicketHandler: CategorizeTicketHandler = container.resolve(
+    'categorizeTicketHandler',
+  );
+  const analyzeSentimentHandler: AnalyzeSentimentHandler = container.resolve(
+    'analyzeSentimentHandler',
+  );
+  const predictUrgencyHandler: PredictUrgencyHandler = container.resolve(
+    'predictUrgencyHandler',
+  );
+  const suggestResponseHandler: SuggestResponseHandler = container.resolve(
+    'suggestResponseHandler',
+  );
+  const generateSummaryHandler: GenerateSummaryHandler = container.resolve(
+    'generateSummaryHandler',
+  );
+  const calculateRiskScoreHandler: CalculateRiskScoreHandler = container.resolve(
+    'calculateRiskScoreHandler',
+  );
   const emailProvider: SMTPEmailProvider = container.resolve('emailProvider');
   // AI Worker
   createAIWorker({
-    categorize: (data) => categorizeTicketHandler.execute({
-      tenantId: data.tenantId,
-      ticketId: data.ticketId!,
-      content: data.content,
-      metadata: data.metadata,
-    }),
-    sentiment: (data) => analyzeSentimentHandler.execute({
-      tenantId: data.tenantId,
-      ticketId: data.ticketId!,
-      content: data.content,
-      metadata: data.metadata,
-    }),
-    urgency: (data) => predictUrgencyHandler.execute({
-      tenantId: data.tenantId,
-      ticketId: data.ticketId!,
-      content: data.content,
-      metadata: data.metadata,
-    }),
-    'suggest-response': (data) => suggestResponseHandler.execute({
-      tenantId: data.tenantId,
-      ticketId: data.ticketId!,
-      content: data.content,
-      metadata: data.metadata,
-    }),
-    summarize: (data) => generateSummaryHandler.execute({
-      tenantId: data.tenantId,
-      ticketId: data.ticketId!,
-      content: data.content,
-      metadata: data.metadata,
-    }),
-    'risk-score': (data) => calculateRiskScoreHandler.execute({
-      tenantId: data.tenantId,
-      customerId: data.customerId!,
-      content: data.content,
-      metadata: data.metadata,
-    }),
+    categorize: (data) =>
+      categorizeTicketHandler.execute({
+        tenantId: data.tenantId,
+        ticketId: data.ticketId!,
+        content: data.content,
+        metadata: data.metadata,
+      }),
+    sentiment: (data) =>
+      analyzeSentimentHandler.execute({
+        tenantId: data.tenantId,
+        ticketId: data.ticketId!,
+        content: data.content,
+        metadata: data.metadata,
+      }),
+    urgency: (data) =>
+      predictUrgencyHandler.execute({
+        tenantId: data.tenantId,
+        ticketId: data.ticketId!,
+        content: data.content,
+        metadata: data.metadata,
+      }),
+    'suggest-response': (data) =>
+      suggestResponseHandler.execute({
+        tenantId: data.tenantId,
+        ticketId: data.ticketId!,
+        content: data.content,
+        metadata: data.metadata,
+      }),
+    summarize: (data) =>
+      generateSummaryHandler.execute({
+        tenantId: data.tenantId,
+        ticketId: data.ticketId!,
+        content: data.content,
+        metadata: data.metadata,
+      }),
+    'risk-score': (data) =>
+      calculateRiskScoreHandler.execute({
+        tenantId: data.tenantId,
+        customerId: data.customerId!,
+        content: data.content,
+        metadata: data.metadata,
+      }),
   });
 
   // Email Worker

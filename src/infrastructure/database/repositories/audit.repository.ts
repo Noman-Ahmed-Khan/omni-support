@@ -49,7 +49,13 @@ export class AuditRepository {
     tenantId: string,
     page: number = 1,
     limit: number = 50,
-  ): Promise<{ data: AuditLog[]; total: number; page: number; limit: number; totalPages: number }> {
+  ): Promise<{
+    data: AuditLog[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
     try {
       const skip = (page - 1) * limit;
 

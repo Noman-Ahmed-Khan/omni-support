@@ -23,9 +23,7 @@ export async function createRedisClient(): Promise<RedisClientType> {
 
   client.on('connect', () => logger.info('Redis connecting...'));
   client.on('ready', () => logger.info('Redis connected and ready'));
-  client.on('error', (err: unknown) =>
-    logger.error('Redis error', { err }),
-  );
+  client.on('error', (err: unknown) => logger.error('Redis error', { err }));
   client.on('reconnecting', () => logger.warn('Redis reconnecting...'));
   client.on('end', () => logger.warn('Redis connection ended'));
 

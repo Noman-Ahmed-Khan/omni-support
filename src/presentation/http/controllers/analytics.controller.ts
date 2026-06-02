@@ -3,15 +3,11 @@ import { AnalyticsService } from '../../../application/analytics/services/analyt
 import { successResponse } from '../dtos/common/response.dto';
 
 export class AnalyticsController {
-  constructor(
-    private readonly analyticsService: AnalyticsService,
-  ) {}
+  constructor(private readonly analyticsService: AnalyticsService) {}
 
   async getDashboard(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const metrics = await this.analyticsService.getDashboardMetrics(
-        req.tenantId!,
-      );
+      const metrics = await this.analyticsService.getDashboardMetrics(req.tenantId!);
 
       res.status(200).json(successResponse(metrics));
     } catch (error) {
@@ -33,7 +29,11 @@ export class AnalyticsController {
     }
   }
 
-  async getPlatformMetrics(_req: Request, res: Response, next: NextFunction): Promise<void> {
+  async getPlatformMetrics(
+    _req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const metrics = await this.analyticsService.getPlatformMetrics();
       res.status(200).json(successResponse(metrics));

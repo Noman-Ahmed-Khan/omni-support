@@ -45,9 +45,7 @@ export class AnalyticsService {
     );
   }
 
-  private async computeDashboardMetrics(
-    tenantId: string,
-  ): Promise<DashboardMetrics> {
+  private async computeDashboardMetrics(tenantId: string): Promise<DashboardMetrics> {
     const now = new Date();
     const todayStart = new Date(now);
     todayStart.setHours(0, 0, 0, 0);
@@ -119,8 +117,7 @@ export class AnalyticsService {
     const avgResolutionMs =
       resolvedWithTime.length > 0
         ? resolvedWithTime.reduce(
-            (sum, t) =>
-              sum + (t.resolvedAt!.getTime() - t.createdAt.getTime()),
+            (sum, t) => sum + (t.resolvedAt!.getTime() - t.createdAt.getTime()),
             0,
           ) / resolvedWithTime.length
         : 0;
@@ -186,10 +183,7 @@ export class AnalyticsService {
     };
   }
 
-  async getTicketTrends(
-    tenantId: string,
-    days: number = 30,
-  ): Promise<TrendData[]> {
+  async getTicketTrends(tenantId: string, days: number = 30): Promise<TrendData[]> {
     const cacheKey = `analytics:${tenantId}:trends:${days}`;
 
     return this.cache.getOrSet(
@@ -286,13 +280,14 @@ export class AnalyticsService {
     return this.cache.getOrSet(
       cacheKey,
       async () => {
-        const [totalTenants, activeTenants, totalTickets, totalUsers] =
-          await Promise.all([
+        const [totalTenants, activeTenants, totalTickets, totalUsers] = await Promise.all(
+          [
             this.prisma.tenant.count(),
             this.prisma.tenant.count({ where: { status: 'ACTIVE' } }),
             this.prisma.ticket.count(),
             this.prisma.user.count({ where: { role: { not: 'PLATFORM_ADMIN' } } }),
-          ]);
+          ],
+        );
 
         return {
           totalTenants,

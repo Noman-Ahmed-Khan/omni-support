@@ -52,9 +52,7 @@ export class InProcessEventBus implements IEventBus {
     if (!this.handlers.has(eventType)) {
       this.handlers.set(eventType, []);
     }
-    this.handlers
-      .get(eventType)!
-      .push(handler);
+    this.handlers.get(eventType)!.push(handler as EventHandler);
 
     logger.debug('Event handler registered', { eventType });
   }

@@ -1,9 +1,5 @@
 import nodemailer, { Transporter } from 'nodemailer';
-import {
-  IEmailProvider,
-  EmailPayload,
-  EmailResult,
-} from './email-provider.interface';
+import { IEmailProvider, EmailPayload, EmailResult } from './email-provider.interface';
 import { messagingConfig } from '../../../config/messaging.config';
 import { InfrastructureError } from '../../../shared/errors/infrastructure.error';
 import { logger } from '../../../shared/utils/logger.util';

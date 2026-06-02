@@ -11,7 +11,10 @@ export class TicketCategory {
   private constructor(private readonly value: TicketCategoryValue) {}
 
   static create(value: string): TicketCategory {
-    const normalized = value.trim().toUpperCase().replace(/[\s-]+/g, '_');
+    const normalized = value
+      .trim()
+      .toUpperCase()
+      .replace(/[\s-]+/g, '_');
     if (!Object.values(TicketCategoryValue).includes(normalized as TicketCategoryValue)) {
       throw new Error(`Invalid ticket category: ${value}`);
     }

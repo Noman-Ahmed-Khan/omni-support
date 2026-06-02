@@ -21,7 +21,7 @@ export interface ITenantRepository {
   findAll(
     filters: TenantFilters,
     page: number,
-    limit: number
+    limit: number,
   ): Promise<PaginatedResult<TenantEntity>>;
   save(tenant: TenantEntity): Promise<TenantEntity>;
   update(tenant: TenantEntity): Promise<TenantEntity>;

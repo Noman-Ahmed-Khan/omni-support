@@ -92,7 +92,7 @@ export class TicketEntity extends AggregateRoot {
         props.createdById,
         props.priority.toString(),
         props.category,
-      )
+      ),
     );
     return ticket;
   }
@@ -104,7 +104,7 @@ export class TicketEntity extends AggregateRoot {
   changeStatus(newStatus: TicketStatus, changedById: string): void {
     if (!this._status.canTransitionTo(newStatus)) {
       throw new Error(
-        `Cannot transition from ${this._status.toString()} to ${newStatus.toString()}`
+        `Cannot transition from ${this._status.toString()} to ${newStatus.toString()}`,
       );
     }
 
@@ -126,7 +126,7 @@ export class TicketEntity extends AggregateRoot {
         oldStatus,
         newStatus.toString(),
         changedById,
-      )
+      ),
     );
   }
 
@@ -146,7 +146,7 @@ export class TicketEntity extends AggregateRoot {
         agentId,
         previousAgentId,
         assignedById,
-      )
+      ),
     );
   }
 
@@ -168,7 +168,7 @@ export class TicketEntity extends AggregateRoot {
         this._assignedAgentId,
         reason,
         escalatedById,
-      )
+      ),
     );
   }
 
@@ -182,7 +182,7 @@ export class TicketEntity extends AggregateRoot {
         this._customerId,
         this._assignedAgentId,
         resolvedById,
-      )
+      ),
     );
   }
 
@@ -213,25 +213,67 @@ export class TicketEntity extends AggregateRoot {
   }
 
   // Getters
-  get tenantId(): string { return this._tenantId; }
-  get ticketNumber(): number { return this._ticketNumber; }
-  get customerId(): string { return this._customerId; }
-  get assignedAgentId(): string | undefined { return this._assignedAgentId; }
-  get createdById(): string { return this._createdById; }
-  get title(): string { return this._title; }
-  get description(): string { return this._description; }
-  get status(): string { return this._status.toString(); }
-  get priority(): string { return this._priority.toString(); }
-  get category(): string { return this._category; }
-  get tags(): string[] { return [...this._tags]; }
-  get source(): string { return this._source; }
-  get isEscalated(): boolean { return this._isEscalated; }
-  get escalatedAt(): Date | undefined { return this._escalatedAt; }
-  get escalatedReason(): string | undefined { return this._escalatedReason; }
-  get resolvedAt(): Date | undefined { return this._resolvedAt; }
-  get closedAt(): Date | undefined { return this._closedAt; }
-  get firstResponseAt(): Date | undefined { return this._firstResponseAt; }
-  get dueAt(): Date | undefined { return this._dueAt; }
-  get slaBreached(): boolean { return this._slaBreached; }
-  get metadata(): Record<string, unknown> { return { ...this._metadata }; }
+  get tenantId(): string {
+    return this._tenantId;
+  }
+  get ticketNumber(): number {
+    return this._ticketNumber;
+  }
+  get customerId(): string {
+    return this._customerId;
+  }
+  get assignedAgentId(): string | undefined {
+    return this._assignedAgentId;
+  }
+  get createdById(): string {
+    return this._createdById;
+  }
+  get title(): string {
+    return this._title;
+  }
+  get description(): string {
+    return this._description;
+  }
+  get status(): string {
+    return this._status.toString();
+  }
+  get priority(): string {
+    return this._priority.toString();
+  }
+  get category(): string {
+    return this._category;
+  }
+  get tags(): string[] {
+    return [...this._tags];
+  }
+  get source(): string {
+    return this._source;
+  }
+  get isEscalated(): boolean {
+    return this._isEscalated;
+  }
+  get escalatedAt(): Date | undefined {
+    return this._escalatedAt;
+  }
+  get escalatedReason(): string | undefined {
+    return this._escalatedReason;
+  }
+  get resolvedAt(): Date | undefined {
+    return this._resolvedAt;
+  }
+  get closedAt(): Date | undefined {
+    return this._closedAt;
+  }
+  get firstResponseAt(): Date | undefined {
+    return this._firstResponseAt;
+  }
+  get dueAt(): Date | undefined {
+    return this._dueAt;
+  }
+  get slaBreached(): boolean {
+    return this._slaBreached;
+  }
+  get metadata(): Record<string, unknown> {
+    return { ...this._metadata };
+  }
 }

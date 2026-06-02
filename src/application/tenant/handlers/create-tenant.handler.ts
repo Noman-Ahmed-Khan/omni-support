@@ -22,7 +22,7 @@ export class CreateTenantHandler {
       throw new ConflictError('Organization slug already taken');
     }
 
-    if (command.domain && await this.tenantRepo.existsByDomain(command.domain)) {
+    if (command.domain && (await this.tenantRepo.existsByDomain(command.domain))) {
       throw new ConflictError('Domain already registered');
     }
 

@@ -4,6 +4,7 @@ import { EmailQueue } from '../../../infrastructure/queue/queues/email.queue';
 import { WebSocketGateway } from '../../../infrastructure/realtime/websocket.gateway';
 import { logger } from '../../../shared/utils/logger.util';
 import { appConfig } from '../../../config/app.config';
+import { NotificationChannelValue } from '../../../domain/notification/value-objects/notification-channel.vo';
 
 export type NotificationEvent =
   | 'TICKET_CREATED'
@@ -86,7 +87,7 @@ export class NotificationService {
         tenantId: dto.tenantId,
         customerId: dto.customerId,
         ticketId: dto.ticketId,
-        channel: 'IN_APP',
+        channel: NotificationChannelValue.IN_APP,
         subject: `Ticket #${dto.ticketNumber} Created`,
         content: `Your support ticket "${dto.title}" has been received and is being reviewed.`,
       });
@@ -158,7 +159,7 @@ export class NotificationService {
         tenantId: dto.tenantId,
         userId: dto.agentId,
         ticketId: dto.ticketId,
-        channel: 'IN_APP',
+        channel: NotificationChannelValue.IN_APP,
         subject: `Ticket #${dto.ticketNumber} Assigned`,
         content: `Ticket "${dto.title}" has been assigned to you.`,
       });
@@ -258,10 +259,7 @@ export class NotificationService {
     }
   }
 
-  async notifyTicketResolved(
-    ticketId: string,
-    tenantId: string,
-  ): Promise<void> {
+  async notifyTicketResolved(ticketId: string, tenantId: string): Promise<void> {
     try {
       const ticket = await this.prisma.ticket.findFirst({
         where: { id: ticketId, tenantId },
@@ -369,9 +367,7 @@ export class NotificationService {
     }
   }
 
-  private async notifyAgentOfAssignment(
-    dto: NotifyTicketAssignedDto,
-  ): Promise<void> {
+  private async notifyAgentOfAssignment(dto: NotifyTicketAssignedDto): Promise<void> {
     await this.notifyTicketAssigned(dto);
   }
 

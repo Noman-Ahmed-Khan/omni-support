@@ -15,12 +15,8 @@ import {
 export function createCustomerRoutes(container: Container): Router {
   const router = Router();
   const controller: CustomerController = container.resolve('customerController');
-  const authMiddleware = createAuthMiddleware(
-    container.resolve('tokenService'),
-  );
-  const tenantMiddleware = createTenantMiddleware(
-    container.resolve('prisma'),
-  );
+  const authMiddleware = createAuthMiddleware(container.resolve('tokenService'));
+  const tenantMiddleware = createTenantMiddleware(container.resolve('prisma'));
 
   router.use(authMiddleware, tenantMiddleware);
 
@@ -63,9 +59,7 @@ export function createCustomerRoutes(container: Container): Router {
   router.post(
     '/:id/risk-score',
     requireRole('TENANT_MANAGER'),
-    asyncHandler((req, res, next) =>
-      controller.triggerRiskScore(req, res, next),
-    ),
+    asyncHandler((req, res, next) => controller.triggerRiskScore(req, res, next)),
   );
 
   return router;

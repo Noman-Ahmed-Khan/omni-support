@@ -9,7 +9,11 @@ export class NotificationChannel {
 
   static create(value: string): NotificationChannel {
     const normalized = value.trim().toUpperCase();
-    if (!Object.values(NotificationChannelValue).includes(normalized as NotificationChannelValue)) {
+    if (
+      !Object.values(NotificationChannelValue).includes(
+        normalized as NotificationChannelValue,
+      )
+    ) {
       throw new Error(`Invalid notification channel: ${value}`);
     }
     return new NotificationChannel(normalized as NotificationChannelValue);

@@ -34,21 +34,21 @@ export interface ITicketRepository {
   findById(id: string, tenantId: string): Promise<TicketEntity | null>;
   findByTicketNumber(
     ticketNumber: number,
-    tenantId: string
+    tenantId: string,
   ): Promise<TicketEntity | null>;
   findAll(
     filters: TicketFilters,
-    pagination: PaginationOptions
+    pagination: PaginationOptions,
   ): Promise<PaginatedResult<TicketEntity>>;
   findByAgentId(
     agentId: string,
     tenantId: string,
-    pagination: PaginationOptions
+    pagination: PaginationOptions,
   ): Promise<PaginatedResult<TicketEntity>>;
   findByCustomerId(
     customerId: string,
     tenantId: string,
-    pagination: PaginationOptions
+    pagination: PaginationOptions,
   ): Promise<PaginatedResult<TicketEntity>>;
   save(ticket: TicketEntity): Promise<TicketEntity>;
   update(ticket: TicketEntity): Promise<TicketEntity>;

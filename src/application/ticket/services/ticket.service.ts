@@ -14,10 +14,7 @@ import { AIQueue } from '../../../infrastructure/queue/queues/ai.queue';
 import { ActivityRepository } from '../../../infrastructure/database/repositories/activity.repository';
 import { AuditRepository } from '../../../infrastructure/database/repositories/audit.repository';
 import { DashboardCacheStrategy } from '../../../infrastructure/cache/strategies/dashboard.cache';
-import {
-  NotFoundError,
-  DomainError,
-} from '../../../shared/errors/domain.error';
+import { NotFoundError, DomainError } from '../../../shared/errors/domain.error';
 import { ForbiddenError } from '../../../shared/errors/application.error';
 import { logger } from '../../../shared/utils/logger.util';
 import { PrismaClient } from '@prisma/client';
@@ -97,10 +94,7 @@ export class TicketService {
 
   async createTicket(dto: CreateTicketDto): Promise<TicketEntity> {
     // Validate customer exists and belongs to tenant
-    const customer = await this.customerRepo.findById(
-      dto.customerId,
-      dto.tenantId,
-    );
+    const customer = await this.customerRepo.findById(dto.customerId, dto.tenantId);
 
     if (!customer) {
       throw new NotFoundError('Customer', dto.customerId);
@@ -111,9 +105,7 @@ export class TicketService {
     }
 
     // Get next ticket number (atomic)
-    const ticketNumber = await this.ticketRepo.getNextTicketNumber(
-      dto.tenantId,
-    );
+    const ticketNumber = await this.ticketRepo.getNextTicketNumber(dto.tenantId);
 
     const ticketId = crypto.randomUUID();
 
@@ -381,17 +373,17 @@ export class TicketService {
     return updated;
   }
 
-  async addComment(
-    dto: AddCommentDto,
-  ): Promise<import('@prisma/client').TicketComment & {
-    author: {
-      id: string;
-      firstName: string;
-      lastName: string;
-      role: string;
-      avatarUrl: string | null;
-    };
-  }> {
+  async addComment(dto: AddCommentDto): Promise<
+    import('@prisma/client').TicketComment & {
+      author: {
+        id: string;
+        firstName: string;
+        lastName: string;
+        role: string;
+        avatarUrl: string | null;
+      };
+    }
+  > {
     const ticket = await this.getTicketOrThrow(dto.ticketId, dto.tenantId);
 
     // Validate author exists
@@ -433,10 +425,7 @@ export class TicketService {
     });
 
     // Update ticket status if customer replies to pending ticket
-    if (
-      dto.authorRole === 'CUSTOMER' &&
-      ticket.status === 'PENDING_CUSTOMER'
-    ) {
+    if (dto.authorRole === 'CUSTOMER' && ticket.status === 'PENDING_CUSTOMER') {
       ticket.changeStatus(TicketStatus.create('IN_PROGRESS'), dto.authorId);
       await this.ticketRepo.update(ticket);
     }
@@ -504,10 +493,7 @@ export class TicketService {
     return this.activityRepo.findByTicket(ticketId, tenantId, page, limit);
   }
 
-  private async getTicketOrThrow(
-    id: string,
-    tenantId: string,
-  ): Promise<TicketEntity> {
+  private async getTicketOrThrow(id: string, tenantId: string): Promise<TicketEntity> {
     const ticket = await this.ticketRepo.findById(id, tenantId);
 
     if (!ticket) {

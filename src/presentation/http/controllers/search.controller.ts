@@ -21,10 +21,10 @@ export class SearchController {
     try {
       const { q, types, page, limit } = req.query;
       const parsedTypes = types
-        ? types
+        ? (types
             .split(',')
             .map((type) => type.trim())
-            .filter(Boolean) as ('ticket' | 'customer' | 'comment')[]
+            .filter(Boolean) as ('ticket' | 'customer' | 'comment')[])
         : undefined;
 
       const result = await this.searchService.search({

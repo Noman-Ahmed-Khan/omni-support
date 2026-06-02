@@ -43,9 +43,7 @@ export class AuthController {
         lastName: req.body.lastName,
       });
 
-      res.status(201).json(
-        successResponse(result, undefined),
-      );
+      res.status(201).json(successResponse(result, undefined));
     } catch (error) {
       next(error);
     }
@@ -92,8 +90,7 @@ export class AuthController {
   ): Promise<void> {
     try {
       // Try cookie first, then body
-      const refreshToken =
-        getCookie(req, 'refresh_token') ?? req.body.refreshToken;
+      const refreshToken = getCookie(req, 'refresh_token') ?? req.body.refreshToken;
 
       if (!refreshToken) {
         res.status(401).json({
@@ -134,8 +131,7 @@ export class AuthController {
   async logout(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const body = req.body as Partial<RefreshTokenDto>;
-      const refreshToken =
-        getCookie(req, 'refresh_token') ?? body.refreshToken;
+      const refreshToken = getCookie(req, 'refresh_token') ?? body.refreshToken;
 
       if (refreshToken && req.user) {
         await this.logoutHandler.execute({ refreshToken, userId: req.user.id });
@@ -160,9 +156,7 @@ export class AuthController {
         token: req.body.token,
       });
 
-      res.status(200).json(
-        successResponse({ message: 'Email verified successfully' }),
-      );
+      res.status(200).json(successResponse({ message: 'Email verified successfully' }));
     } catch (error) {
       next(error);
     }
@@ -200,9 +194,7 @@ export class AuthController {
         ipAddress: req.ip,
       });
 
-      res.status(200).json(
-        successResponse({ message: 'Password reset successfully' }),
-      );
+      res.status(200).json(successResponse({ message: 'Password reset successfully' }));
     } catch (error) {
       next(error);
     }
@@ -251,9 +243,11 @@ export class AuthController {
 }
 
 function getCookie(req: unknown, name: string): string | undefined {
-  const cookies = (req as {
-    cookies?: Record<string, string | undefined>;
-  }).cookies;
+  const cookies = (
+    req as {
+      cookies?: Record<string, string | undefined>;
+    }
+  ).cookies;
 
   return cookies?.[name];
 }

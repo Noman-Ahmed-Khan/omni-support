@@ -7,7 +7,10 @@ export function createHealthRouter(container: Container): Router {
   const router = Router();
   const controller: HealthController = container.resolve('healthController');
 
-  router.get('/', asyncHandler((req, res) => controller.full(req, res)));
+  router.get(
+    '/',
+    asyncHandler((req, res) => controller.full(req, res)),
+  );
   router.get('/live', (req, res) => controller.liveness(req, res));
   router.get(
     '/ready',

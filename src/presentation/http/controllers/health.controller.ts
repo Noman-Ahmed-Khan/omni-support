@@ -28,9 +28,7 @@ export class HealthController {
   async readiness(_req: Request, res: Response): Promise<void> {
     const checks = await this.runChecks();
 
-    const isReady = Object.values(checks).every(
-      (check) => check.status === 'ok',
-    );
+    const isReady = Object.values(checks).every((check) => check.status === 'ok');
 
     res.status(isReady ? 200 : 503).json({
       status: isReady ? 'ok' : 'degraded',
@@ -41,9 +39,7 @@ export class HealthController {
 
   async full(_req: Request, res: Response): Promise<void> {
     const checks = await this.runChecks();
-    const isHealthy = Object.values(checks).every(
-      (check) => check.status === 'ok',
-    );
+    const isHealthy = Object.values(checks).every((check) => check.status === 'ok');
 
     res.status(isHealthy ? 200 : 503).json({
       status: isHealthy ? 'healthy' : 'unhealthy',

@@ -55,21 +55,13 @@ export interface AIRiskScore {
 
 export interface IAIProvider {
   complete(options: AICompletionOptions): Promise<AICompletionResult>;
-  categorizeTicket(
-    title: string,
-    description: string,
-  ): Promise<AICategorizationResult>;
+  categorizeTicket(title: string, description: string): Promise<AICategorizationResult>;
   analyzeSentiment(text: string): Promise<AISentimentResult>;
-  predictUrgency(
-    title: string,
-    description: string,
-  ): Promise<AIUrgencyResult>;
+  predictUrgency(title: string, description: string): Promise<AIUrgencyResult>;
   suggestResponse(
     ticketContext: string,
     conversationHistory: string,
   ): Promise<AIResponseSuggestion>;
-  generateResolutionSummary(
-    ticketContext: string,
-  ): Promise<AIResolutionSummary>;
+  generateResolutionSummary(ticketContext: string): Promise<AIResolutionSummary>;
   calculateRiskScore(customerContext: string): Promise<AIRiskScore>;
 }

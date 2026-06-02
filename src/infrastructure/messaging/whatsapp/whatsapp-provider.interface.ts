@@ -1,5 +1,5 @@
 export interface WhatsAppMessage {
-  to: string;     // Phone number with country code
+  to: string; // Phone number with country code
   body: string;
   mediaUrl?: string;
   templateName?: string;
