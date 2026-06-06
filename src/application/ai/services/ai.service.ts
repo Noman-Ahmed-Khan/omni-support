@@ -7,6 +7,10 @@ import { ActivityRepository } from '../../../infrastructure/database/repositorie
 import { WebSocketGateway } from '../../../infrastructure/realtime/websocket.gateway';
 import { aiConfig } from '../../../config/ai.config';
 import { logger } from '../../../shared/utils/logger.util';
+import { FeatureFlagService } from '../../feature-flags/feature-flag.service';
+import { FeatureFlagDefinition } from '../../feature-flags/feature.repository';
+import { FeatureFlag } from '../../feature-flags/feature.enum';
+import { AiPolicy } from '../../../domain/policies/ai-policy';
 import crypto from 'crypto';
 
 export interface AIJobData {
@@ -27,6 +31,24 @@ export class AIService {
     private readonly ticketService: TicketService,
     private readonly activityRepo: ActivityRepository,
     private readonly wsGateway: WebSocketGateway,
+    private readonly featureFlags: FeatureFlagService = new FeatureFlagService({
+      getTenantFlags(_tenantId: string): Promise<Record<string, FeatureFlagDefinition>> {
+        return Promise.resolve({});
+      },
+
+      setTenantFlag(
+        _tenantId: string,
+        _feature: string,
+        _definition: FeatureFlagDefinition,
+      ): Promise<void> {
+        return Promise.resolve();
+      },
+
+      deleteTenantFlag(_tenantId: string, _feature: string): Promise<void> {
+        return Promise.resolve();
+      },
+    }),
+    private readonly aiPolicy: AiPolicy = new AiPolicy(),
   ) {}
 
   async processCategorizationJob(data: AIJobData): Promise<void> {
@@ -35,6 +57,20 @@ export class AIService {
     try {
       const ticket = await this.ticketRepo.findById(data.ticketId, data.tenantId);
       if (!ticket) return;
+
+      if (
+        !(await this.featureFlags.isEnabled(FeatureFlag.AI_CATEGORIZATION, {
+          tenantId: data.tenantId,
+          subjectId: data.ticketId,
+          fallbackEnabled: true,
+        }))
+      ) {
+        return;
+      }
+
+      if (!this.aiPolicy.shouldProcess(true, true, data.content.length)) {
+        return;
+      }
 
       const startTime = Date.now();
       const result = await this.aiProvider.categorizeTicket(
@@ -95,6 +131,20 @@ export class AIService {
     if (!data.ticketId) return;
 
     try {
+      if (
+        !(await this.featureFlags.isEnabled(FeatureFlag.AI_SENTIMENT, {
+          tenantId: data.tenantId,
+          subjectId: data.ticketId,
+          fallbackEnabled: true,
+        }))
+      ) {
+        return;
+      }
+
+      if (!this.aiPolicy.shouldProcess(true, true, data.content.length)) {
+        return;
+      }
+
       const startTime = Date.now();
       const result = await this.aiProvider.analyzeSentiment(data.content);
 
@@ -148,6 +198,20 @@ export class AIService {
     try {
       const ticket = await this.ticketRepo.findById(data.ticketId, data.tenantId);
       if (!ticket) return;
+
+      if (
+        !(await this.featureFlags.isEnabled(FeatureFlag.AI_URGENCY, {
+          tenantId: data.tenantId,
+          subjectId: data.ticketId,
+          fallbackEnabled: true,
+        }))
+      ) {
+        return;
+      }
+
+      if (!this.aiPolicy.shouldProcess(true, true, data.content.length)) {
+        return;
+      }
 
       const startTime = Date.now();
       const result = await this.aiProvider.predictUrgency(
@@ -214,6 +278,20 @@ export class AIService {
       const ticket = await this.ticketRepo.findById(data.ticketId, data.tenantId);
       if (!ticket) return;
 
+      if (
+        !(await this.featureFlags.isEnabled(FeatureFlag.AI_RESPONSE_SUGGESTION, {
+          tenantId: data.tenantId,
+          subjectId: data.ticketId,
+          fallbackEnabled: true,
+        }))
+      ) {
+        return;
+      }
+
+      if (!this.aiPolicy.shouldProcess(true, true, data.content.length)) {
+        return;
+      }
+
       // Get recent comments for context
       const recentComments = await this.prisma.ticketComment.findMany({
         where: { ticketId: data.ticketId, type: 'PUBLIC' },
@@ -277,6 +355,20 @@ export class AIService {
       const ticket = await this.ticketRepo.findById(data.ticketId, data.tenantId);
       if (!ticket) return;
 
+      if (
+        !(await this.featureFlags.isEnabled(FeatureFlag.AI_SUMMARY, {
+          tenantId: data.tenantId,
+          subjectId: data.ticketId,
+          fallbackEnabled: true,
+        }))
+      ) {
+        return;
+      }
+
+      if (!this.aiPolicy.shouldProcess(true, true, data.content.length)) {
+        return;
+      }
+
       // Build full ticket context
       const comments = await this.prisma.ticketComment.findMany({
         where: { ticketId: data.ticketId, type: 'PUBLIC' },
@@ -334,6 +426,20 @@ ${commentsText}
     if (!data.customerId) return;
 
     try {
+      if (
+        !(await this.featureFlags.isEnabled(FeatureFlag.AI_RISK_SCORE, {
+          tenantId: data.tenantId,
+          subjectId: data.customerId,
+          fallbackEnabled: true,
+        }))
+      ) {
+        return;
+      }
+
+      if (!this.aiPolicy.shouldProcess(true, true, data.content.length)) {
+        return;
+      }
+
       // Build customer context from DB
       const customerData = await this.prisma.customer.findFirst({
         where: { id: data.customerId, tenantId: data.tenantId },
