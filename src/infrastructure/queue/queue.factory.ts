@@ -35,10 +35,10 @@ export function createQueue(name: QueueName): Queue {
 
   if (skipRedisQueues) {
     const queue = {
-      add: async () => undefined,
-      addBulk: async () => undefined,
+      add: () => undefined,
+      addBulk: () => undefined,
       on: () => undefined,
-      close: async () => undefined,
+      close: () => undefined,
     } as unknown as Queue;
 
     queues.set(name, queue);

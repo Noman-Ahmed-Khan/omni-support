@@ -85,11 +85,11 @@ export class TwilioWhatsAppProvider implements IWhatsAppProvider {
 }
 
 class StubWhatsAppProvider implements IWhatsAppProvider {
-  async send(_message: WhatsAppMessage): Promise<WhatsAppResult> {
-    return {
+  send(_message: WhatsAppMessage): Promise<WhatsAppResult> {
+    return Promise.resolve({
       messageId: 'stubbed',
       status: 'skipped',
-    };
+    });
   }
 
   verifyWebhook(_signature: string, _payload: string): boolean {
