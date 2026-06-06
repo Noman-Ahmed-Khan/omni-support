@@ -10,8 +10,7 @@ import {
   PaginatedResult,
 } from '../../../domain/tenant/repositories/tenant.repository.interface';
 import { TenantEntity } from '../../../domain/tenant/entities/tenant.entity';
-import { TenantStatus } from '../../../domain/tenant/value-objects/tenant-status.vo';
-import { TenantSlug } from '../../../domain/tenant/value-objects/tenant-slug.vo';
+import { mapPrismaTenantToEntity } from '../../../shared/mappers/tenant.mapper';
 import { InfrastructureError } from '../../../shared/errors/infrastructure.error';
 
 export class TenantRepository implements ITenantRepository {
@@ -186,22 +185,7 @@ export class TenantRepository implements ITenantRepository {
   }
 
   private toDomain(record: Tenant): TenantEntity {
-    return TenantEntity.reconstitute(record.id, {
-      name: record.name,
-      slug: TenantSlug.create(record.slug),
-      status: TenantStatus.create(record.status),
-      plan: record.plan,
-      domain: record.domain ?? undefined,
-      logoUrl: record.logoUrl ?? undefined,
-      maxAgents: record.maxAgents,
-      maxCustomers: record.maxCustomers,
-      maxTicketsPerDay: record.maxTicketsPerDay,
-      settings: (record.settings as Record<string, unknown>) ?? {},
-      createdAt: record.createdAt,
-      updatedAt: record.updatedAt,
-      suspendedAt: record.suspendedAt ?? undefined,
-      suspendedReason: record.suspendedReason ?? undefined,
-    });
+    return mapPrismaTenantToEntity(record);
   }
 }
 
