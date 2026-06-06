@@ -1,5 +1,4 @@
 import express, { Application } from 'express';
-import helmet from 'helmet';
 import cors from 'cors';
 import compression from 'compression';
 import { json, urlencoded } from 'express';
@@ -11,44 +10,22 @@ import { sanitizeMiddleware } from './middlewares/sanitize.middleware';
 import { errorHandlerMiddleware } from './middlewares/error-handler.middleware';
 import { createV1Router } from './routes/v1';
 import { createHealthRouter } from './routes/health.routes';
+import { HealthController } from './controllers/health.controller';
 import { logger } from '../../shared/utils/logger.util';
+import { createSecurityHeaders } from '../../infrastructure/security/security-headers';
+import { createMetricsMiddleware } from '../../infrastructure/observability/metrics/metrics.middleware';
+import { createTracingMiddleware } from '../../infrastructure/observability/tracing/tracing.middleware';
+import { MetricsService } from '../../infrastructure/observability/metrics/metrics.service';
+import { TracingService } from '../../infrastructure/observability/tracing/tracing.service';
+// import { asyncHandler } from './utils/async-handler';
 
 export function createApp(container: Container): Application {
   const app = express();
+  const metricsService: MetricsService = container.resolve('metricsService');
+  const tracingService: TracingService = container.resolve('tracingService');
 
   // Security Headers
-  app.use(
-    helmet({
-      contentSecurityPolicy: {
-        directives: {
-          defaultSrc: ["'self'"],
-          styleSrc: ["'self'", "'unsafe-inline'"],
-          scriptSrc: ["'self'"],
-          imgSrc: ["'self'", 'data:', 'https:'],
-          connectSrc: ["'self'"],
-          fontSrc: ["'self'"],
-          objectSrc: ["'none'"],
-          mediaSrc: ["'self'"],
-          frameSrc: ["'none'"],
-        },
-      },
-      crossOriginEmbedderPolicy: true,
-      crossOriginOpenerPolicy: true,
-      crossOriginResourcePolicy: { policy: 'same-site' },
-      dnsPrefetchControl: true,
-      frameguard: { action: 'deny' },
-      hidePoweredBy: true,
-      hsts: {
-        maxAge: 31536000,
-        includeSubDomains: true,
-        preload: true,
-      },
-      ieNoOpen: true,
-      noSniff: true,
-      referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
-      xssFilter: true,
-    }),
-  );
+  app.use(createSecurityHeaders());
 
   // CORS
   const allowedOrigins = appConfig.corsOrigins.split(',').map((o) => o.trim());
@@ -84,6 +61,8 @@ export function createApp(container: Container): Application {
 
   // Request ID & Correlation
   app.use(correlationMiddleware);
+  app.use(createTracingMiddleware(tracingService));
+  app.use(createMetricsMiddleware(metricsService));
 
   // Input Sanitization
   app.use(sanitizeMiddleware);
@@ -108,7 +87,9 @@ export function createApp(container: Container): Application {
   });
 
   // Health Routes (no auth)
+  const healthController: HealthController = container.resolve('healthController');
   app.use('/health', createHealthRouter(container));
+  app.get('/metrics', (req, res) => healthController.metrics(req, res));
 
   // API v1 Routes
   app.use(appConfig.apiPrefix, createV1Router(container));
