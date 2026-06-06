@@ -13,6 +13,7 @@ import { DashboardCacheStrategy } from '../infrastructure/cache/strategies/dashb
 import { AIProviderFactory } from '../infrastructure/ai/ai-provider.factory';
 import { S3StorageProvider } from '../infrastructure/storage/s3.provider';
 import { LocalStorageProvider } from '../infrastructure/storage/local.provider';
+import { MemoryStorageProvider } from '../infrastructure/storage/memory.provider';
 import { SMTPEmailProvider } from '../infrastructure/messaging/email/smtp.provider';
 import { createWhatsAppProvider } from '../infrastructure/messaging/whatsapp/twilio-whatsapp.provider';
 import { EmailQueue } from '../infrastructure/queue/queues/email.queue';
@@ -104,7 +105,7 @@ import { WebhookController } from '../presentation/http/controllers/webhook.cont
 import { HealthController } from '../presentation/http/controllers/health.controller';
 
 import { WebSocketGateway } from '../infrastructure/realtime/websocket.gateway';
-import { storageConfig } from '../config/storage.config';
+import { getStorageConfig } from '../config/storage.config';
 import { logger } from '../shared/utils/logger.util';
 
 export class Container {
@@ -192,10 +193,13 @@ export function buildContainer(
   const aiProvider = AIProviderFactory.create();
   container.register('aiProvider', aiProvider);
 
+  const storageConfig = getStorageConfig();
   const storageProvider =
     storageConfig.provider === 's3'
-      ? new S3StorageProvider()
-      : new LocalStorageProvider();
+      ? new S3StorageProvider(storageConfig.aws!)
+      : storageConfig.provider === 'local'
+        ? new LocalStorageProvider()
+        : new MemoryStorageProvider();
   container.register('storageProvider', storageProvider);
 
   const emailProvider = new SMTPEmailProvider();

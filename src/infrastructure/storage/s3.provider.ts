@@ -12,7 +12,7 @@ import {
   UploadResult,
   SignedUrlOptions,
 } from './storage-provider.interface';
-import { storageConfig } from '../../config/storage.config';
+import { AwsStorageConfig } from '../../config/storage.config';
 import { InfrastructureError } from '../../shared/errors/infrastructure.error';
 import { logger } from '../../shared/utils/logger.util';
 
@@ -20,17 +20,17 @@ export class S3StorageProvider implements IStorageProvider {
   private readonly client: S3Client;
   private readonly bucket: string;
 
-  constructor() {
+  constructor(config: AwsStorageConfig) {
     this.client = new S3Client({
-      region: storageConfig.aws.region,
+      region: config.region,
       credentials: {
-        accessKeyId: storageConfig.aws.accessKeyId,
-        secretAccessKey: storageConfig.aws.secretAccessKey,
+        accessKeyId: config.accessKeyId,
+        secretAccessKey: config.secretAccessKey,
       },
-      endpoint: storageConfig.aws.endpoint, // For MinIO/LocalStack compatibility
+      endpoint: config.endpoint, // For MinIO/LocalStack compatibility
     });
 
-    this.bucket = storageConfig.aws.bucket;
+    this.bucket = config.bucket;
   }
 
   async upload(buffer: Buffer, options: UploadOptions): Promise<UploadResult> {

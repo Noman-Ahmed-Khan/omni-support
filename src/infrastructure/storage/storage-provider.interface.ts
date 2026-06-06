@@ -23,3 +23,5 @@ export interface IStorageProvider {
   delete(storagePath: string): Promise<void>;
   exists(storagePath: string): Promise<boolean>;
 }
+
+export type StorageProvider = IStorageProvider;
