@@ -14,7 +14,7 @@ import { AIProviderFactory } from '../infrastructure/ai/ai-provider.factory';
 import { S3StorageProvider } from '../infrastructure/storage/s3.provider';
 import { LocalStorageProvider } from '../infrastructure/storage/local.provider';
 import { SMTPEmailProvider } from '../infrastructure/messaging/email/smtp.provider';
-import { TwilioWhatsAppProvider } from '../infrastructure/messaging/whatsapp/twilio-whatsapp.provider';
+import { createWhatsAppProvider } from '../infrastructure/messaging/whatsapp/twilio-whatsapp.provider';
 import { EmailQueue } from '../infrastructure/queue/queues/email.queue';
 import { NotificationQueue } from '../infrastructure/queue/queues/notification.queue';
 import { AIQueue } from '../infrastructure/queue/queues/ai.queue';
@@ -201,7 +201,7 @@ export function buildContainer(
   const emailProvider = new SMTPEmailProvider();
   container.register('emailProvider', emailProvider);
 
-  const whatsAppProvider = new TwilioWhatsAppProvider();
+  const whatsAppProvider = createWhatsAppProvider();
   container.register('whatsAppProvider', whatsAppProvider);
 
   // Event Bus
