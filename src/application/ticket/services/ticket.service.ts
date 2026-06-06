@@ -18,6 +18,11 @@ import { NotFoundError, DomainError } from '../../../shared/errors/domain.error'
 import { ForbiddenError } from '../../../shared/errors/application.error';
 import { logger } from '../../../shared/utils/logger.util';
 import { PrismaClient } from '@prisma/client';
+import { TicketAssignmentPolicy } from '../../../domain/policies/ticket-assignment.policy';
+import { TicketEscalationPolicy } from '../../../domain/policies/ticket-escalation.policy';
+import { TenantLimitsPolicy } from '../../../domain/policies/tenant-limits.policy';
+import { mapPrismaTenantToEntity } from '../../../shared/mappers/tenant.mapper';
+import { startOfUtcDay } from '../../../shared/utils/date.util';
 
 export interface CreateTicketDto {
   tenantId: string;
@@ -104,6 +109,28 @@ export class TicketService {
       throw new ForbiddenError('Cannot create ticket for blocked customer');
     }
 
+    const tenantRecord = await this.prisma.tenant.findUnique({
+      where: { id: dto.tenantId },
+    });
+
+    if (!tenantRecord) {
+      throw new NotFoundError('Tenant', dto.tenantId);
+    }
+
+    const tenant = mapPrismaTenantToEntity(tenantRecord);
+
+    const tenantLimitsPolicy = new TenantLimitsPolicy();
+    const ticketsCreatedToday = await this.prisma.ticket.count({
+      where: {
+        tenantId: dto.tenantId,
+        createdAt: { gte: startOfUtcDay(new Date()) },
+      },
+    });
+
+    if (!tenantLimitsPolicy.canCreateTicket(tenant, ticketsCreatedToday)) {
+      throw new ForbiddenError('Tenant ticket limit has been reached');
+    }
+
     // Get next ticket number (atomic)
     const ticketNumber = await this.ticketRepo.getNextTicketNumber(dto.tenantId);
 
@@ -166,11 +193,10 @@ export class TicketService {
     );
 
     // Publish domain events
-    const events = saved.pullDomainEvents();
-    await this.eventBus.publishAll(events);
+    await this.publishTicketEvents(saved);
 
     // Invalidate dashboard cache
-    await this.dashboardCache.invalidate(dto.tenantId);
+    await this.invalidateDashboardCache(dto.tenantId);
 
     logger.info('Ticket created', {
       ticketId: saved.id,
@@ -229,13 +255,14 @@ export class TicketService {
       });
     }
 
-    await this.dashboardCache.invalidate(dto.tenantId);
+    await this.invalidateDashboardCache(dto.tenantId);
 
     return updated;
   }
 
   async assignTicket(dto: AssignTicketDto): Promise<TicketEntity> {
     const ticket = await this.getTicketOrThrow(dto.ticketId, dto.tenantId);
+    const assignmentPolicy = new TicketAssignmentPolicy();
 
     // Validate agent exists in tenant
     const agent = await this.prisma.user.findFirst({
@@ -249,6 +276,10 @@ export class TicketService {
 
     if (!agent) {
       throw new NotFoundError('Agent', dto.agentId);
+    }
+
+    if (!assignmentPolicy.canAssign(ticket, agent.role)) {
+      throw new ForbiddenError('This ticket cannot be assigned to the selected user');
     }
 
     const previousAgentId = ticket.assignedAgentId;
@@ -277,9 +308,8 @@ export class TicketService {
       newValue: { agentId: dto.agentId },
     });
 
-    const events = updated.pullDomainEvents();
-    await this.eventBus.publishAll(events);
-    await this.dashboardCache.invalidate(dto.tenantId);
+    await this.publishTicketEvents(updated);
+    await this.invalidateDashboardCache(dto.tenantId);
 
     return updated;
   }
@@ -316,9 +346,8 @@ export class TicketService {
       newValue: { status: dto.newStatus },
     });
 
-    const events = updated.pullDomainEvents();
-    await this.eventBus.publishAll(events);
-    await this.dashboardCache.invalidate(dto.tenantId);
+    await this.publishTicketEvents(updated);
+    await this.invalidateDashboardCache(dto.tenantId);
 
     // Queue AI summary on resolution
     if (newStatus.isResolved()) {
@@ -335,6 +364,11 @@ export class TicketService {
 
   async escalateTicket(dto: EscalateTicketDto): Promise<TicketEntity> {
     const ticket = await this.getTicketOrThrow(dto.ticketId, dto.tenantId);
+    const escalationPolicy = new TicketEscalationPolicy();
+
+    if (!escalationPolicy.canEscalate(ticket)) {
+      throw new DomainError('Ticket cannot be escalated in its current state');
+    }
 
     ticket.escalate(dto.reason, dto.escalatedById);
 
@@ -360,9 +394,8 @@ export class TicketService {
       newValue: { reason: dto.reason },
     });
 
-    const events = updated.pullDomainEvents();
-    await this.eventBus.publishAll(events);
-    await this.dashboardCache.invalidate(dto.tenantId);
+    await this.publishTicketEvents(updated);
+    await this.invalidateDashboardCache(dto.tenantId);
 
     logger.info('Ticket escalated', {
       ticketId: dto.ticketId,
@@ -451,8 +484,7 @@ export class TicketService {
       });
     }
 
-    const events = ticket.pullDomainEvents();
-    await this.eventBus.publishAll(events);
+    await this.publishTicketEvents(ticket);
 
     logger.info('Comment added', {
       commentId,
@@ -491,6 +523,15 @@ export class TicketService {
     await this.getTicketOrThrow(ticketId, tenantId);
 
     return this.activityRepo.findByTicket(ticketId, tenantId, page, limit);
+  }
+
+  private async publishTicketEvents(ticket: TicketEntity): Promise<void> {
+    const events = ticket.pullDomainEvents();
+    await this.eventBus.publishAll(events);
+  }
+
+  private async invalidateDashboardCache(tenantId: string): Promise<void> {
+    await this.dashboardCache.invalidate(tenantId);
   }
 
   private async getTicketOrThrow(id: string, tenantId: string): Promise<TicketEntity> {
