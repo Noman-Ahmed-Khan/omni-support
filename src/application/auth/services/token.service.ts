@@ -5,6 +5,9 @@ import { PrismaClient } from '@prisma/client';
 import { jwtConfig } from '../../../config/jwt.config';
 import { UnauthorizedError } from '../../../shared/errors/application.error';
 import { logger } from '../../../shared/utils/logger.util';
+import { TokenSigningService } from '../../../infrastructure/security/token-signing.service';
+import { SecretsService } from '../../../infrastructure/security/secrets.service';
+import { sha256 } from '../../../shared/utils/crypto.util';
 
 export interface AccessTokenPayload {
   sub: string; // userId
@@ -27,7 +30,11 @@ export interface TokenPair {
 }
 
 export class TokenService {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly tokenSigningService: TokenSigningService = new TokenSigningService(),
+    private readonly secretsService: SecretsService = new SecretsService(),
+  ) {}
 
   generateAccessToken(payload: Omit<AccessTokenPayload, 'type'>): string {
     const options: jwt.SignOptions = {
@@ -36,7 +43,11 @@ export class TokenService {
       audience: 'omnisupport-api',
     };
 
-    return jwt.sign({ ...payload, type: 'access' }, jwtConfig.accessSecret, options);
+    return this.tokenSigningService.sign(
+      { ...payload, type: 'access' },
+      this.secretsService.getJwtAccessSecret() ?? jwtConfig.accessSecret,
+      options,
+    );
   }
 
   generateRefreshToken(userId: string, familyId: string): string {
@@ -46,19 +57,23 @@ export class TokenService {
       audience: 'omnisupport-api',
     };
 
-    return jwt.sign(
+    return this.tokenSigningService.sign(
       { sub: userId, familyId, type: 'refresh' },
-      jwtConfig.refreshSecret,
+      this.secretsService.getJwtRefreshSecret() ?? jwtConfig.refreshSecret,
       options,
     );
   }
 
   verifyAccessToken(token: string): AccessTokenPayload {
     try {
-      return jwt.verify(token, jwtConfig.accessSecret, {
-        issuer: 'omnisupport',
-        audience: 'omnisupport-api',
-      }) as AccessTokenPayload;
+      return this.tokenSigningService.verify<AccessTokenPayload>(
+        token,
+        this.secretsService.getJwtAccessSecret() ?? jwtConfig.accessSecret,
+        {
+          issuer: 'omnisupport',
+          audience: 'omnisupport-api',
+        },
+      );
     } catch (error) {
       if (error instanceof jwt.TokenExpiredError) {
         throw new UnauthorizedError('Access token expired');
@@ -69,10 +84,14 @@ export class TokenService {
 
   verifyRefreshToken(token: string): RefreshTokenPayload {
     try {
-      return jwt.verify(token, jwtConfig.refreshSecret, {
-        issuer: 'omnisupport',
-        audience: 'omnisupport-api',
-      }) as RefreshTokenPayload;
+      return this.tokenSigningService.verify<RefreshTokenPayload>(
+        token,
+        this.secretsService.getJwtRefreshSecret() ?? jwtConfig.refreshSecret,
+        {
+          issuer: 'omnisupport',
+          audience: 'omnisupport-api',
+        },
+      );
     } catch (error) {
       if (error instanceof jwt.TokenExpiredError) {
         throw new UnauthorizedError('Refresh token expired');
@@ -264,6 +283,6 @@ export class TokenService {
   }
 
   hashToken(token: string): Promise<string> {
-    return Promise.resolve(crypto.createHash('sha256').update(token).digest('hex'));
+    return Promise.resolve(sha256(token));
   }
 }

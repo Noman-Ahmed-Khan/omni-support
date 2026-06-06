@@ -2,6 +2,7 @@ import rateLimit from 'express-rate-limit';
 import { RedisStore, type RedisReply } from 'rate-limit-redis';
 import { getRedisClient } from '../../../infrastructure/cache/redis.client';
 
+const skipRedisRateLimit = process.env.SKIP_REDIS === 'true';
 const redisSendCommand = (...args: string[]): Promise<RedisReply> =>
   getRedisClient().sendCommand(args);
 
@@ -24,9 +25,11 @@ export const rateLimitMiddleware = rateLimit({
       detail: 'Rate limit exceeded. Please slow down.',
     });
   },
-  store: new RedisStore({
-    sendCommand: redisSendCommand,
-  }),
+  store: skipRedisRateLimit
+    ? undefined
+    : new RedisStore({
+        sendCommand: redisSendCommand,
+      }),
 });
 
 // Strict rate limit for auth endpoints
@@ -44,9 +47,11 @@ export const authRateLimitMiddleware = rateLimit({
       detail: 'Too many authentication attempts. Please wait 15 minutes.',
     });
   },
-  store: new RedisStore({
-    sendCommand: redisSendCommand,
-  }),
+  store: skipRedisRateLimit
+    ? undefined
+    : new RedisStore({
+        sendCommand: redisSendCommand,
+      }),
 });
 
 // AI endpoint rate limit (expensive operations)

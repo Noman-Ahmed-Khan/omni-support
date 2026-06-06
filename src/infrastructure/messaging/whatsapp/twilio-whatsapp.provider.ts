@@ -83,3 +83,28 @@ export class TwilioWhatsAppProvider implements IWhatsAppProvider {
     }
   }
 }
+
+class StubWhatsAppProvider implements IWhatsAppProvider {
+  async send(_message: WhatsAppMessage): Promise<WhatsAppResult> {
+    return {
+      messageId: 'stubbed',
+      status: 'skipped',
+    };
+  }
+
+  verifyWebhook(_signature: string, _payload: string): boolean {
+    return true;
+  }
+
+  parseInboundMessage(_rawPayload: unknown): WhatsAppWebhookPayload | null {
+    return null;
+  }
+}
+
+export function createWhatsAppProvider(): IWhatsAppProvider {
+  if (process.env.SKIP_TWILIO === 'true') {
+    return new StubWhatsAppProvider();
+  }
+
+  return new TwilioWhatsAppProvider();
+}

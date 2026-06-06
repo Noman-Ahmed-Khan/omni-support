@@ -1,60 +1,61 @@
 import { PrismaClient } from '@prisma/client';
+import { PERMISSION_ACTIONS, PERMISSION_RESOURCES } from '../../src/shared/constants/permissions.constants';
 
 const PERMISSIONS = [
   // Tenant permissions
-  { resource: 'tenants', action: 'create' },
-  { resource: 'tenants', action: 'read' },
-  { resource: 'tenants', action: 'update' },
-  { resource: 'tenants', action: 'delete' },
-  { resource: 'tenants', action: 'suspend' },
+  { resource: PERMISSION_RESOURCES.TENANTS, action: PERMISSION_ACTIONS.CREATE },
+  { resource: PERMISSION_RESOURCES.TENANTS, action: PERMISSION_ACTIONS.READ },
+  { resource: PERMISSION_RESOURCES.TENANTS, action: PERMISSION_ACTIONS.UPDATE },
+  { resource: PERMISSION_RESOURCES.TENANTS, action: PERMISSION_ACTIONS.DELETE },
+  { resource: PERMISSION_RESOURCES.TENANTS, action: PERMISSION_ACTIONS.SUSPEND },
 
   // User permissions
-  { resource: 'users', action: 'create' },
-  { resource: 'users', action: 'read' },
-  { resource: 'users', action: 'update' },
-  { resource: 'users', action: 'delete' },
+  { resource: PERMISSION_RESOURCES.USERS, action: PERMISSION_ACTIONS.CREATE },
+  { resource: PERMISSION_RESOURCES.USERS, action: PERMISSION_ACTIONS.READ },
+  { resource: PERMISSION_RESOURCES.USERS, action: PERMISSION_ACTIONS.UPDATE },
+  { resource: PERMISSION_RESOURCES.USERS, action: PERMISSION_ACTIONS.DELETE },
 
   // Customer permissions
-  { resource: 'customers', action: 'create' },
-  { resource: 'customers', action: 'read' },
-  { resource: 'customers', action: 'update' },
-  { resource: 'customers', action: 'delete' },
-  { resource: 'customers', action: 'export' },
+  { resource: PERMISSION_RESOURCES.CUSTOMERS, action: PERMISSION_ACTIONS.CREATE },
+  { resource: PERMISSION_RESOURCES.CUSTOMERS, action: PERMISSION_ACTIONS.READ },
+  { resource: PERMISSION_RESOURCES.CUSTOMERS, action: PERMISSION_ACTIONS.UPDATE },
+  { resource: PERMISSION_RESOURCES.CUSTOMERS, action: PERMISSION_ACTIONS.DELETE },
+  { resource: PERMISSION_RESOURCES.CUSTOMERS, action: PERMISSION_ACTIONS.EXPORT },
 
   // Ticket permissions
-  { resource: 'tickets', action: 'create' },
-  { resource: 'tickets', action: 'read' },
-  { resource: 'tickets', action: 'update' },
-  { resource: 'tickets', action: 'delete' },
-  { resource: 'tickets', action: 'assign' },
-  { resource: 'tickets', action: 'escalate' },
-  { resource: 'tickets', action: 'export' },
+  { resource: PERMISSION_RESOURCES.TICKETS, action: PERMISSION_ACTIONS.CREATE },
+  { resource: PERMISSION_RESOURCES.TICKETS, action: PERMISSION_ACTIONS.READ },
+  { resource: PERMISSION_RESOURCES.TICKETS, action: PERMISSION_ACTIONS.UPDATE },
+  { resource: PERMISSION_RESOURCES.TICKETS, action: PERMISSION_ACTIONS.DELETE },
+  { resource: PERMISSION_RESOURCES.TICKETS, action: PERMISSION_ACTIONS.ASSIGN },
+  { resource: PERMISSION_RESOURCES.TICKETS, action: PERMISSION_ACTIONS.ESCALATE },
+  { resource: PERMISSION_RESOURCES.TICKETS, action: PERMISSION_ACTIONS.EXPORT },
 
   // Comment permissions
-  { resource: 'comments', action: 'create' },
-  { resource: 'comments', action: 'read' },
-  { resource: 'comments', action: 'update' },
-  { resource: 'comments', action: 'delete' },
-  { resource: 'comments', action: 'internal' },
+  { resource: PERMISSION_RESOURCES.COMMENTS, action: PERMISSION_ACTIONS.CREATE },
+  { resource: PERMISSION_RESOURCES.COMMENTS, action: PERMISSION_ACTIONS.READ },
+  { resource: PERMISSION_RESOURCES.COMMENTS, action: PERMISSION_ACTIONS.UPDATE },
+  { resource: PERMISSION_RESOURCES.COMMENTS, action: PERMISSION_ACTIONS.DELETE },
+  { resource: PERMISSION_RESOURCES.COMMENTS, action: PERMISSION_ACTIONS.INTERNAL },
 
   // Analytics permissions
-  { resource: 'analytics', action: 'read' },
-  { resource: 'reports', action: 'read' },
-  { resource: 'reports', action: 'create' },
-  { resource: 'reports', action: 'export' },
+  { resource: PERMISSION_RESOURCES.ANALYTICS, action: PERMISSION_ACTIONS.READ },
+  { resource: PERMISSION_RESOURCES.REPORTS, action: PERMISSION_ACTIONS.READ },
+  { resource: PERMISSION_RESOURCES.REPORTS, action: PERMISSION_ACTIONS.CREATE },
+  { resource: PERMISSION_RESOURCES.REPORTS, action: PERMISSION_ACTIONS.EXPORT },
 
   // Integration permissions
-  { resource: 'integrations', action: 'create' },
-  { resource: 'integrations', action: 'read' },
-  { resource: 'integrations', action: 'update' },
-  { resource: 'integrations', action: 'delete' },
+  { resource: PERMISSION_RESOURCES.INTEGRATIONS, action: PERMISSION_ACTIONS.CREATE },
+  { resource: PERMISSION_RESOURCES.INTEGRATIONS, action: PERMISSION_ACTIONS.READ },
+  { resource: PERMISSION_RESOURCES.INTEGRATIONS, action: PERMISSION_ACTIONS.UPDATE },
+  { resource: PERMISSION_RESOURCES.INTEGRATIONS, action: PERMISSION_ACTIONS.DELETE },
 
   // Audit permissions
-  { resource: 'audit', action: 'read' },
+  { resource: PERMISSION_RESOURCES.AUDIT, action: PERMISSION_ACTIONS.READ },
 
   // AI permissions
-  { resource: 'ai', action: 'read' },
-  { resource: 'ai', action: 'trigger' },
+  { resource: PERMISSION_RESOURCES.AI, action: PERMISSION_ACTIONS.READ },
+  { resource: PERMISSION_RESOURCES.AI, action: PERMISSION_ACTIONS.TRIGGER },
 ];
 
 export async function seedPermissions(prisma: PrismaClient) {

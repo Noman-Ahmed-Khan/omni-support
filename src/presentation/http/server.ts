@@ -13,10 +13,28 @@ export class HttpServer {
   private wsGateway: WebSocketGateway;
   private isShuttingDown = false;
 
-  constructor(app: Application) {
-    this.server = http.createServer(app);
-    const wsAuth = new WebSocketAuth();
-    this.wsGateway = new WebSocketGateway(this.server, wsAuth);
+  constructor(
+    app: Application,
+    options: {
+      server?: http.Server;
+      wsGateway?: WebSocketGateway;
+      wsAuth?: WebSocketAuth;
+    } = {},
+  ) {
+    if (options.server) {
+      this.server = options.server;
+      this.server.removeAllListeners('request');
+      this.server.on('request', app);
+    } else {
+      this.server = http.createServer(app);
+    }
+
+    if (options.wsGateway) {
+      this.wsGateway = options.wsGateway;
+    } else {
+      const wsAuth = options.wsAuth ?? new WebSocketAuth();
+      this.wsGateway = new WebSocketGateway(this.server, wsAuth);
+    }
   }
 
   getWebSocketGateway(): WebSocketGateway {

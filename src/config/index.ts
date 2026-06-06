@@ -1,3 +1,7 @@
-// Placeholder: config barrel for shared configuration exports.
-// Current modules import individual config files directly.
-// Implement this when config composition needs a single public entry point.
+export * from './ai.config';
+export * from './app.config';
+export * from './database.config';
+export * from './jwt.config';
+export * from './messaging.config';
+export * from './redis.config';
+export * from './storage.config';

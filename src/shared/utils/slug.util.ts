@@ -1,3 +1,12 @@
-// Placeholder: shared slug helper functions.
-// Current tenant slug behavior is implemented in TenantSlug value object.
-// Implement this when non-tenant slug generation is needed.
+export function slugify(input: string): string {
+  return input
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+export function appendSlugSuffix(slug: string, suffix: string): string {
+  const normalizedSuffix = slugify(suffix);
+  return normalizedSuffix ? `${slug}-${normalizedSuffix}` : slug;
+}

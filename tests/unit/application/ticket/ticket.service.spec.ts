@@ -88,6 +88,24 @@ describe('TicketService', () => {
 
     it('should create ticket successfully', async () => {
       customerRepo.findById.mockResolvedValue(mockCustomer);
+      (prisma.tenant.findUnique as jest.Mock).mockResolvedValue({
+        id: 'tenant-id',
+        name: 'Tenant',
+        slug: 'tenant',
+        status: 'ACTIVE',
+        plan: 'starter',
+        domain: null,
+        logoUrl: null,
+        maxAgents: 10,
+        maxCustomers: 1000,
+        maxTicketsPerDay: 500,
+        settings: {},
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        suspendedAt: null,
+        suspendedReason: null,
+      });
+      (prisma.ticket.count as jest.Mock).mockResolvedValue(0);
       ticketRepo.getNextTicketNumber.mockResolvedValue(1);
       ticketRepo.save.mockResolvedValue(mockTicket);
       customerRepo.update.mockResolvedValue(mockCustomer);

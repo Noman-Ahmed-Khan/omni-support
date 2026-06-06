@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import http from 'http';
 import { connectDatabase, prisma } from './infrastructure/database/prisma.client';
 import { createRedisClient } from './infrastructure/cache/redis.client';
 import { HttpServer } from './presentation/http/server';
@@ -14,6 +15,8 @@ import { SuggestResponseHandler } from './application/ai/handlers/suggest-respon
 import { GenerateSummaryHandler } from './application/ai/handlers/generate-summary.handler';
 import { CalculateRiskScoreHandler } from './application/ai/handlers/calculate-risk-score.handler';
 import { SMTPEmailProvider } from './infrastructure/messaging/email/smtp.provider';
+import { WebSocketAuth } from './infrastructure/realtime/websocket.auth';
+import { WebSocketGateway } from './infrastructure/realtime/websocket.gateway';
 import { logger } from './shared/utils/logger.util';
 
 async function bootstrap(): Promise<void> {
@@ -26,16 +29,19 @@ async function bootstrap(): Promise<void> {
     // Connect to Redis
     const redis = await createRedisClient();
 
-    // Create HTTP server (temporary - to get wsGateway for container)
-    const tempServer = new HttpServer(createApp({} as Container));
-    const wsGateway = tempServer.getWebSocketGateway();
+    // Prepare a shared HTTP server and WebSocket gateway before building the app container.
+    const rawServer = http.createServer();
+    const wsGateway = new WebSocketGateway(rawServer, new WebSocketAuth());
 
     // Build DI container
     const container = await buildContainer(prisma, redis, wsGateway);
 
     // Create real HTTP server with full app
     const app = createApp(container);
-    const server = new HttpServer(app);
+    const server = new HttpServer(app, {
+      server: rawServer,
+      wsGateway,
+    });
     server.setupSignalHandlers();
 
     // Start background workers (only in non-test mode)
@@ -76,6 +82,42 @@ function startWorkers(container: Container): void {
     'calculateRiskScoreHandler',
   );
   const emailProvider: SMTPEmailProvider = container.resolve('emailProvider');
+  const outboxWorker = container.resolve<{ start(): void }>('outboxWorker');
+  const schedulerService = container.resolve<{
+    register(job: {
+      name: string;
+      cronExpression: string;
+      handler: () => Promise<void>;
+    }): void;
+    start(): void;
+  }>('schedulerService');
+  const analyticsRollupJob = container.resolve<() => Promise<void>>('analyticsRollupJob');
+  const ticketEscalationJob =
+    container.resolve<() => Promise<void>>('ticketEscalationJob');
+  const tenantCleanupJob = container.resolve<() => Promise<void>>('tenantCleanupJob');
+  const outboxRetryJob = container.resolve<() => Promise<void>>('outboxRetryJob');
+
+  schedulerService.register({
+    name: 'analytics-rollup',
+    cronExpression: '0 1 * * *',
+    handler: analyticsRollupJob,
+  });
+  schedulerService.register({
+    name: 'ticket-escalation',
+    cronExpression: '*/15 * * * *',
+    handler: ticketEscalationJob,
+  });
+  schedulerService.register({
+    name: 'tenant-cleanup',
+    cronExpression: '30 2 * * *',
+    handler: tenantCleanupJob,
+  });
+  schedulerService.register({
+    name: 'outbox-retry',
+    cronExpression: '*/5 * * * *',
+    handler: outboxRetryJob,
+  });
+
   // AI Worker
   createAIWorker({
     categorize: (data) =>
@@ -130,9 +172,11 @@ function startWorkers(container: Container): void {
   // Notification Worker
   createNotificationWorker((data) => {
     logger.debug('Processing notification', { channel: data.channel });
-    // Route to appropriate channel
     return Promise.resolve();
   });
+
+  outboxWorker.start();
+  schedulerService.start();
 
   logger.info('Background workers started');
 }

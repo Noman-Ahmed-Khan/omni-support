@@ -14,10 +14,28 @@ import { AIProviderFactory } from '../infrastructure/ai/ai-provider.factory';
 import { S3StorageProvider } from '../infrastructure/storage/s3.provider';
 import { LocalStorageProvider } from '../infrastructure/storage/local.provider';
 import { SMTPEmailProvider } from '../infrastructure/messaging/email/smtp.provider';
-import { TwilioWhatsAppProvider } from '../infrastructure/messaging/whatsapp/twilio-whatsapp.provider';
+import { createWhatsAppProvider } from '../infrastructure/messaging/whatsapp/twilio-whatsapp.provider';
 import { EmailQueue } from '../infrastructure/queue/queues/email.queue';
 import { NotificationQueue } from '../infrastructure/queue/queues/notification.queue';
 import { AIQueue } from '../infrastructure/queue/queues/ai.queue';
+import { MetricsService } from '../infrastructure/observability/metrics/metrics.service';
+import { HealthService } from '../infrastructure/observability/health/health.service';
+import { TracingService } from '../infrastructure/observability/tracing/tracing.service';
+import { PrismaFeatureFlagRepository } from '../application/feature-flags/feature.repository';
+import { FeatureFlagService } from '../application/feature-flags/feature-flag.service';
+import { OutboxRepository } from '../infrastructure/outbox/outbox.repository';
+import { OutboxPublisher } from '../infrastructure/outbox/outbox.publisher';
+import { OutboxProcessor } from '../infrastructure/outbox/outbox.processor';
+import { OutboxWorker } from '../infrastructure/outbox/outbox.worker';
+import { SchedulerService } from '../infrastructure/scheduler/scheduler.service';
+import { CronRegistry } from '../infrastructure/scheduler/cron.registry';
+import { createAnalyticsRollupJob } from '../infrastructure/scheduler/analytics-rollup.job';
+import { createTicketEscalationJob } from '../infrastructure/scheduler/ticket-escalation.job';
+import { createTenantCleanupJob } from '../infrastructure/scheduler/tenant-cleanup.job';
+import { createOutboxRetryJob } from '../infrastructure/scheduler/outbox-retry.job';
+import { PasswordHasher } from '../infrastructure/security/password-hasher';
+import { TokenSigningService } from '../infrastructure/security/token-signing.service';
+import { SecretsService } from '../infrastructure/security/secrets.service';
 
 // Application Services
 import { TokenService } from '../application/auth/services/token.service';
@@ -129,6 +147,18 @@ export function buildContainer(
   const dashboardCache = new DashboardCacheStrategy(cacheService);
   container.register('dashboardCache', dashboardCache);
 
+  const metricsService = new MetricsService();
+  container.register('metricsService', metricsService);
+
+  const tracingService = new TracingService();
+  container.register('tracingService', tracingService);
+
+  const featureFlagRepository = new PrismaFeatureFlagRepository(prisma);
+  container.register('featureFlagRepository', featureFlagRepository);
+
+  const featureFlagService = new FeatureFlagService(featureFlagRepository);
+  container.register('featureFlagService', featureFlagService);
+
   // Repositories
   const tenantRepo = new TenantRepository(prisma);
   container.register('tenantRepo', tenantRepo);
@@ -155,6 +185,9 @@ export function buildContainer(
   const aiQueue = new AIQueue();
   container.register('aiQueue', aiQueue);
 
+  const outboxRepository = new OutboxRepository(prisma);
+  container.register('outboxRepository', outboxRepository);
+
   // External Providers
   const aiProvider = AIProviderFactory.create();
   container.register('aiProvider', aiProvider);
@@ -168,15 +201,32 @@ export function buildContainer(
   const emailProvider = new SMTPEmailProvider();
   container.register('emailProvider', emailProvider);
 
-  const whatsAppProvider = new TwilioWhatsAppProvider();
+  const whatsAppProvider = createWhatsAppProvider();
   container.register('whatsAppProvider', whatsAppProvider);
 
   // Event Bus
-  const eventBus = new InProcessEventBus();
+  const eventDispatcher = new InProcessEventBus();
+  const eventBus = new OutboxPublisher(outboxRepository, eventDispatcher);
   container.register('eventBus', eventBus);
 
+  const outboxProcessor = new OutboxProcessor(outboxRepository, eventDispatcher);
+  container.register('outboxProcessor', outboxProcessor);
+
+  const outboxWorker = new OutboxWorker(outboxProcessor);
+  container.register('outboxWorker', outboxWorker);
+
+  const cronRegistry = new CronRegistry();
+  container.register('cronRegistry', cronRegistry);
+
+  const schedulerService = new SchedulerService(cronRegistry, redis, metricsService);
+  container.register('schedulerService', schedulerService);
+
   // Application Services
-  const tokenService = new TokenService(prisma);
+  const tokenService = new TokenService(
+    prisma,
+    new TokenSigningService(),
+    new SecretsService(),
+  );
   container.register('tokenService', tokenService);
 
   const notificationService = new NotificationService(prisma, emailQueue, wsGateway);
@@ -211,6 +261,7 @@ export function buildContainer(
     ticketService,
     activityRepo,
     wsGateway,
+    featureFlagService,
   );
   container.register('aiService', aiService);
   container.register('categorizeTicketHandler', new CategorizeTicketHandler(aiService));
@@ -229,6 +280,7 @@ export function buildContainer(
     emailQueue,
     auditRepo,
     cacheService,
+    new PasswordHasher(),
   );
   container.register('authService', authService);
 
@@ -297,6 +349,25 @@ export function buildContainer(
 
   const searchService = new SearchService(prisma);
   container.register('searchService', searchService);
+
+  const healthService = new HealthService(prisma, redis, metricsService);
+  container.register('healthService', healthService);
+
+  const analyticsRollupJob = createAnalyticsRollupJob(analyticsService, tenantRepo);
+  container.register('analyticsRollupJob', analyticsRollupJob);
+
+  const ticketEscalationJob = createTicketEscalationJob(
+    ticketService,
+    ticketRepo,
+    tenantRepo,
+  );
+  container.register('ticketEscalationJob', ticketEscalationJob);
+
+  const tenantCleanupJob = createTenantCleanupJob(tenantRepo);
+  container.register('tenantCleanupJob', tenantCleanupJob);
+
+  const outboxRetryJob = createOutboxRetryJob(outboxProcessor);
+  container.register('outboxRetryJob', outboxRetryJob);
 
   // Register Domain Event Handlers
   eventBus.subscribe(
@@ -387,7 +458,7 @@ export function buildContainer(
     new WebhookController(whatsAppProvider, ticketService, prisma),
   );
 
-  container.register('healthController', new HealthController(prisma, redis, wsGateway));
+  container.register('healthController', new HealthController(healthService, wsGateway));
 
   logger.info('DI container built successfully');
 

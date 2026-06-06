@@ -1,3 +1,15 @@
-// Placeholder: shared role constants.
-// Current roles are represented by persisted values and middleware strings.
-// Implement this when role names need compile-time reuse.
+export const ROLE_NAMES = {
+  PLATFORM_ADMIN: 'PLATFORM_ADMIN',
+  TENANT_MANAGER: 'TENANT_MANAGER',
+  AGENT: 'AGENT',
+  CUSTOMER: 'CUSTOMER',
+} as const;
+
+export type RoleName = (typeof ROLE_NAMES)[keyof typeof ROLE_NAMES];
+
+export const SYSTEM_ROLE_NAMES: readonly RoleName[] = [
+  ROLE_NAMES.PLATFORM_ADMIN,
+  ROLE_NAMES.TENANT_MANAGER,
+  ROLE_NAMES.AGENT,
+  ROLE_NAMES.CUSTOMER,
+];

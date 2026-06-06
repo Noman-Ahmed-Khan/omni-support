@@ -1,10 +1,10 @@
-import argon2 from 'argon2';
 import crypto from 'crypto';
 import { Prisma, PrismaClient, UserRole } from '@prisma/client';
 import { TokenPair, TokenService } from './token.service';
 import { EmailQueue } from '../../../infrastructure/queue/queues/email.queue';
 import { AuditRepository } from '../../../infrastructure/database/repositories/audit.repository';
 import { CacheService } from '../../../infrastructure/cache/cache.service';
+import { PasswordHasher } from '../../../infrastructure/security/password-hasher';
 import { Password } from '../../../domain/user/value-objects/password.vo';
 import {
   UnauthorizedError,
@@ -53,6 +53,7 @@ export class AuthService {
     private readonly emailQueue: EmailQueue,
     private readonly auditRepo: AuditRepository,
     private readonly cache: CacheService,
+    private readonly passwordHasher: PasswordHasher = new PasswordHasher(),
   ) {}
 
   async register(dto: RegisterDto): Promise<{ userId: string }> {
@@ -150,7 +151,10 @@ export class AuthService {
     }
 
     // Verify password
-    const isValidPassword = await argon2.verify(user.passwordHash, dto.password);
+    const isValidPassword = await this.passwordHasher.verify(
+      user.passwordHash,
+      dto.password,
+    );
 
     if (!isValidPassword) {
       // Increment failed attempts
@@ -385,12 +389,7 @@ export class AuthService {
   }
 
   private async hashPassword(password: string): Promise<string> {
-    return argon2.hash(password, {
-      type: argon2.argon2id,
-      memoryCost: 65536,
-      timeCost: 3,
-      parallelism: 4,
-    });
+    return this.passwordHasher.hash(password);
   }
 
   private buildVerificationEmailHtml(

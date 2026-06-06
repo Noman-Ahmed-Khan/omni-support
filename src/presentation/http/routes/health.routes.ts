@@ -16,6 +16,7 @@ export function createHealthRouter(container: Container): Router {
     '/ready',
     asyncHandler((req, res) => controller.readiness(req, res)),
   );
+  router.get('/metrics', (req, res) => controller.metrics(req, res));
 
   return router;
 }

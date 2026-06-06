@@ -26,9 +26,25 @@ const defaultQueueOptions: Omit<QueueOptions, 'connection'> = {
   },
 };
 
+const skipRedisQueues = process.env.SKIP_REDIS === 'true';
+
 export function createQueue(name: QueueName): Queue {
   if (queues.has(name)) {
     return queues.get(name)!;
+  }
+
+  if (skipRedisQueues) {
+    const queue = {
+      add: async () => undefined,
+      addBulk: async () => undefined,
+      on: () => undefined,
+      close: async () => undefined,
+    } as unknown as Queue;
+
+    queues.set(name, queue);
+    logger.info(`Queue ${name} created (stubbed)`);
+
+    return queue;
   }
 
   const connection = getRedisClient();

@@ -40,17 +40,22 @@ export default async function globalSetup(): Promise<void> {
   const allPerms = await prisma.permission.findMany();
   const permMap = new Map(allPerms.map((p) => [`${p.resource}:${p.action}`, p.id]));
 
-  const managerRole = await prisma.role.upsert({
-    where: { tenantId_name: { tenantId: null as any, name: 'TENANT_MANAGER' } },
-    update: {},
-    create: { name: 'TENANT_MANAGER', displayName: 'Tenant Manager', isSystem: true },
-  });
+  // Helper function to find or create system roles
+  // This avoids Prisma's null validation issue with composite unique constraints
+  const findOrCreateSystemRole = async (name: string, displayName: string) => {
+    let role = await prisma.role.findFirst({
+      where: { tenantId: null, name },
+    });
+    if (!role) {
+      role = await prisma.role.create({
+        data: { name, displayName, isSystem: true, tenantId: null },
+      });
+    }
+    return role;
+  };
 
-  const agentRole = await prisma.role.upsert({
-    where: { tenantId_name: { tenantId: null as any, name: 'AGENT' } },
-    update: {},
-    create: { name: 'AGENT', displayName: 'Agent', isSystem: true },
-  });
+  const managerRole = await findOrCreateSystemRole('TENANT_MANAGER', 'Tenant Manager');
+  const agentRole = await findOrCreateSystemRole('AGENT', 'Agent');
 
   // Assign permissions to manager role
   const managerPerms = allPerms.map((p) => ({

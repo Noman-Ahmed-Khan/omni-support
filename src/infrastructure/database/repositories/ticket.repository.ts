@@ -16,6 +16,8 @@ import { TicketEntity } from '../../../domain/ticket/entities/ticket.entity';
 import { TicketStatus } from '../../../domain/ticket/value-objects/ticket-status.vo';
 import { TicketPriority } from '../../../domain/ticket/value-objects/ticket-priority.vo';
 import { InfrastructureError } from '../../../shared/errors/infrastructure.error';
+import { OverdueTicketSpecification } from '../../../domain/specifications/overdue-ticket.specification';
+import { EscalatedTicketSpecification } from '../../../domain/specifications/escalated-ticket.specification';
 
 export class TicketRepository implements ITicketRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -227,6 +229,7 @@ export class TicketRepository implements ITicketRepository {
   }
 
   async findOverdueTickets(tenantId: string): Promise<TicketEntity[]> {
+    const overdueSpecification = new OverdueTicketSpecification();
     const records = await this.prisma.ticket.findMany({
       where: {
         tenantId,
@@ -236,10 +239,13 @@ export class TicketRepository implements ITicketRepository {
       },
     });
 
-    return records.map((r) => this.toDomain(r));
+    return records
+      .map((r) => this.toDomain(r))
+      .filter((ticket) => overdueSpecification.isSatisfiedBy(ticket));
   }
 
   async findEscalatedTickets(tenantId: string): Promise<TicketEntity[]> {
+    const escalatedSpecification = new EscalatedTicketSpecification();
     const records = await this.prisma.ticket.findMany({
       where: {
         tenantId,
@@ -249,7 +255,9 @@ export class TicketRepository implements ITicketRepository {
       orderBy: { escalatedAt: 'asc' },
     });
 
-    return records.map((r) => this.toDomain(r));
+    return records
+      .map((r) => this.toDomain(r))
+      .filter((ticket) => escalatedSpecification.isSatisfiedBy(ticket));
   }
 
   private buildWhereClause(filters: TicketFilters): Prisma.TicketWhereInput {
