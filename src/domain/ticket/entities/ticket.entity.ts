@@ -7,6 +7,7 @@ import { TicketAssignedEvent } from '../events/ticket-assigned.event';
 import { TicketEscalatedEvent } from '../events/ticket-escalated.event';
 import { TicketResolvedEvent } from '../events/ticket-resolved.event';
 import { TicketStatusChangedEvent } from '../events/ticket-status-changed.event';
+import { DomainError } from '../../../shared/errors/domain.error';
 
 export interface TicketProps {
   tenantId: string;
@@ -103,8 +104,9 @@ export class TicketEntity extends AggregateRoot {
 
   changeStatus(newStatus: TicketStatus, changedById: string): void {
     if (!this._status.canTransitionTo(newStatus)) {
-      throw new Error(
+      throw new DomainError(
         `Cannot transition from ${this._status.toString()} to ${newStatus.toString()}`,
+        'DOMAIN_ERROR',
       );
     }
 

@@ -26,6 +26,7 @@ export async function cleanupTestDatabase(): Promise<void> {
   const prisma = getTestPrisma();
 
   // Delete in correct order respecting FK constraints
+  // Keep system roles (tenantId: null) but delete tenant-specific data
   await prisma.$transaction([
     prisma.aIResult.deleteMany(),
     prisma.analyticsSnapshot.deleteMany(),
@@ -43,13 +44,23 @@ export async function cleanupTestDatabase(): Promise<void> {
     prisma.oAuthAccount.deleteMany(),
     prisma.tenantIntegration.deleteMany(),
     prisma.webhookEvent.deleteMany(),
-    prisma.rolePermission.deleteMany(),
+    // Delete tenant-specific role permissions and roles, but keep system roles
+    prisma.rolePermission.deleteMany({
+      where: {
+        role: {
+          tenantId: { not: null },
+        },
+      },
+    }),
+    prisma.role.deleteMany({
+      where: { tenantId: { not: null } },
+    }),
     prisma.user.deleteMany(),
     prisma.tenant.deleteMany(),
-    prisma.role.deleteMany(),
-    prisma.permission.deleteMany(),
+    // Don't delete system permissions or system roles
   ]);
 }
+
 
 export async function disconnectTestDatabase(): Promise<void> {
   if (prismaInstance) {

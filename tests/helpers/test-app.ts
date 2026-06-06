@@ -50,22 +50,30 @@ export async function getTestApp(): Promise<{
 export async function getAuthToken(
   app: Application,
   role: string = 'TENANT_MANAGER',
+  tenantId?: string,
 ): Promise<{ token: string; userId: string; tenantId: string }> {
   const prisma = getTestPrisma();
 
-  // Create test tenant
-  const tenant = await prisma.tenant.create({
-    data: {
-      id: crypto.randomUUID(),
-      name: `Test Org ${Date.now()}`,
-      slug: `test-org-${Date.now()}`,
-      status: 'ACTIVE',
-      plan: 'starter',
-      maxAgents: 10,
-      maxCustomers: 1000,
-      maxTicketsPerDay: 500,
-    },
-  });
+  let tenant = null;
+  if (tenantId) {
+    tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
+    if (!tenant) {
+      throw new Error(`Tenant with id ${tenantId} does not exist`);
+    }
+  } else {
+    tenant = await prisma.tenant.create({
+      data: {
+        id: crypto.randomUUID(),
+        name: `Test Org ${Date.now()}`,
+        slug: `test-org-${Date.now()}`,
+        status: 'ACTIVE',
+        plan: 'starter',
+        maxAgents: 10,
+        maxCustomers: 1000,
+        maxTicketsPerDay: 500,
+      },
+    });
+  }
 
   // Create test user
   const argon2 = await import('argon2');
@@ -85,7 +93,7 @@ export async function getAuthToken(
     },
   });
 
-  // Generate token directly
+  // Generate token directly with issuer and audience to match production
   const jwt = await import('jsonwebtoken');
   const token = jwt.sign(
     {
@@ -96,7 +104,11 @@ export async function getAuthToken(
       type: 'access',
     },
     process.env.JWT_ACCESS_SECRET!,
-    { expiresIn: '15m' },
+    {
+      expiresIn: '15m',
+      issuer: 'omnisupport',
+      audience: 'omnisupport-api',
+    },
   );
 
   return { token, userId: user.id, tenantId: tenant.id };

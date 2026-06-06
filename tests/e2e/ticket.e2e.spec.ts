@@ -24,7 +24,7 @@ describe('Ticket E2E', () => {
     managerToken = managerAuth.token;
     tenantId = managerAuth.tenantId;
 
-    const agentAuth = await getAuthToken(app, 'AGENT');
+    const agentAuth = await getAuthToken(app, 'AGENT', tenantId);
     agentToken = agentAuth.token;
 
     const customer = await createTestCustomer(prisma, tenantId);
