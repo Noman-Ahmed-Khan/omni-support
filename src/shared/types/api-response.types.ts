@@ -1,3 +1,15 @@
-// Placeholder: shared API response type exports.
-// Current response shapes are produced by presentation DTO helpers.
-// Implement this when response contracts are reused outside presentation DTOs.
+export interface ApiResponse<T = unknown> {
+  data: T;
+  meta?: Record<string, unknown>;
+}
+
+export interface PaginatedApiResponse<T = unknown> {
+  data: T[];
+  meta: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+    [key: string]: unknown;
+  };
+}
