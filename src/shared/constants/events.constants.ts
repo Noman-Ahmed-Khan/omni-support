@@ -1,3 +1,17 @@
-// Placeholder: shared event-name constants.
-// Current domain events expose names from their event classes.
-// Implement this when event names need a single shared registry.
+export const DOMAIN_EVENT_NAMES = {
+  TENANT_CREATED: 'TENANT_CREATED',
+  TENANT_SUSPENDED: 'TENANT_SUSPENDED',
+  USER_CREATED: 'USER_CREATED',
+  USER_ROLE_CHANGED: 'USER_ROLE_CHANGED',
+  CUSTOMER_CREATED: 'CUSTOMER_CREATED',
+  CUSTOMER_RISK_UPDATED: 'CUSTOMER_RISK_UPDATED',
+  TICKET_CREATED: 'TICKET_CREATED',
+  TICKET_ASSIGNED: 'TICKET_ASSIGNED',
+  TICKET_ESCALATED: 'TICKET_ESCALATED',
+  TICKET_RESOLVED: 'TICKET_RESOLVED',
+  TICKET_STATUS_CHANGED: 'TICKET_STATUS_CHANGED',
+  COMMENT_ADDED: 'COMMENT_ADDED',
+} as const;
+
+export type DomainEventName =
+  (typeof DOMAIN_EVENT_NAMES)[keyof typeof DOMAIN_EVENT_NAMES];
