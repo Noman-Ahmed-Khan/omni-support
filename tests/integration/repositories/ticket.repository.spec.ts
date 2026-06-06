@@ -220,13 +220,15 @@ describe('TicketRepository (Integration)', () => {
       });
 
       const saved = await repo.save(ticket);
-      saved.assign('agent-id', 'manager-id');
+      // Create a test agent user so assignedAgentId satisfies the FK constraint
+      const agent = await createTestUser(prisma, tenantId);
+      saved.assign(agent.id, userId);
       saved.pullDomainEvents();
 
       await repo.update(saved);
 
       const found = await repo.findById(saved.id, tenantId);
-      expect(found!.assignedAgentId).toBe('agent-id');
+      expect(found!.assignedAgentId).toBe(agent.id);
     });
   });
 });
