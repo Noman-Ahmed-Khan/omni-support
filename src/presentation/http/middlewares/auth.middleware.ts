@@ -1,11 +1,12 @@
 import { Request, Response, NextFunction } from 'express';
 import { TokenService } from '../../../application/auth/services/token.service';
 import { UnauthorizedError } from '../../../shared/errors/application.error';
+import { extractBearerTokenFromRequest } from '../../../shared/utils/token.util';
 
 export function createAuthMiddleware(tokenService: TokenService) {
   return function authMiddleware(req: Request, _res: Response, next: NextFunction): void {
     try {
-      const token = extractBearerToken(req);
+      const token = extractBearerTokenFromRequest(req);
 
       if (!token) {
         throw new UnauthorizedError('No authentication token provided');
@@ -36,7 +37,7 @@ export function createOptionalAuthMiddleware(tokenService: TokenService) {
     next: NextFunction,
   ): void {
     try {
-      const token = extractBearerToken(req);
+      const token = extractBearerTokenFromRequest(req);
 
       if (token) {
         const payload = tokenService.verifyAccessToken(token);
@@ -54,12 +55,4 @@ export function createOptionalAuthMiddleware(tokenService: TokenService) {
 
     next();
   };
-}
-
-function extractBearerToken(req: Request): string | null {
-  const authHeader = req.headers.authorization;
-  if (authHeader?.startsWith('Bearer ')) {
-    return authHeader.substring(7);
-  }
-  return null;
 }
