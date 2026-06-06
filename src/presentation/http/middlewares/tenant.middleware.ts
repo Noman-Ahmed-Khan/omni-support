@@ -4,40 +4,41 @@ import {
   ForbiddenError,
   UnauthorizedError,
 } from '../../../shared/errors/application.error';
+import { asyncHandler } from '../../../shared/utils/express.util';
+import { mapPrismaTenantToEntity } from '../../../shared/mappers/tenant.mapper';
+import { TenantActiveSpecification } from '../../../domain/specifications/tenant-active.specification';
 
 export function createTenantMiddleware(prisma: PrismaClient): RequestHandler {
-  return function tenantMiddleware(
-    req: Request,
-    _res: Response,
-    next: NextFunction,
-  ): void {
-    void (async (): Promise<void> => {
-      if (!req.user) {
-        throw new UnauthorizedError('Authentication required');
-      }
+  return asyncHandler(async (req: Request, _res: Response, next: NextFunction) => {
+    if (!req.user) {
+      throw new UnauthorizedError('Authentication required');
+    }
 
-      // Platform admins are not tenant-scoped
-      if (req.user.role === 'PLATFORM_ADMIN') {
-        next();
-        return;
-      }
+    // Platform admins are not tenant-scoped
+    if (req.user.role === 'PLATFORM_ADMIN') {
+      next();
+      return;
+    }
 
-      const tenantId = req.user.tenantId;
+    const tenantId = req.user.tenantId;
 
-      if (!tenantId) {
-        throw new ForbiddenError('User is not associated with any organization');
-      }
+    if (!tenantId) {
+      throw new ForbiddenError('User is not associated with any organization');
+    }
 
-      // Verify tenant is active
-      const tenant = await prisma.tenant.findUnique({
-        where: { id: tenantId },
-        select: { id: true, status: true, name: true },
-      });
+    // Verify tenant is active
+    const tenantRecord = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+    });
 
-      if (!tenant) {
-        throw new ForbiddenError('Organization not found');
-      }
+    if (!tenantRecord) {
+      throw new ForbiddenError('Organization not found');
+    }
 
+    const tenant = mapPrismaTenantToEntity(tenantRecord);
+    const activeSpecification = new TenantActiveSpecification();
+
+    if (!activeSpecification.isSatisfiedBy(tenant)) {
       if (tenant.status === 'SUSPENDED') {
         throw new ForbiddenError(
           'Your organization has been suspended. Please contact support.',
@@ -48,9 +49,11 @@ export function createTenantMiddleware(prisma: PrismaClient): RequestHandler {
         throw new ForbiddenError('Your organization account has been cancelled');
       }
 
-      req.tenantId = tenantId;
+      throw new ForbiddenError('Your organization is not active');
+    }
 
-      next();
-    })().catch(next);
-  };
+    req.tenantId = tenantId;
+
+    next();
+  });
 }
