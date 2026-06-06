@@ -1,10 +1,12 @@
 import { PrismaClient } from '@prisma/client';
+import { ROLE_NAMES } from '../../src/shared/constants/roles.constants';
+import { permissionKey } from '../../src/shared/constants/permissions.constants';
 
 export async function seedRoles(prisma: PrismaClient) {
   const allPermissions = await prisma.permission.findMany();
 
   const permissionMap = new Map(
-    allPermissions.map((p) => [`${p.resource}:${p.action}`, p.id])
+    allPermissions.map((p) => [permissionKey(p.resource, p.action), p.id]),
   );
 
   const getPermissionIds = (keys: string[]) =>
@@ -14,7 +16,7 @@ export async function seedRoles(prisma: PrismaClient) {
 
   // Platform Admin - all permissions
   await upsertRole(prisma, {
-    name: 'PLATFORM_ADMIN',
+    name: ROLE_NAMES.PLATFORM_ADMIN,
     displayName: 'Platform Administrator',
     isSystem: true,
     permissionIds: allPermissions.map((p) => p.id),
@@ -22,7 +24,7 @@ export async function seedRoles(prisma: PrismaClient) {
 
   // Tenant Manager
   await upsertRole(prisma, {
-    name: 'TENANT_MANAGER',
+    name: ROLE_NAMES.TENANT_MANAGER,
     displayName: 'Tenant Manager',
     isSystem: true,
     permissionIds: getPermissionIds([
@@ -42,7 +44,7 @@ export async function seedRoles(prisma: PrismaClient) {
 
   // Agent
   await upsertRole(prisma, {
-    name: 'AGENT',
+    name: ROLE_NAMES.AGENT,
     displayName: 'Support Agent',
     isSystem: true,
     permissionIds: getPermissionIds([
@@ -55,7 +57,7 @@ export async function seedRoles(prisma: PrismaClient) {
 
   // Customer
   await upsertRole(prisma, {
-    name: 'CUSTOMER',
+    name: ROLE_NAMES.CUSTOMER,
     displayName: 'Customer',
     isSystem: true,
     permissionIds: getPermissionIds([
