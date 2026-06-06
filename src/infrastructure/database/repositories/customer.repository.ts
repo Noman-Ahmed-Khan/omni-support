@@ -14,6 +14,7 @@ import { CustomerEntity } from '../../../domain/customer/entities/customer.entit
 import { CustomerStatusEnum } from '../../../domain/customer/entities/customer.entity';
 import { Email } from '../../../domain/user/value-objects/email.vo';
 import { InfrastructureError } from '../../../shared/errors/infrastructure.error';
+import { HighRiskCustomerSpecification } from '../../../domain/specifications/high-risk-customer.specification';
 
 export class CustomerRepository implements ICustomerRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -149,13 +150,16 @@ export class CustomerRepository implements ICustomerRepository {
   }
 
   async findHighRiskCustomers(tenantId: string): Promise<CustomerEntity[]> {
+    const riskSpecification = new HighRiskCustomerSpecification();
     const records = await this.prisma.customer.findMany({
       where: { tenantId, riskScore: { gte: 70 } },
       orderBy: { riskScore: 'desc' },
       take: 50,
     });
 
-    return records.map((r) => this.toDomain(r));
+    return records
+      .map((r) => this.toDomain(r))
+      .filter((customer) => riskSpecification.isSatisfiedBy(customer));
   }
 
   private buildWhereClause(filters: CustomerFilters): Prisma.CustomerWhereInput {
