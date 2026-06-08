@@ -1,6 +1,7 @@
-import { Request, Response } from 'express';
-import { WebSocketGateway } from '../../../infrastructure/realtime/websocket.gateway';
-import { HealthService } from '../../../infrastructure/observability/health/health.service';
+import type { Request, Response } from 'express';
+
+import type { HealthService } from '../../../infrastructure/observability/health/health.service';
+import type { WebSocketGateway } from '../../../infrastructure/realtime/websocket.gateway';
 
 export class HealthController {
   constructor(
