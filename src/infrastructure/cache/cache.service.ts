@@ -1,4 +1,5 @@
-import { RedisClientType } from 'redis';
+import type { RedisClientType } from 'redis';
+
 import { logger } from '../../shared/utils/logger.util';
 
 export interface CacheOptions {
