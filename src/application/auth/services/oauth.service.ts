@@ -1,7 +1,9 @@
-import { OAuth2Client, type Credentials } from 'google-auth-library';
 import crypto from 'crypto';
-import { PrismaClient, User } from '@prisma/client';
-import { TokenService } from './token.service';
+
+import type { PrismaClient, User } from '@prisma/client';
+import { OAuth2Client, type Credentials } from 'google-auth-library';
+
+import type { TokenService } from './token.service';
 import { logger } from '../../../shared/utils/logger.util';
 
 export interface GoogleUserInfo {
