@@ -1,4 +1,4 @@
-import { OutboxProcessor } from '../outbox/outbox.processor';
+import type { OutboxProcessor } from '../outbox/outbox.processor';
 
 export function createOutboxRetryJob(
   outboxProcessor: OutboxProcessor,

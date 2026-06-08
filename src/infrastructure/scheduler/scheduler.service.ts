@@ -1,7 +1,8 @@
-import { RedisClientType } from 'redis';
-import { MetricsService } from '../observability/metrics/metrics.service';
+import type { RedisClientType } from 'redis';
+
+import type { CronJobDefinition, CronRegistry } from './cron.registry';
 import { logger } from '../../shared/utils/logger.util';
-import { CronJobDefinition, CronRegistry } from './cron.registry';
+import type { MetricsService } from '../observability/metrics/metrics.service';
 
 export class SchedulerService {
   private timer: NodeJS.Timeout | null = null;

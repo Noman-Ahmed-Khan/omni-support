@@ -1,5 +1,5 @@
-import { AnalyticsService } from '../../application/analytics/services/analytics.service';
-import { ITenantRepository } from '../../domain/tenant/repositories/tenant.repository.interface';
+import type { AnalyticsService } from '../../application/analytics/services/analytics.service';
+import type { ITenantRepository } from '../../domain/tenant/repositories/tenant.repository.interface';
 
 export function createAnalyticsRollupJob(
   analyticsService: AnalyticsService,
