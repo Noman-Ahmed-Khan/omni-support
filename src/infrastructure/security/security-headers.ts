@@ -1,4 +1,5 @@
-import helmet, { HelmetOptions } from 'helmet';
+import type { HelmetOptions } from 'helmet';
+import helmet from 'helmet';
 
 export function createSecurityHeaders(): ReturnType<typeof helmet> {
   const options: HelmetOptions = {
