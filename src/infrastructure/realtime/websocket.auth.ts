@@ -1,8 +1,10 @@
-import { IncomingMessage } from 'http';
+import type { IncomingMessage } from 'http';
+
 import jwt from 'jsonwebtoken';
+
+import type { AccessTokenPayload } from '../../application/auth/services/token.service';
 import { jwtConfig } from '../../config/jwt.config';
 import { logger } from '../../shared/utils/logger.util';
-import { AccessTokenPayload } from '../../application/auth/services/token.service';
 import { extractBearerTokenFromWebSocketRequest } from '../../shared/utils/token.util';
 
 export interface WSAuthResult {
