@@ -1,6 +1,6 @@
-import { TicketResolvedEvent } from '../../../domain/ticket/events/ticket-resolved.event';
-import { NotificationService } from '../../notification/services/notification.service';
+import type { TicketResolvedEvent } from '../../../domain/ticket/events/ticket-resolved.event';
 import { logger } from '../../../shared/utils/logger.util';
+import type { NotificationService } from '../../notification/services/notification.service';
 
 export function createTicketResolvedHandler(notificationService: NotificationService) {
   return async (event: TicketResolvedEvent): Promise<void> => {
