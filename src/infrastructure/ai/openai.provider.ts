@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import { z } from 'zod';
-import {
+
+import type {
   IAIProvider,
   AICompletionOptions,
   AICompletionResult,
@@ -11,8 +12,8 @@ import {
   AIResolutionSummary,
   AIRiskScore,
 } from './ai-provider.interface';
-import { logger } from '../../shared/utils/logger.util';
 import { InfrastructureError } from '../../shared/errors/infrastructure.error';
+import { logger } from '../../shared/utils/logger.util';
 
 export class OpenAIProvider implements IAIProvider {
   private readonly client: OpenAI;
