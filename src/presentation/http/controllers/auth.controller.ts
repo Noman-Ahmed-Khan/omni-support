@@ -1,14 +1,16 @@
-import { Request, Response, NextFunction } from 'express';
-import { ParamsDictionary } from 'express-serve-static-core';
-import { OAuthService } from '../../../application/auth/services/oauth.service';
-import { RegisterHandler } from '../../../application/auth/handlers/register.handler';
-import { LoginHandler } from '../../../application/auth/handlers/login.handler';
-import { RefreshTokenHandler } from '../../../application/auth/handlers/refresh-token.handler';
-import { LogoutHandler } from '../../../application/auth/handlers/logout.handler';
-import { VerifyEmailHandler } from '../../../application/auth/handlers/verify-email.handler';
-import { ForgotPasswordHandler } from '../../../application/auth/handlers/forgot-password.handler';
-import { ResetPasswordHandler } from '../../../application/auth/handlers/reset-password.handler';
-import {
+import type { Request, Response, NextFunction } from 'express';
+import type { ParamsDictionary } from 'express-serve-static-core';
+import type { ParsedQs } from 'qs';
+
+import type { ForgotPasswordHandler } from '../../../application/auth/handlers/forgot-password.handler';
+import type { LoginHandler } from '../../../application/auth/handlers/login.handler';
+import type { LogoutHandler } from '../../../application/auth/handlers/logout.handler';
+import type { RefreshTokenHandler } from '../../../application/auth/handlers/refresh-token.handler';
+import type { RegisterHandler } from '../../../application/auth/handlers/register.handler';
+import type { ResetPasswordHandler } from '../../../application/auth/handlers/reset-password.handler';
+import type { VerifyEmailHandler } from '../../../application/auth/handlers/verify-email.handler';
+import type { OAuthService } from '../../../application/auth/services/oauth.service';
+import type {
   RegisterDto,
   LoginDto,
   RefreshTokenDto,
@@ -206,7 +208,7 @@ export class AuthController {
   }
 
   async googleCallback(
-    req: Request<ParamsDictionary, unknown, unknown, import('qs').ParsedQs>,
+    req: Request<ParamsDictionary, unknown, unknown, ParsedQs>,
     res: Response,
     next: NextFunction,
   ): Promise<void> {

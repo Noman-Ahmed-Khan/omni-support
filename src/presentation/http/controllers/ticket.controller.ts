@@ -1,16 +1,18 @@
-import { Request, Response, NextFunction } from 'express';
-import { ParamsDictionary } from 'express-serve-static-core';
-import { CreateTicketHandler } from '../../../application/ticket/handlers/create-ticket.handler';
-import { UpdateTicketHandler } from '../../../application/ticket/handlers/update-ticket.handler';
-import { AssignTicketHandler } from '../../../application/ticket/handlers/assign-ticket.handler';
-import { ChangeTicketStatusHandler } from '../../../application/ticket/handlers/change-ticket-status.handler';
-import { EscalateTicketHandler } from '../../../application/ticket/handlers/escalate-ticket.handler';
-import { AddCommentHandler } from '../../../application/ticket/handlers/add-comment.handler';
-import { GetTicketHandler } from '../../../application/ticket/handlers/get-ticket.handler';
-import { ListTicketsHandler } from '../../../application/ticket/handlers/list-tickets.handler';
-import { TicketHistoryHandler } from '../../../application/ticket/handlers/ticket-history.handler';
-import { TicketEntity } from '../../../domain/ticket/entities/ticket.entity';
-import {
+import type { Request, Response, NextFunction } from 'express';
+import type { ParamsDictionary } from 'express-serve-static-core';
+
+import type { AddCommentHandler } from '../../../application/ticket/handlers/add-comment.handler';
+import type { AssignTicketHandler } from '../../../application/ticket/handlers/assign-ticket.handler';
+import type { ChangeTicketStatusHandler } from '../../../application/ticket/handlers/change-ticket-status.handler';
+import type { CreateTicketHandler } from '../../../application/ticket/handlers/create-ticket.handler';
+import type { EscalateTicketHandler } from '../../../application/ticket/handlers/escalate-ticket.handler';
+import type { GetTicketHandler } from '../../../application/ticket/handlers/get-ticket.handler';
+import type { ListTicketsHandler } from '../../../application/ticket/handlers/list-tickets.handler';
+import type { TicketHistoryHandler } from '../../../application/ticket/handlers/ticket-history.handler';
+import type { UpdateTicketHandler } from '../../../application/ticket/handlers/update-ticket.handler';
+import type { TicketEntity } from '../../../domain/ticket/entities/ticket.entity';
+import { successResponse, paginatedResponse } from '../dtos/common/response.dto';
+import type {
   CreateTicketDto,
   UpdateTicketDto,
   AssignTicketDto,
@@ -19,7 +21,6 @@ import {
   AddCommentDto,
   ListTicketsQueryDto,
 } from '../dtos/ticket/ticket.dto';
-import { successResponse, paginatedResponse } from '../dtos/common/response.dto';
 
 export class TicketController {
   constructor(

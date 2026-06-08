@@ -1,19 +1,20 @@
-import { Request, Response, NextFunction } from 'express';
-import { ParamsDictionary } from 'express-serve-static-core';
-import { CreateCustomerHandler } from '../../../application/customer/handlers/create-customer.handler';
-import { UpdateCustomerHandler } from '../../../application/customer/handlers/update-customer.handler';
-import { DeleteCustomerHandler } from '../../../application/customer/handlers/delete-customer.handler';
-import { GetCustomerHandler } from '../../../application/customer/handlers/get-customer.handler';
-import { ListCustomersHandler } from '../../../application/customer/handlers/list-customers.handler';
-import { CustomerTimelineHandler } from '../../../application/customer/handlers/customer-timeline.handler';
-import { TriggerRiskScoreHandler } from '../../../application/customer/handlers/trigger-risk-score.handler';
-import { CustomerEntity } from '../../../domain/customer/entities/customer.entity';
-import {
+import type { Request, Response, NextFunction } from 'express';
+import type { ParamsDictionary } from 'express-serve-static-core';
+
+import type { CreateCustomerHandler } from '../../../application/customer/handlers/create-customer.handler';
+import type { CustomerTimelineHandler } from '../../../application/customer/handlers/customer-timeline.handler';
+import type { DeleteCustomerHandler } from '../../../application/customer/handlers/delete-customer.handler';
+import type { GetCustomerHandler } from '../../../application/customer/handlers/get-customer.handler';
+import type { ListCustomersHandler } from '../../../application/customer/handlers/list-customers.handler';
+import type { TriggerRiskScoreHandler } from '../../../application/customer/handlers/trigger-risk-score.handler';
+import type { UpdateCustomerHandler } from '../../../application/customer/handlers/update-customer.handler';
+import type { CustomerEntity } from '../../../domain/customer/entities/customer.entity';
+import { successResponse, paginatedResponse } from '../dtos/common/response.dto';
+import type {
   CreateCustomerDto,
   UpdateCustomerDto,
   ListCustomersQueryDto,
 } from '../dtos/customer/customer.dto';
-import { successResponse, paginatedResponse } from '../dtos/common/response.dto';
 
 export class CustomerController {
   constructor(
