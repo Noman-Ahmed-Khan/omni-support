@@ -1,6 +1,8 @@
-import { Request, Response, NextFunction, RequestHandler } from 'express';
-import { ParamsDictionary } from 'express-serve-static-core';
-import { ZodError, ZodTypeAny, z } from 'zod';
+import type { Request, Response, NextFunction, RequestHandler } from 'express';
+import type { ParamsDictionary } from 'express-serve-static-core';
+import type { ZodTypeAny, z } from 'zod';
+import { ZodError } from 'zod';
+
 import { ValidationError } from '../../../shared/errors/domain.error';
 
 type ValidationTarget = 'body' | 'query' | 'params';

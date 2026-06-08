@@ -1,8 +1,9 @@
-import { Request, Response, NextFunction } from 'express';
+import { Prisma } from '@prisma/client';
+import type { Request, Response, NextFunction } from 'express';
+import { ZodError } from 'zod';
+
 import { BaseError } from '../../../shared/errors/base.error';
 import { ValidationError } from '../../../shared/errors/domain.error';
-import { ZodError } from 'zod';
-import { Prisma } from '@prisma/client';
 import { logger } from '../../../shared/utils/logger.util';
 
 export function errorHandlerMiddleware(
