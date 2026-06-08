@@ -1,5 +1,5 @@
-import { GenerateSummaryCommand } from '../commands/generate-summary.command';
-import { AIService } from '../services/ai.service';
+import type { GenerateSummaryCommand } from '../commands/generate-summary.command';
+import type { AIService } from '../services/ai.service';
 
 export class GenerateSummaryHandler {
   constructor(private readonly aiService: AIService) {}
