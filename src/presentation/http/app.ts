@@ -1,22 +1,21 @@
-import express, { Application } from 'express';
-import cors from 'cors';
 import compression from 'compression';
-import { json, urlencoded } from 'express';
-import { Container } from '../../container';
-import { appConfig } from '../../config/app.config';
+import cors from 'cors';
+import type { Application } from 'express';
+import express, { json, urlencoded } from 'express';
+
 import { correlationMiddleware } from './middlewares/correlation.middleware';
+import { errorHandlerMiddleware } from './middlewares/error-handler.middleware';
 import { rateLimitMiddleware } from './middlewares/rate-limit.middleware';
 import { sanitizeMiddleware } from './middlewares/sanitize.middleware';
-import { errorHandlerMiddleware } from './middlewares/error-handler.middleware';
-import { createV1Router } from './routes/v1';
-import { createHealthRouter } from './routes/health.routes';
-import { HealthController } from './controllers/health.controller';
-import { logger } from '../../shared/utils/logger.util';
-import { createSecurityHeaders } from '../../infrastructure/security/security-headers';
+import { createApplicationRouter } from './router';
+import { appConfig } from '../../config/app.config';
+import type { Container } from '../../infrastructure/di';
 import { createMetricsMiddleware } from '../../infrastructure/observability/metrics/metrics.middleware';
+import type { MetricsService } from '../../infrastructure/observability/metrics/metrics.service';
 import { createTracingMiddleware } from '../../infrastructure/observability/tracing/tracing.middleware';
-import { MetricsService } from '../../infrastructure/observability/metrics/metrics.service';
-import { TracingService } from '../../infrastructure/observability/tracing/tracing.service';
+import type { TracingService } from '../../infrastructure/observability/tracing/tracing.service';
+import { createSecurityHeaders } from '../../infrastructure/security/security-headers';
+import { logger } from '../../shared/utils/logger.util';
 // import { asyncHandler } from './utils/async-handler';
 
 export function createApp(container: Container): Application {
@@ -86,13 +85,8 @@ export function createApp(container: Container): Application {
     next();
   });
 
-  // Health Routes (no auth)
-  const healthController: HealthController = container.resolve('healthController');
-  app.use('/health', createHealthRouter(container));
-  app.get('/metrics', (req, res) => healthController.metrics(req, res));
-
-  // API v1 Routes
-  app.use(appConfig.apiPrefix, createV1Router(container));
+  // Application Routes
+  app.use('/', createApplicationRouter(container));
 
   // 404 Handler
   app.use((_req, res) => {

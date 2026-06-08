@@ -1,12 +1,14 @@
 import http from 'http';
-import { Application } from 'express';
-import { WebSocketGateway } from '../../infrastructure/realtime/websocket.gateway';
-import { WebSocketAuth } from '../../infrastructure/realtime/websocket.auth';
-import { closeAllQueues } from '../../infrastructure/queue/queue.factory';
-import { disconnectDatabase } from '../../infrastructure/database/prisma.client';
-import { disconnectRedis } from '../../infrastructure/cache/redis.client';
-import { logger } from '../../shared/utils/logger.util';
+
+import type { Application } from 'express';
+
 import { appConfig } from '../../config/app.config';
+import { disconnectRedis } from '../../infrastructure/cache/redis.client';
+import { disconnectDatabase } from '../../infrastructure/database/prisma.client';
+import { closeAllQueues } from '../../infrastructure/queue/queue.factory';
+import { WebSocketAuth } from '../../infrastructure/realtime/websocket.auth';
+import { WebSocketGateway } from '../../infrastructure/realtime/websocket.gateway';
+import { logger } from '../../shared/utils/logger.util';
 
 export class HttpServer {
   private server: http.Server;
