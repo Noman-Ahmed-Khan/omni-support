@@ -1,8 +1,10 @@
-import { Worker, Job, ConnectionOptions } from 'bullmq';
+import type { Job, ConnectionOptions } from 'bullmq';
+import { Worker } from 'bullmq';
+
+import { logger } from '../../../shared/utils/logger.util';
 import { getRedisClient } from '../../cache/redis.client';
 import { QueueName } from '../queue.factory';
-import { NotificationJobData } from '../queues/notification.queue';
-import { logger } from '../../../shared/utils/logger.util';
+import type { NotificationJobData } from '../queues/notification.queue';
 
 export function createNotificationWorker(
   handler: (data: NotificationJobData) => Promise<void>,

@@ -1,6 +1,8 @@
-import { ConnectionOptions, Queue, QueueOptions } from 'bullmq';
-import { getRedisClient } from '../cache/redis.client';
+import type { ConnectionOptions, QueueOptions } from 'bullmq';
+import { Queue } from 'bullmq';
+
 import { logger } from '../../shared/utils/logger.util';
+import { getRedisClient } from '../cache/redis.client';
 
 export enum QueueName {
   NOTIFICATIONS = 'notifications',

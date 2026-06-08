@@ -1,8 +1,10 @@
-import { Worker, Job, ConnectionOptions } from 'bullmq';
+import type { Job, ConnectionOptions } from 'bullmq';
+import { Worker } from 'bullmq';
+
+import { logger } from '../../../shared/utils/logger.util';
 import { getRedisClient } from '../../cache/redis.client';
 import { QueueName } from '../queue.factory';
-import { EmailJobData } from '../queues/email.queue';
-import { logger } from '../../../shared/utils/logger.util';
+import type { EmailJobData } from '../queues/email.queue';
 
 export function createEmailWorker(
   sendEmail: (data: EmailJobData) => Promise<void>,
