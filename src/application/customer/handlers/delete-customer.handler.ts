@@ -1,5 +1,5 @@
-import { DeleteCustomerCommand } from '../commands/delete-customer.command';
-import { CustomerService } from '../services/customer.service';
+import type { DeleteCustomerCommand } from '../commands/delete-customer.command';
+import type { CustomerService } from '../services/customer.service';
 
 export class DeleteCustomerHandler {
   constructor(private readonly customerService: CustomerService) {}
