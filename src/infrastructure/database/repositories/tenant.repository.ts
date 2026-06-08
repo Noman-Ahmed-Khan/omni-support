@@ -1,17 +1,18 @@
-import {
+import type {
   PrismaClient,
-  Prisma,
   Tenant,
   TenantStatus as PrismaTenantStatus,
 } from '@prisma/client';
-import {
+import { Prisma } from '@prisma/client';
+
+import type { TenantEntity } from '../../../domain/tenant/entities/tenant.entity';
+import type {
   ITenantRepository,
   TenantFilters,
   PaginatedResult,
 } from '../../../domain/tenant/repositories/tenant.repository.interface';
-import { TenantEntity } from '../../../domain/tenant/entities/tenant.entity';
-import { mapPrismaTenantToEntity } from '../../../shared/mappers/tenant.mapper';
 import { InfrastructureError } from '../../../shared/errors/infrastructure.error';
+import { mapPrismaTenantToEntity } from '../../../shared/mappers/tenant.mapper';
 
 export class TenantRepository implements ITenantRepository {
   constructor(private readonly prisma: PrismaClient) {}

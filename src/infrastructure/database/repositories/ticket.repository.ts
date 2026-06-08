@@ -1,4 +1,4 @@
-import {
+import type {
   PrismaClient,
   Prisma,
   Ticket,
@@ -6,18 +6,19 @@ import {
   TicketPriority as PrismaTicketPriority,
   TicketStatus as PrismaTicketStatus,
 } from '@prisma/client';
-import {
+
+import { EscalatedTicketSpecification } from '../../../domain/specifications/escalated-ticket.specification';
+import { OverdueTicketSpecification } from '../../../domain/specifications/overdue-ticket.specification';
+import { TicketEntity } from '../../../domain/ticket/entities/ticket.entity';
+import type {
   ITicketRepository,
   TicketFilters,
   PaginationOptions,
   PaginatedResult,
 } from '../../../domain/ticket/repositories/ticket.repository.interface';
-import { TicketEntity } from '../../../domain/ticket/entities/ticket.entity';
-import { TicketStatus } from '../../../domain/ticket/value-objects/ticket-status.vo';
 import { TicketPriority } from '../../../domain/ticket/value-objects/ticket-priority.vo';
+import { TicketStatus } from '../../../domain/ticket/value-objects/ticket-status.vo';
 import { InfrastructureError } from '../../../shared/errors/infrastructure.error';
-import { OverdueTicketSpecification } from '../../../domain/specifications/overdue-ticket.specification';
-import { EscalatedTicketSpecification } from '../../../domain/specifications/escalated-ticket.specification';
 
 export class TicketRepository implements ITicketRepository {
   constructor(private readonly prisma: PrismaClient) {}

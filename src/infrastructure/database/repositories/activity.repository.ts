@@ -1,4 +1,10 @@
-import { ActivityEventType, ActivityLog, Prisma, PrismaClient } from '@prisma/client';
+import type {
+  ActivityEventType,
+  ActivityLog,
+  Prisma,
+  PrismaClient,
+} from '@prisma/client';
+
 import { InfrastructureError } from '../../../shared/errors/infrastructure.error';
 
 export interface ActivityLogEntry {
