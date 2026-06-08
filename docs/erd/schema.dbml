@@ -1,3 +1,633 @@
-// Placeholder: DBML representation of the Prisma schema.
-// Current database structure is defined in prisma/schema.prisma.
-// Generate this when ERD documentation is needed for review or onboarding.
+//// ------------------------------------------------------
+//// THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+//// ------------------------------------------------------
+
+Table tenants {
+  id String [pk]
+  name String [not null]
+  slug String [unique, not null]
+  domain String [unique]
+  status TenantStatus [not null, default: 'TRIAL']
+  plan String [not null, default: 'starter']
+  maxAgents Int [not null, default: 5]
+  maxCustomers Int [not null, default: 1000]
+  maxTicketsPerDay Int [not null, default: 500]
+  logoUrl String
+  settings Json [not null, default: '{}']
+  metadata Json [not null, default: '{}']
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  suspendedAt DateTime
+  suspendedReason String
+  users users [not null]
+  customers customers [not null]
+  tickets tickets [not null]
+  notifications notifications [not null]
+  auditLogs audit_logs [not null]
+  activities activity_logs [not null]
+  integrations tenant_integrations [not null]
+  analyticsSnapshots analytics_snapshots [not null]
+  aiResults ai_results [not null]
+}
+
+Table users {
+  id String [pk]
+  tenantId String
+  email String [unique, not null]
+  passwordHash String
+  firstName String [not null]
+  lastName String [not null]
+  role UserRole [not null]
+  status UserStatus [not null, default: 'PENDING_VERIFICATION']
+  avatarUrl String
+  phone String
+  timezone String [not null, default: 'UTC']
+  locale String [not null, default: 'en']
+  emailVerifiedAt DateTime
+  lastLoginAt DateTime
+  lastLoginIp String
+  failedLoginAttempts Int [not null, default: 0]
+  lockedUntil DateTime
+  metadata Json [not null, default: '{}']
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  tenant tenants
+  refreshTokens refresh_tokens [not null]
+  oauthAccounts oauth_accounts [not null]
+  assignedTickets tickets [not null]
+  createdTickets tickets [not null]
+  comments ticket_comments [not null]
+  notifications notifications [not null]
+  auditLogsAsActor audit_logs [not null]
+  passwordResetTokens password_reset_tokens [not null]
+  emailVerifyTokens email_verify_tokens [not null]
+  assignedCustomers customers [not null]
+}
+
+Table oauth_accounts {
+  id String [pk]
+  userId String [not null]
+  provider String [not null]
+  providerUid String [not null]
+  accessToken String
+  refreshToken String
+  expiresAt DateTime
+  profile Json [not null, default: '{}']
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  user users [not null]
+
+  indexes {
+    (provider, providerUid) [unique]
+  }
+}
+
+Table refresh_tokens {
+  id String [pk]
+  userId String [not null]
+  tokenHash String [unique, not null]
+  familyId String [not null]
+  isRevoked Boolean [not null, default: false]
+  revokedAt DateTime
+  revokedReason String
+  expiresAt DateTime [not null]
+  ipAddress String
+  userAgent String
+  createdAt DateTime [default: `now()`, not null]
+  user users [not null]
+}
+
+Table password_reset_tokens {
+  id String [pk]
+  userId String [not null]
+  tokenHash String [unique, not null]
+  expiresAt DateTime [not null]
+  usedAt DateTime
+  createdAt DateTime [default: `now()`, not null]
+  user users [not null]
+}
+
+Table email_verify_tokens {
+  id String [pk]
+  userId String [not null]
+  tokenHash String [unique, not null]
+  expiresAt DateTime [not null]
+  usedAt DateTime
+  createdAt DateTime [default: `now()`, not null]
+  user users [not null]
+}
+
+Table roles {
+  id String [pk]
+  tenantId String
+  name String [not null]
+  displayName String [not null]
+  description String
+  isSystem Boolean [not null, default: false]
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  permissions role_permissions [not null]
+
+  indexes {
+    (tenantId, name) [unique]
+  }
+}
+
+Table permissions {
+  id String [pk]
+  resource String [not null]
+  action String [not null]
+  description String
+  createdAt DateTime [default: `now()`, not null]
+  roles role_permissions [not null]
+
+  indexes {
+    (resource, action) [unique]
+  }
+}
+
+Table role_permissions {
+  roleId String [not null]
+  permissionId String [not null]
+  createdAt DateTime [default: `now()`, not null]
+  role roles [not null]
+  permission permissions [not null]
+
+  indexes {
+    (roleId, permissionId) [pk]
+  }
+}
+
+Table customers {
+  id String [pk]
+  tenantId String [not null]
+  assignedAgentId String
+  fullName String [not null]
+  email String [not null]
+  phone String
+  company String
+  notes String
+  status CustomerStatus [not null, default: 'ACTIVE']
+  riskScore Float [default: 0]
+  riskLabel String
+  metadata Json [not null, default: '{}']
+  externalId String
+  lastActivityAt DateTime
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  tenant tenants [not null]
+  assignedAgent users
+  tickets tickets [not null]
+  activities activity_logs [not null]
+  notifications notifications [not null]
+  aiResults ai_results [not null]
+
+  indexes {
+    (tenantId, email) [unique]
+  }
+}
+
+Table tickets {
+  id String [pk]
+  tenantId String [not null]
+  ticketNumber Int [not null]
+  customerId String [not null]
+  assignedAgentId String
+  createdById String [not null]
+  title String [not null]
+  description String [not null]
+  status TicketStatus [not null, default: 'OPEN']
+  priority TicketPriority [not null, default: 'MEDIUM']
+  category TicketCategory [not null, default: 'GENERAL']
+  tags String[] [not null]
+  source String [not null, default: 'web']
+  isEscalated Boolean [not null, default: false]
+  escalatedAt DateTime
+  escalatedReason String
+  resolvedAt DateTime
+  closedAt DateTime
+  firstResponseAt DateTime
+  dueAt DateTime
+  slaBreached Boolean [not null, default: false]
+  metadata Json [not null, default: '{}']
+  internalNotes String
+  externalRef String
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  tenant tenants [not null]
+  customer customers [not null]
+  assignedAgent users
+  createdBy users [not null]
+  comments ticket_comments [not null]
+  attachments attachments [not null]
+  activities activity_logs [not null]
+  notifications notifications [not null]
+  aiResults ai_results [not null]
+}
+
+Table ticket_sequences {
+  tenantId String [pk]
+  lastNumber Int [not null, default: 0]
+}
+
+Table ticket_comments {
+  id String [pk]
+  tenantId String [not null]
+  ticketId String [not null]
+  authorId String [not null]
+  content String [not null]
+  type CommentType [not null, default: 'PUBLIC']
+  isAiDraft Boolean [not null, default: false]
+  aiDraftId String
+  editedAt DateTime
+  metadata Json [not null, default: '{}']
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  ticket tickets [not null]
+  author users [not null]
+  attachments attachments [not null]
+}
+
+Table attachments {
+  id String [pk]
+  tenantId String [not null]
+  ticketId String
+  commentId String
+  uploadedById String [not null]
+  filename String [not null]
+  originalName String [not null]
+  mimeType String [not null]
+  sizeBytes BigInt [not null]
+  storageProvider StorageProvider [not null, default: 'S3']
+  storagePath String [not null]
+  publicUrl String
+  status AttachmentStatus [not null, default: 'PENDING']
+  scanResult String
+  checksum String
+  metadata Json [not null, default: '{}']
+  expiresAt DateTime
+  createdAt DateTime [default: `now()`, not null]
+  ticket tickets
+  comment ticket_comments
+}
+
+Table activity_logs {
+  id String [pk]
+  tenantId String [not null]
+  ticketId String
+  customerId String
+  actorId String
+  actorRole String
+  eventType ActivityEventType [not null]
+  description String [not null]
+  oldValue Json
+  newValue Json
+  metadata Json [not null, default: '{}']
+  occurredAt DateTime [default: `now()`, not null]
+  tenant tenants [not null]
+  ticket tickets
+  customer customers
+}
+
+Table audit_logs {
+  id String [pk]
+  tenantId String
+  actorId String
+  actorRole String
+  action AuditAction [not null]
+  resource String [not null]
+  resourceId String
+  oldValue Json
+  newValue Json
+  ipAddress String
+  userAgent String
+  correlationId String
+  metadata Json [not null, default: '{}']
+  occurredAt DateTime [default: `now()`, not null]
+  tenant tenants
+  actor users
+}
+
+Table notifications {
+  id String [pk]
+  tenantId String [not null]
+  userId String
+  customerId String
+  ticketId String
+  channel NotificationChannel [not null]
+  status NotificationStatus [not null, default: 'PENDING']
+  subject String
+  content String [not null]
+  metadata Json [not null, default: '{}']
+  scheduledAt DateTime
+  sentAt DateTime
+  deliveredAt DateTime
+  failedAt DateTime
+  failReason String
+  retryCount Int [not null, default: 0]
+  maxRetries Int [not null, default: 3]
+  readAt DateTime
+  createdAt DateTime [default: `now()`, not null]
+  tenant tenants [not null]
+  user users
+  customer customers
+  ticket tickets
+}
+
+Table ai_results {
+  id String [pk]
+  tenantId String [not null]
+  ticketId String
+  customerId String
+  type AIResultType [not null]
+  provider String [not null, default: 'openai']
+  model String [not null]
+  prompt String
+  result Json [not null]
+  confidence Float
+  tokensUsed Int
+  processingMs Int
+  wasAccepted Boolean
+  acceptedAt DateTime
+  acceptedById String
+  metadata Json [not null, default: '{}']
+  createdAt DateTime [default: `now()`, not null]
+  tenant tenants [not null]
+  ticket tickets
+  customer customers
+}
+
+Table analytics_snapshots {
+  id String [pk]
+  tenantId String [not null]
+  snapshotDate DateTime [not null]
+  totalTickets Int [not null, default: 0]
+  openTickets Int [not null, default: 0]
+  resolvedTickets Int [not null, default: 0]
+  closedTickets Int [not null, default: 0]
+  escalatedTickets Int [not null, default: 0]
+  avgResolutionTimeMs BigInt
+  avgFirstResponseTimeMs BigInt
+  slaBreachedCount Int [not null, default: 0]
+  criticalTickets Int [not null, default: 0]
+  highTickets Int [not null, default: 0]
+  mediumTickets Int [not null, default: 0]
+  lowTickets Int [not null, default: 0]
+  totalCustomers Int [not null, default: 0]
+  activeAgents Int [not null, default: 0]
+  categoryDistribution Json [not null, default: '{}']
+  agentPerformance Json [not null, default: '{}']
+  sentimentDistribution Json [not null, default: '{}']
+  createdAt DateTime [default: `now()`, not null]
+  tenant tenants [not null]
+
+  indexes {
+    (tenantId, snapshotDate) [unique]
+  }
+}
+
+Table tenant_integrations {
+  id String [pk]
+  tenantId String [not null]
+  provider String [not null]
+  isEnabled Boolean [not null, default: true]
+  config Json [not null, default: '{}']
+  webhookUrl String
+  webhookSecret String
+  lastSyncAt DateTime
+  metadata Json [not null, default: '{}']
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  tenant tenants [not null]
+
+  indexes {
+    (tenantId, provider) [unique]
+  }
+}
+
+Table webhook_events {
+  id String [pk]
+  tenantId String
+  eventType WebhookEventType [not null]
+  provider String [not null]
+  payload Json [not null]
+  signature String
+  processed Boolean [not null, default: false]
+  processedAt DateTime
+  error String
+  retryCount Int [not null, default: 0]
+  createdAt DateTime [default: `now()`, not null]
+}
+
+Table AssignedAgent {
+  assignedticketsId String [ref: > tickets.id]
+  assignedcustomersId String [ref: > customers.id]
+}
+
+Enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+  TRIAL
+  CANCELLED
+}
+
+Enum UserRole {
+  PLATFORM_ADMIN
+  TENANT_MANAGER
+  AGENT
+  CUSTOMER
+}
+
+Enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  PENDING_VERIFICATION
+}
+
+Enum CustomerStatus {
+  ACTIVE
+  INACTIVE
+  BLOCKED
+}
+
+Enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  PENDING_CUSTOMER
+  RESOLVED
+  CLOSED
+}
+
+Enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+Enum TicketCategory {
+  BILLING
+  TECHNICAL
+  ACCOUNT
+  REFUND
+  SHIPPING
+  GENERAL
+  OTHER
+}
+
+Enum CommentType {
+  PUBLIC
+  INTERNAL
+}
+
+Enum NotificationChannel {
+  EMAIL
+  WHATSAPP
+  WEBSOCKET
+  IN_APP
+}
+
+Enum NotificationStatus {
+  PENDING
+  SENT
+  DELIVERED
+  FAILED
+  READ
+}
+
+Enum ActivityEventType {
+  TICKET_CREATED
+  TICKET_ASSIGNED
+  TICKET_REASSIGNED
+  TICKET_STATUS_CHANGED
+  TICKET_PRIORITY_CHANGED
+  TICKET_ESCALATED
+  TICKET_RESOLVED
+  TICKET_CLOSED
+  COMMENT_ADDED
+  ATTACHMENT_ADDED
+  AI_CATEGORIZED
+  AI_ESCALATED
+  AI_SUMMARY_GENERATED
+  CUSTOMER_CREATED
+  CUSTOMER_UPDATED
+  CUSTOMER_RISK_UPDATED
+}
+
+Enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  EXPORT
+  SUSPEND
+  RESTORE
+  ESCALATE
+  ASSIGN
+}
+
+Enum AIResultType {
+  CATEGORIZATION
+  SENTIMENT
+  URGENCY
+  RESPONSE_SUGGESTION
+  RESOLUTION_SUMMARY
+  RISK_SCORE
+}
+
+Enum SentimentLabel {
+  POSITIVE
+  NEUTRAL
+  NEGATIVE
+  FRUSTRATED
+}
+
+Enum AttachmentStatus {
+  PENDING
+  SCANNED
+  CLEAN
+  INFECTED
+  REJECTED
+}
+
+Enum StorageProvider {
+  LOCAL
+  S3
+}
+
+Enum MessagingProvider {
+  SMTP
+  SES
+  TWILIO
+}
+
+Enum WebhookEventType {
+  WHATSAPP_INBOUND
+  WHATSAPP_STATUS
+  EMAIL_BOUNCE
+  EMAIL_DELIVERED
+}
+
+Ref: users.tenantId > tenants.id [delete: Cascade]
+
+Ref: oauth_accounts.userId > users.id [delete: Cascade]
+
+Ref: refresh_tokens.userId > users.id [delete: Cascade]
+
+Ref: password_reset_tokens.userId > users.id [delete: Cascade]
+
+Ref: email_verify_tokens.userId > users.id [delete: Cascade]
+
+Ref: role_permissions.roleId > roles.id [delete: Cascade]
+
+Ref: role_permissions.permissionId > permissions.id [delete: Cascade]
+
+Ref: customers.tenantId > tenants.id [delete: Cascade]
+
+Ref: customers.assignedAgentId > users.id
+
+Ref: tickets.tenantId > tenants.id [delete: Cascade]
+
+Ref: tickets.customerId > customers.id
+
+Ref: tickets.assignedAgentId > users.id
+
+Ref: tickets.createdById > users.id
+
+Ref: ticket_comments.ticketId > tickets.id [delete: Cascade]
+
+Ref: ticket_comments.authorId > users.id
+
+Ref: attachments.ticketId > tickets.id
+
+Ref: attachments.commentId > ticket_comments.id
+
+Ref: activity_logs.tenantId > tenants.id [delete: Cascade]
+
+Ref: activity_logs.ticketId > tickets.id
+
+Ref: activity_logs.customerId > customers.id
+
+Ref: audit_logs.tenantId > tenants.id
+
+Ref: audit_logs.actorId > users.id
+
+Ref: notifications.tenantId > tenants.id [delete: Cascade]
+
+Ref: notifications.userId > users.id
+
+Ref: notifications.customerId > customers.id
+
+Ref: notifications.ticketId > tickets.id
+
+Ref: ai_results.tenantId > tenants.id [delete: Cascade]
+
+Ref: ai_results.ticketId > tickets.id
+
+Ref: ai_results.customerId > customers.id
+
+Ref: analytics_snapshots.tenantId > tenants.id [delete: Cascade]
+
+Ref: tenant_integrations.tenantId > tenants.id [delete: Cascade]
