@@ -1,14 +1,11 @@
-import { TenantEntity } from '../../../domain/tenant/entities/tenant.entity';
-import { ITenantRepository } from '../../../domain/tenant/repositories/tenant.repository.interface';
-import { NotFoundError } from '../../../shared/errors/domain.error';
-import { GetTenantQuery } from '../queries/get-tenant.query';
+import type { TenantEntity } from '../../../domain/tenant/entities/tenant.entity';
+import type { GetTenantQuery } from '../queries/get-tenant.query';
+import type { TenantService } from '../services/tenant.service';
 
 export class GetTenantHandler {
-  constructor(private readonly tenantRepo: ITenantRepository) {}
+  constructor(private readonly tenantService: TenantService) {}
 
   async execute(query: GetTenantQuery): Promise<TenantEntity> {
-    const tenant = await this.tenantRepo.findById(query.tenantId);
-    if (!tenant) throw new NotFoundError('Tenant', query.tenantId);
-    return tenant;
+    return this.tenantService.getTenant(query);
   }
 }
