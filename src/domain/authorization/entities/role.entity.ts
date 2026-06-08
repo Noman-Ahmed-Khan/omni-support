@@ -1,5 +1,5 @@
+import type { PermissionEntity } from './permission.entity';
 import { RoleName } from '../value-objects/role-name.vo';
-import { PermissionEntity } from './permission.entity';
 
 export interface RoleProps {
   id?: string;
