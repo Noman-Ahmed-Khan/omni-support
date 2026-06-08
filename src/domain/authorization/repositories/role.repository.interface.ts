@@ -1,4 +1,4 @@
-import { RoleEntity } from '../entities/role.entity';
+import type { RoleEntity } from '../entities/role.entity';
 
 export interface RoleRepository {
   findById(id: string, tenantId?: string | null): Promise<RoleEntity | null>;
