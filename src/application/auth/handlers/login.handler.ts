@@ -1,5 +1,5 @@
-import { AuthResult, AuthService } from '../services/auth.service';
-import { LoginCommand } from '../commands/login.command';
+import type { LoginCommand } from '../commands/login.command';
+import type { AuthResult, AuthService } from '../services/auth.service';
 
 export class LoginHandler {
   constructor(private readonly authService: AuthService) {}

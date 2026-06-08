@@ -1,5 +1,5 @@
-import { AuthService } from '../services/auth.service';
-import { LogoutCommand } from '../commands/logout.command';
+import type { LogoutCommand } from '../commands/logout.command';
+import type { AuthService } from '../services/auth.service';
 
 export class LogoutHandler {
   constructor(private readonly authService: AuthService) {}
