@@ -1,5 +1,5 @@
-import { AuthService } from '../services/auth.service';
-import { ResetPasswordCommand } from '../commands/reset-password.command';
+import type { ResetPasswordCommand } from '../commands/reset-password.command';
+import type { AuthService } from '../services/auth.service';
 
 export class ResetPasswordHandler {
   constructor(private readonly authService: AuthService) {}

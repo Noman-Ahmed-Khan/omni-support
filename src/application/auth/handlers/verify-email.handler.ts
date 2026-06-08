@@ -1,5 +1,5 @@
-import { AuthService } from '../services/auth.service';
-import { VerifyEmailCommand } from '../commands/verify-email.command';
+import type { VerifyEmailCommand } from '../commands/verify-email.command';
+import type { AuthService } from '../services/auth.service';
 
 export class VerifyEmailHandler {
   constructor(private readonly authService: AuthService) {}
