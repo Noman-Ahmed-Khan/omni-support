@@ -1,4 +1,4 @@
-import { QueryHandler } from './query-handler.interface';
+import type { QueryHandler } from './query-handler.interface';
 
 interface RegisteredQueryHandler<TQuery = unknown, TResult = unknown> {
   handler: QueryHandler<TQuery, TResult>;
