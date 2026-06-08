@@ -1,4 +1,4 @@
-import { CustomerService } from '../services/customer.service';
+import type { CustomerService } from '../services/customer.service';
 
 export interface TriggerRiskScoreCommand {
   customerId: string;
