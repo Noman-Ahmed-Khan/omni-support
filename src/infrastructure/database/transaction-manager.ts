@@ -1,5 +1,7 @@
-import { Prisma, PrismaClient } from '@prisma/client';
-import { transactionContext, DatabaseClient } from './transaction-context';
+import type { Prisma, PrismaClient } from '@prisma/client';
+
+import type { DatabaseClient } from './transaction-context';
+import { transactionContext } from './transaction-context';
 
 export class TransactionManager {
   constructor(private readonly prisma: PrismaClient) {}

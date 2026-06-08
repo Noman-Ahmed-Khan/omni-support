@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from 'async_hooks';
-import { Prisma, PrismaClient } from '@prisma/client';
+
+import type { Prisma, PrismaClient } from '@prisma/client';
 
 export type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 

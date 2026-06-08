@@ -1,6 +1,7 @@
-import { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@prisma/client';
+
+import type { DatabaseClient } from './transaction-context';
 import { TransactionManager } from './transaction-manager';
-import { DatabaseClient } from './transaction-context';
 
 export class UnitOfWork {
   constructor(private readonly transactionManager: TransactionManager) {}
