@@ -1,5 +1,5 @@
-import { TicketHistoryQuery } from '../queries/ticket-history.query';
-import { TicketService } from '../services/ticket.service';
+import type { TicketHistoryQuery } from '../queries/ticket-history.query';
+import type { TicketService } from '../services/ticket.service';
 
 export class TicketHistoryHandler {
   constructor(private readonly ticketService: TicketService) {}
