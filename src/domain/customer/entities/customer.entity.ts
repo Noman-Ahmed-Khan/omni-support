@@ -1,5 +1,5 @@
 import { AggregateRoot } from '../../shared/aggregate-root';
-import { Email } from '../../user/value-objects/email.vo';
+import type { Email } from '../../user/value-objects/email.vo';
 import { CustomerCreatedEvent } from '../events/customer-created.event';
 import { CustomerRiskUpdatedEvent } from '../events/customer-risk-updated.event';
 import { RiskScore } from '../value-objects/risk-score.vo';
