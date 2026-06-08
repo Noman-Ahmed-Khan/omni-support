@@ -1,7 +1,9 @@
-import { BaseDomainEvent } from '../../domain/shared/base.event';
-import { EventHandler } from '../../application/event-bus/event-bus.interface';
-import { IEventBus } from '../../application/event-bus/event-bus.interface';
-import { OutboxRepository } from './outbox.repository';
+import type { OutboxRepository } from './outbox.repository';
+import type {
+  EventHandler,
+  IEventBus,
+} from '../../application/event-bus/event-bus.interface';
+import type { BaseDomainEvent } from '../../domain/shared/base.event';
 
 export class OutboxPublisher implements IEventBus {
   constructor(

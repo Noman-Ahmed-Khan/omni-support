@@ -1,6 +1,6 @@
-import { BaseDomainEvent } from '../../domain/shared/base.event';
+import type { OutboxRepository } from './outbox.repository';
+import type { BaseDomainEvent } from '../../domain/shared/base.event';
 import { logger } from '../../shared/utils/logger.util';
-import { OutboxRepository } from './outbox.repository';
 
 export interface OutboxEventDispatcher {
   publish(event: BaseDomainEvent): Promise<void>;

@@ -1,7 +1,9 @@
-import { PrismaClient } from '@prisma/client';
-import { BaseDomainEvent } from '../../domain/shared/base.event';
+import type { PrismaClient } from '@prisma/client';
+
+import type { OutboxPayload, OutboxRecord } from './outbox.entity';
+import { OutboxStatus } from './outbox.entity';
+import type { BaseDomainEvent } from '../../domain/shared/base.event';
 import { createId } from '../../shared/utils/id.util';
-import { OutboxPayload, OutboxRecord, OutboxStatus } from './outbox.entity';
 
 const DEFAULT_MAX_ATTEMPTS = 5;
 const DEFAULT_BATCH_SIZE = 100;
