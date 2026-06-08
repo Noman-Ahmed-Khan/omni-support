@@ -1,7 +1,8 @@
-import { CommentAddedEvent } from '../../../domain/ticket/events/comment-added.event';
-import { NotificationService } from '../../notification/services/notification.service';
-import { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@prisma/client';
+
+import type { CommentAddedEvent } from '../../../domain/ticket/events/comment-added.event';
 import { logger } from '../../../shared/utils/logger.util';
+import type { NotificationService } from '../../notification/services/notification.service';
 
 export function createCommentAddedHandler(
   notificationService: NotificationService,
