@@ -1,6 +1,6 @@
 import express from 'express';
 import { createApp } from '../../src/presentation/http/app';
-import { buildContainer } from '../../src/container';
+import { buildContainer } from '../../src/infrastructure/di';
 import { getTestPrisma } from './test-db';
 import { Application } from 'express';
 
