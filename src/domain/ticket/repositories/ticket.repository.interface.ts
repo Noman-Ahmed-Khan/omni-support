@@ -1,4 +1,4 @@
-import { TicketEntity } from '../entities/ticket.entity';
+import type { TicketEntity } from '../entities/ticket.entity';
 
 export interface TicketFilters {
   tenantId: string;
