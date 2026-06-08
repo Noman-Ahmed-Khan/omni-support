@@ -1,5 +1,5 @@
-import { BaseDomainEvent } from '../../domain/shared/base.event';
-import { IEventBus, EventHandler } from './event-bus.interface';
+import type { IEventBus, EventHandler } from './event-bus.interface';
+import type { BaseDomainEvent } from '../../domain/shared/base.event';
 import { logger } from '../../shared/utils/logger.util';
 
 export class InProcessEventBus implements IEventBus {
