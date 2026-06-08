@@ -1,6 +1,6 @@
-import { TicketEntity } from '../../../domain/ticket/entities/ticket.entity';
-import { CloseTicketCommand } from '../commands/close-ticket.command';
-import { TicketService } from '../services/ticket.service';
+import type { TicketEntity } from '../../../domain/ticket/entities/ticket.entity';
+import type { CloseTicketCommand } from '../commands/close-ticket.command';
+import type { TicketService } from '../services/ticket.service';
 
 export class CloseTicketHandler {
   constructor(private readonly ticketService: TicketService) {}
