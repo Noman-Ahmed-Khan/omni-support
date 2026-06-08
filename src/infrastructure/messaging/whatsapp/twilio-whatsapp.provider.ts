@@ -1,6 +1,9 @@
-import twilio, { Twilio } from 'twilio';
 import crypto from 'crypto';
-import {
+
+import type { Twilio } from 'twilio';
+import twilio from 'twilio';
+
+import type {
   IWhatsAppProvider,
   WhatsAppMessage,
   WhatsAppResult,
