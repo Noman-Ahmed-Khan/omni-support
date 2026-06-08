@@ -1,14 +1,12 @@
-import {
-  ITenantRepository,
-  PaginatedResult,
-} from '../../../domain/tenant/repositories/tenant.repository.interface';
-import { TenantEntity } from '../../../domain/tenant/entities/tenant.entity';
-import { ListTenantsQuery } from '../queries/list-tenants.query';
+import type { TenantEntity } from '../../../domain/tenant/entities/tenant.entity';
+import type { PaginatedResult } from '../../../domain/tenant/repositories/tenant.repository.interface';
+import type { ListTenantsQuery } from '../queries/list-tenants.query';
+import type { TenantService } from '../services/tenant.service';
 
 export class ListTenantsHandler {
-  constructor(private readonly tenantRepo: ITenantRepository) {}
+  constructor(private readonly tenantService: TenantService) {}
 
   async execute(query: ListTenantsQuery): Promise<PaginatedResult<TenantEntity>> {
-    return this.tenantRepo.findAll(query.filters, query.page, query.limit);
+    return this.tenantService.listTenants(query);
   }
 }

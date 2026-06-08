@@ -1,16 +1,17 @@
 import { Router } from 'express';
-import { CustomerController } from '../../controllers/customer.controller';
-import { Container } from '../../../../container';
-import { validate } from '../../middlewares/validate.middleware';
-import { createAuthMiddleware } from '../../middlewares/auth.middleware';
-import { createTenantMiddleware } from '../../middlewares/tenant.middleware';
-import { requireRole } from '../../middlewares/rbac.middleware';
-import { asyncHandler } from '../../utils/async-handler';
+
+import type { Container } from '../../../../infrastructure/di';
+import type { CustomerController } from '../../controllers/customer.controller';
 import {
   createCustomerSchema,
   updateCustomerSchema,
   listCustomersQuerySchema,
 } from '../../dtos/customer/customer.dto';
+import { createAuthMiddleware } from '../../middlewares/auth.middleware';
+import { requireRole } from '../../middlewares/rbac.middleware';
+import { createTenantMiddleware } from '../../middlewares/tenant.middleware';
+import { validate } from '../../middlewares/validate.middleware';
+import { asyncHandler } from '../../utils/async-handler';
 
 export function createCustomerRoutes(container: Container): Router {
   const router = Router();

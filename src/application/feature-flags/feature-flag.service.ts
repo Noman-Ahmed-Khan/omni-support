@@ -1,5 +1,5 @@
-import { FeatureFlag } from './feature.enum';
-import { FeatureFlagDefinition, FeatureFlagRepository } from './feature.repository';
+import type { FeatureFlag } from './feature.enum';
+import type { FeatureFlagDefinition, FeatureFlagRepository } from './feature.repository';
 import { sha256 } from '../../shared/utils/crypto.util';
 
 export interface FeatureEvaluationContext {

@@ -1,5 +1,5 @@
-import { AuthService, TokenPair } from '../services/auth.service';
-import { RefreshTokenCommand } from '../commands/refresh-token.command';
+import type { RefreshTokenCommand } from '../commands/refresh-token.command';
+import type { AuthService, TokenPair } from '../services/auth.service';
 
 export class RefreshTokenHandler {
   constructor(private readonly authService: AuthService) {}

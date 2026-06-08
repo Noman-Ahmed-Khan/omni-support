@@ -1,5 +1,5 @@
+import type { OutboxProcessor } from './outbox.processor';
 import { logger } from '../../shared/utils/logger.util';
-import { OutboxProcessor } from './outbox.processor';
 
 export class OutboxWorker {
   private timer: NodeJS.Timeout | null = null;

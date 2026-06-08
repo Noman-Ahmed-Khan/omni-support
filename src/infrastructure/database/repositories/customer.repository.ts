@@ -1,20 +1,21 @@
-import {
+import type {
   Customer,
   CustomerStatus as PrismaCustomerStatus,
   PrismaClient,
-  Prisma,
 } from '@prisma/client';
-import {
+import { Prisma } from '@prisma/client';
+
+import { CustomerEntity } from '../../../domain/customer/entities/customer.entity';
+import type { CustomerStatusEnum } from '../../../domain/customer/entities/customer.entity';
+import type {
   CustomerFilters,
   ICustomerRepository,
   PaginatedResult,
   PaginationOptions,
 } from '../../../domain/customer/repositories/customer.repository.interface';
-import { CustomerEntity } from '../../../domain/customer/entities/customer.entity';
-import { CustomerStatusEnum } from '../../../domain/customer/entities/customer.entity';
+import { HighRiskCustomerSpecification } from '../../../domain/specifications/high-risk-customer.specification';
 import { Email } from '../../../domain/user/value-objects/email.vo';
 import { InfrastructureError } from '../../../shared/errors/infrastructure.error';
-import { HighRiskCustomerSpecification } from '../../../domain/specifications/high-risk-customer.specification';
 
 export class CustomerRepository implements ICustomerRepository {
   constructor(private readonly prisma: PrismaClient) {}

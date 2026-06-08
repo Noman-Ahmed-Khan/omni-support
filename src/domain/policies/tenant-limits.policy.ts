@@ -1,4 +1,4 @@
-import { TenantEntity } from '../tenant/entities/tenant.entity';
+import type { TenantEntity } from '../tenant/entities/tenant.entity';
 
 export class TenantLimitsPolicy {
   canCreateTicket(tenant: TenantEntity, ticketsCreatedToday: number): boolean {

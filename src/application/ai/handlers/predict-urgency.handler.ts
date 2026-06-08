@@ -1,5 +1,5 @@
-import { PredictUrgencyCommand } from '../commands/predict-urgency.command';
-import { AIService } from '../services/ai.service';
+import type { PredictUrgencyCommand } from '../commands/predict-urgency.command';
+import type { AIService } from '../services/ai.service';
 
 export class PredictUrgencyHandler {
   constructor(private readonly aiService: AIService) {}

@@ -1,8 +1,10 @@
+import type { IncomingMessage, Server } from 'http';
+
 import { WebSocketServer, WebSocket } from 'ws';
-import { IncomingMessage, Server } from 'http';
-import { logger } from '../../shared/utils/logger.util';
-import { WebSocketAuth } from './websocket.auth';
+
 import { RoomManager } from './rooms/room.manager';
+import type { WebSocketAuth } from './websocket.auth';
+import { logger } from '../../shared/utils/logger.util';
 
 export interface WSClient {
   userId: string;

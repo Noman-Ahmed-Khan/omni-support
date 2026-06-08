@@ -1,4 +1,4 @@
-import { PermissionName } from '../value-objects/permission-name.vo';
+import type { PermissionName } from '../value-objects/permission-name.vo';
 
 export interface PermissionProps {
   id?: string;

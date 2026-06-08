@@ -1,13 +1,15 @@
-import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+
+import type { PrismaClient } from '@prisma/client';
 import argon2 from 'argon2';
-import { PrismaClient } from '@prisma/client';
+import jwt from 'jsonwebtoken';
+
 import { jwtConfig } from '../../../config/jwt.config';
-import { UnauthorizedError } from '../../../shared/errors/application.error';
-import { logger } from '../../../shared/utils/logger.util';
-import { TokenSigningService } from '../../../infrastructure/security/token-signing.service';
 import { SecretsService } from '../../../infrastructure/security/secrets.service';
+import { TokenSigningService } from '../../../infrastructure/security/token-signing.service';
+import { UnauthorizedError } from '../../../shared/errors/application.error';
 import { sha256 } from '../../../shared/utils/crypto.util';
+import { logger } from '../../../shared/utils/logger.util';
 
 export interface AccessTokenPayload {
   sub: string; // userId

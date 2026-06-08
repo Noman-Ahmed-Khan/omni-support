@@ -1,22 +1,24 @@
 import 'dotenv/config';
 import http from 'http';
-import { connectDatabase, prisma } from './infrastructure/database/prisma.client';
+
+import type { AnalyzeSentimentHandler } from './application/ai/handlers/analyze-sentiment.handler';
+import type { CalculateRiskScoreHandler } from './application/ai/handlers/calculate-risk-score.handler';
+import type { CategorizeTicketHandler } from './application/ai/handlers/categorize-ticket.handler';
+import type { GenerateSummaryHandler } from './application/ai/handlers/generate-summary.handler';
+import type { PredictUrgencyHandler } from './application/ai/handlers/predict-urgency.handler';
+import type { SuggestResponseHandler } from './application/ai/handlers/suggest-response.handler';
 import { createRedisClient } from './infrastructure/cache/redis.client';
-import { HttpServer } from './presentation/http/server';
-import { createApp } from './presentation/http/app';
-import { buildContainer, Container } from './container';
+import { connectDatabase, prisma } from './infrastructure/database/prisma.client';
+import { buildContainer } from './infrastructure/di';
+import type { Container } from './infrastructure/di';
+import type { SMTPEmailProvider } from './infrastructure/messaging/email/smtp.provider';
 import { createAIWorker } from './infrastructure/queue/workers/ai.worker';
 import { createEmailWorker } from './infrastructure/queue/workers/email.worker';
 import { createNotificationWorker } from './infrastructure/queue/workers/notification.worker';
-import { CategorizeTicketHandler } from './application/ai/handlers/categorize-ticket.handler';
-import { AnalyzeSentimentHandler } from './application/ai/handlers/analyze-sentiment.handler';
-import { PredictUrgencyHandler } from './application/ai/handlers/predict-urgency.handler';
-import { SuggestResponseHandler } from './application/ai/handlers/suggest-response.handler';
-import { GenerateSummaryHandler } from './application/ai/handlers/generate-summary.handler';
-import { CalculateRiskScoreHandler } from './application/ai/handlers/calculate-risk-score.handler';
-import { SMTPEmailProvider } from './infrastructure/messaging/email/smtp.provider';
 import { WebSocketAuth } from './infrastructure/realtime/websocket.auth';
 import { WebSocketGateway } from './infrastructure/realtime/websocket.gateway';
+import { createApp } from './presentation/http/app';
+import { HttpServer } from './presentation/http/server';
 import { logger } from './shared/utils/logger.util';
 
 async function bootstrap(): Promise<void> {

@@ -1,5 +1,5 @@
 import { logger, createRequestLogger } from '../../../shared/utils/logger.util';
-import { TracingService } from '../tracing/tracing.service';
+import type { TracingService } from '../tracing/tracing.service';
 
 export function createObservabilityLogger(tracingService: TracingService): {
   info(message: string, meta?: Record<string, unknown>): void;

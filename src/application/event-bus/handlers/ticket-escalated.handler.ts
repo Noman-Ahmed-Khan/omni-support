@@ -1,7 +1,8 @@
-import { TicketEscalatedEvent } from '../../../domain/ticket/events/ticket-escalated.event';
-import { NotificationService } from '../../notification/services/notification.service';
-import { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@prisma/client';
+
+import type { TicketEscalatedEvent } from '../../../domain/ticket/events/ticket-escalated.event';
 import { logger } from '../../../shared/utils/logger.util';
+import type { NotificationService } from '../../notification/services/notification.service';
 
 export function createTicketEscalatedHandler(
   notificationService: NotificationService,

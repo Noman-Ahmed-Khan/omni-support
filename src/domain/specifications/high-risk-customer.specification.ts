@@ -1,4 +1,4 @@
-import { CustomerEntity } from '../customer/entities/customer.entity';
+import type { CustomerEntity } from '../customer/entities/customer.entity';
 
 export class HighRiskCustomerSpecification {
   constructor(private readonly threshold = 70) {}

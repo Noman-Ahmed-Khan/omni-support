@@ -1,21 +1,22 @@
 import crypto from 'crypto';
+
 import {
+  CustomerEntity,
+  CustomerStatusEnum,
+} from '../../../domain/customer/entities/customer.entity';
+import type {
   ICustomerRepository,
   CustomerFilters,
   PaginationOptions,
   PaginatedResult,
 } from '../../../domain/customer/repositories/customer.repository.interface';
-import {
-  CustomerEntity,
-  CustomerStatusEnum,
-} from '../../../domain/customer/entities/customer.entity';
 import { Email } from '../../../domain/user/value-objects/email.vo';
-import { IEventBus } from '../../event-bus/event-bus.interface';
-import { ActivityRepository } from '../../../infrastructure/database/repositories/activity.repository';
-import { AuditRepository } from '../../../infrastructure/database/repositories/audit.repository';
-import { AIQueue } from '../../../infrastructure/queue/queues/ai.queue';
+import type { ActivityRepository } from '../../../infrastructure/database/repositories/activity.repository';
+import type { AuditRepository } from '../../../infrastructure/database/repositories/audit.repository';
+import type { AIQueue } from '../../../infrastructure/queue/queues/ai.queue';
 import { NotFoundError, ConflictError } from '../../../shared/errors/domain.error';
 import { logger } from '../../../shared/utils/logger.util';
+import type { IEventBus } from '../../event-bus/event-bus.interface';
 
 export interface CreateCustomerDto {
   tenantId: string;

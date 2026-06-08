@@ -1,4 +1,4 @@
-import { TicketEntity } from '../ticket/entities/ticket.entity';
+import type { TicketEntity } from '../ticket/entities/ticket.entity';
 
 export class TicketAssignmentPolicy {
   canAssign(ticket: TicketEntity, assigneeRole: string): boolean {

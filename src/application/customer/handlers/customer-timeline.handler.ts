@@ -1,5 +1,5 @@
-import { CustomerTimelineQuery } from '../queries/customer-timeline.query';
-import { CustomerService } from '../services/customer.service';
+import type { CustomerTimelineQuery } from '../queries/customer-timeline.query';
+import type { CustomerService } from '../services/customer.service';
 
 export class CustomerTimelineHandler {
   constructor(private readonly customerService: CustomerService) {}

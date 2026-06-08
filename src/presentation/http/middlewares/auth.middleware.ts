@@ -1,5 +1,6 @@
-import { Request, Response, NextFunction } from 'express';
-import { TokenService } from '../../../application/auth/services/token.service';
+import type { Request, Response, NextFunction } from 'express';
+
+import type { TokenService } from '../../../application/auth/services/token.service';
 import { UnauthorizedError } from '../../../shared/errors/application.error';
 import { extractBearerTokenFromRequest } from '../../../shared/utils/token.util';
 

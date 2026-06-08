@@ -1,4 +1,4 @@
-import { CustomerEntity } from '../../domain/customer/entities/customer.entity';
+import type { CustomerEntity } from '../../domain/customer/entities/customer.entity';
 
 export interface CustomerResponse {
   id: string;

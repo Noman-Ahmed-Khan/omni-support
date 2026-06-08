@@ -1,4 +1,4 @@
-import { PermissionEntity } from '../entities/permission.entity';
+import type { PermissionEntity } from '../entities/permission.entity';
 
 export interface PermissionRepository {
   findById(id: string): Promise<PermissionEntity | null>;

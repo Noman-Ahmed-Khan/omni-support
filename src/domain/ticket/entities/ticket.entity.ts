@@ -1,13 +1,13 @@
+import { DomainError } from '../../../shared/errors/domain.error';
 import { AggregateRoot } from '../../shared/aggregate-root';
-import { TicketStatus } from '../value-objects/ticket-status.vo';
-import { TicketPriority } from '../value-objects/ticket-priority.vo';
-import { TicketCategory } from '../value-objects/ticket-category.vo';
-import { TicketCreatedEvent } from '../events/ticket-created.event';
 import { TicketAssignedEvent } from '../events/ticket-assigned.event';
+import { TicketCreatedEvent } from '../events/ticket-created.event';
 import { TicketEscalatedEvent } from '../events/ticket-escalated.event';
 import { TicketResolvedEvent } from '../events/ticket-resolved.event';
 import { TicketStatusChangedEvent } from '../events/ticket-status-changed.event';
-import { DomainError } from '../../../shared/errors/domain.error';
+import { TicketCategory } from '../value-objects/ticket-category.vo';
+import { TicketPriority } from '../value-objects/ticket-priority.vo';
+import { TicketStatus } from '../value-objects/ticket-status.vo';
 
 export interface TicketProps {
   tenantId: string;

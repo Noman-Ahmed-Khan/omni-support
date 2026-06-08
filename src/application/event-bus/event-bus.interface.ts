@@ -1,4 +1,4 @@
-import { BaseDomainEvent } from '../../domain/shared/base.event';
+import type { BaseDomainEvent } from '../../domain/shared/base.event';
 
 export type EventHandler<T extends BaseDomainEvent = BaseDomainEvent> = (
   event: T,

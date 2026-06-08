@@ -1,7 +1,8 @@
 import { AggregateRoot } from '../../shared/aggregate-root';
-import { Email } from '../value-objects/email.vo';
-import { UserRole } from '../value-objects/user-role.vo';
 import { UserCreatedEvent } from '../events/user-created.event';
+import { UserRoleChangedEvent } from '../events/user-role-changed.event';
+import type { Email } from '../value-objects/email.vo';
+import type { UserRole } from '../value-objects/user-role.vo';
 
 export enum UserStatusEnum {
   ACTIVE = 'ACTIVE',
@@ -85,6 +86,61 @@ export class UserEntity extends AggregateRoot {
     if (this._emailVerifiedAt) return;
     this._emailVerifiedAt = new Date();
     this._status = UserStatusEnum.ACTIVE;
+  }
+
+  updateProfile(input: {
+    firstName?: string;
+    lastName?: string;
+    avatarUrl?: string | null;
+    phone?: string | null;
+    timezone?: string;
+    locale?: string;
+  }): void {
+    if (input.firstName !== undefined) {
+      this._firstName = input.firstName.trim();
+    }
+
+    if (input.lastName !== undefined) {
+      this._lastName = input.lastName.trim();
+    }
+
+    if (input.avatarUrl !== undefined) {
+      this._avatarUrl = input.avatarUrl ?? undefined;
+    }
+
+    if (input.phone !== undefined) {
+      this._phone = input.phone ?? undefined;
+    }
+
+    if (input.timezone !== undefined) {
+      this._timezone = input.timezone.trim();
+    }
+
+    if (input.locale !== undefined) {
+      this._locale = input.locale.trim();
+    }
+  }
+
+  changeRole(nextRole: UserRole, changedById?: string, changedByRole?: string): void {
+    const previousRole = this._role.toString();
+    const nextRoleValue = nextRole.toString();
+
+    if (previousRole === nextRoleValue) {
+      return;
+    }
+
+    this._role = nextRole;
+
+    this.addDomainEvent(
+      new UserRoleChangedEvent(
+        this.id,
+        this._tenantId,
+        previousRole,
+        nextRoleValue,
+        changedById,
+        changedByRole,
+      ),
+    );
   }
 
   recordLogin(ipAddress: string): void {

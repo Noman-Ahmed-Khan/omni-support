@@ -1,8 +1,10 @@
-import { Worker, Job, ConnectionOptions } from 'bullmq';
+import type { Job, ConnectionOptions } from 'bullmq';
+import { Worker } from 'bullmq';
+
+import { logger } from '../../../shared/utils/logger.util';
 import { getRedisClient } from '../../cache/redis.client';
 import { QueueName } from '../queue.factory';
-import { AIJobData } from '../queues/ai.queue';
-import { logger } from '../../../shared/utils/logger.util';
+import type { AIJobData } from '../queues/ai.queue';
 
 export function createAIWorker(handlers: {
   categorize: (data: AIJobData) => Promise<void>;

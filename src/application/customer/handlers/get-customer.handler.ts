@@ -1,6 +1,6 @@
-import { CustomerEntity } from '../../../domain/customer/entities/customer.entity';
-import { GetCustomerQuery } from '../queries/get-customer.query';
-import { CustomerService } from '../services/customer.service';
+import type { CustomerEntity } from '../../../domain/customer/entities/customer.entity';
+import type { GetCustomerQuery } from '../queries/get-customer.query';
+import type { CustomerService } from '../services/customer.service';
 
 export class GetCustomerHandler {
   constructor(private readonly customerService: CustomerService) {}

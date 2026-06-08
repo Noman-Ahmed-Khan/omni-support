@@ -1,6 +1,7 @@
 import { Router } from 'express';
-import { SearchController } from '../../controllers/search.controller';
-import { Container } from '../../../../container';
+
+import type { Container } from '../../../../infrastructure/di';
+import type { SearchController } from '../../controllers/search.controller';
 import { createAuthMiddleware } from '../../middlewares/auth.middleware';
 import { createTenantMiddleware } from '../../middlewares/tenant.middleware';
 import { asyncHandler } from '../../utils/async-handler';

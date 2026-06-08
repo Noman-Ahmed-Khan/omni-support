@@ -1,5 +1,5 @@
-import { CalculateRiskScoreCommand } from '../commands/calculate-risk-score.command';
-import { AIService } from '../services/ai.service';
+import type { CalculateRiskScoreCommand } from '../commands/calculate-risk-score.command';
+import type { AIService } from '../services/ai.service';
 
 export class CalculateRiskScoreHandler {
   constructor(private readonly aiService: AIService) {}

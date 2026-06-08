@@ -1,13 +1,14 @@
-import { Request, Response, NextFunction, RequestHandler } from 'express';
-import { PrismaClient } from '@prisma/client';
-import { PermissionCacheStrategy } from '../../../infrastructure/cache/strategies/permission.cache';
+import type { PrismaClient } from '@prisma/client';
+import type { Request, Response, NextFunction, RequestHandler } from 'express';
+
 import { AuthorizationService } from '../../../application/authorization/authorization.service';
+import type { PermissionCacheStrategy } from '../../../infrastructure/cache/strategies/permission.cache';
 import {
   ForbiddenError,
   UnauthorizedError,
 } from '../../../shared/errors/application.error';
-import { logger } from '../../../shared/utils/logger.util';
 import { asyncHandler } from '../../../shared/utils/express.util';
+import { logger } from '../../../shared/utils/logger.util';
 
 export function requirePermission(resource: string, action: string) {
   return function permissionMiddleware(

@@ -1,7 +1,7 @@
-import { TicketService } from '../../application/ticket/services/ticket.service';
-import { ITenantRepository } from '../../domain/tenant/repositories/tenant.repository.interface';
-import { ITicketRepository } from '../../domain/ticket/repositories/ticket.repository.interface';
+import type { TicketService } from '../../application/ticket/services/ticket.service';
 import { TicketEscalationPolicy } from '../../domain/policies/ticket-escalation.policy';
+import type { ITenantRepository } from '../../domain/tenant/repositories/tenant.repository.interface';
+import type { ITicketRepository } from '../../domain/ticket/repositories/ticket.repository.interface';
 
 export function createTicketEscalationJob(
   ticketService: TicketService,

@@ -1,8 +1,8 @@
 import { AggregateRoot } from '../../shared/aggregate-root';
-import { TenantStatus } from '../value-objects/tenant-status.vo';
-import { TenantSlug } from '../value-objects/tenant-slug.vo';
 import { TenantCreatedEvent } from '../events/tenant-created.event';
 import { TenantSuspendedEvent } from '../events/tenant-suspended.event';
+import type { TenantSlug } from '../value-objects/tenant-slug.vo';
+import { TenantStatus } from '../value-objects/tenant-status.vo';
 
 export interface TenantProps {
   name: string;

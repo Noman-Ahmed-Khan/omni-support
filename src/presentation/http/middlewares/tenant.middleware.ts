@@ -1,12 +1,13 @@
-import { Request, Response, NextFunction, RequestHandler } from 'express';
-import { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@prisma/client';
+import type { Request, Response, NextFunction, RequestHandler } from 'express';
+
+import { TenantActiveSpecification } from '../../../domain/specifications/tenant-active.specification';
 import {
   ForbiddenError,
   UnauthorizedError,
 } from '../../../shared/errors/application.error';
-import { asyncHandler } from '../../../shared/utils/express.util';
 import { mapPrismaTenantToEntity } from '../../../shared/mappers/tenant.mapper';
-import { TenantActiveSpecification } from '../../../domain/specifications/tenant-active.specification';
+import { asyncHandler } from '../../../shared/utils/express.util';
 
 export function createTenantMiddleware(prisma: PrismaClient): RequestHandler {
   return asyncHandler(async (req: Request, _res: Response, next: NextFunction) => {

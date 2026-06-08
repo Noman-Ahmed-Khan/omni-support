@@ -1,10 +1,20 @@
 import crypto from 'crypto';
-import { PrismaClient } from '@prisma/client';
-import { EmailQueue } from '../../../infrastructure/queue/queues/email.queue';
-import { WebSocketGateway } from '../../../infrastructure/realtime/websocket.gateway';
-import { logger } from '../../../shared/utils/logger.util';
+
+import type { PrismaClient } from '@prisma/client';
+
 import { appConfig } from '../../../config/app.config';
-import { NotificationChannelValue } from '../../../domain/notification/value-objects/notification-channel.vo';
+import {
+  NotificationEntity,
+  NotificationStatusEnum,
+} from '../../../domain/notification/entities/notification.entity';
+import type { INotificationRepository } from '../../../domain/notification/repositories/notification.repository.interface';
+import {
+  NotificationChannelValue,
+  NotificationChannel,
+} from '../../../domain/notification/value-objects/notification-channel.vo';
+import type { EmailQueue } from '../../../infrastructure/queue/queues/email.queue';
+import type { WebSocketGateway } from '../../../infrastructure/realtime/websocket.gateway';
+import { logger } from '../../../shared/utils/logger.util';
 
 export type NotificationEvent =
   | 'TICKET_CREATED'
@@ -56,6 +66,7 @@ export class NotificationService {
     private readonly prisma: PrismaClient,
     private readonly emailQueue: EmailQueue,
     private readonly wsGateway: WebSocketGateway,
+    private readonly notificationRepository: INotificationRepository,
   ) {}
 
   async notifyTicketCreated(dto: NotifyTicketCreatedDto): Promise<void> {
@@ -376,24 +387,27 @@ export class NotificationService {
     userId?: string;
     customerId?: string;
     ticketId?: string;
-    channel: import('../../../domain/notification/value-objects/notification-channel.vo').NotificationChannelValue;
+    channel: NotificationChannelValue;
     subject?: string;
     content: string;
   }): Promise<void> {
-    await this.prisma.notification.create({
-      data: {
-        id: crypto.randomUUID(),
-        tenantId: data.tenantId,
-        userId: data.userId,
-        customerId: data.customerId,
-        ticketId: data.ticketId,
-        channel: data.channel,
-        subject: data.subject,
-        content: data.content,
-        status: 'SENT',
-        sentAt: new Date(),
-      },
+    const notification = NotificationEntity.create(crypto.randomUUID(), {
+      tenantId: data.tenantId,
+      userId: data.userId,
+      customerId: data.customerId,
+      ticketId: data.ticketId,
+      channel: NotificationChannel.create(data.channel),
+      status: NotificationStatusEnum.SENT,
+      subject: data.subject,
+      content: data.content,
+      metadata: {},
+      retryCount: 0,
+      maxRetries: 3,
+      createdAt: new Date(),
+      sentAt: new Date(),
     });
+
+    await this.notificationRepository.save(notification);
   }
 
   // Email Templates

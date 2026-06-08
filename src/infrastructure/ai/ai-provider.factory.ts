@@ -1,4 +1,4 @@
-import { IAIProvider } from './ai-provider.interface';
+import type { IAIProvider } from './ai-provider.interface';
 import { OpenAIProvider } from './openai.provider';
 import { aiConfig } from '../../config/ai.config';
 

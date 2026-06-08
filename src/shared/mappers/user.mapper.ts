@@ -1,4 +1,4 @@
-import { UserEntity } from '../../domain/user/entities/user.entity';
+import type { UserEntity } from '../../domain/user/entities/user.entity';
 
 export interface UserResponse {
   id: string;

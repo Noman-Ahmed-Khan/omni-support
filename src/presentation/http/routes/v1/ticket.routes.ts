@@ -1,11 +1,7 @@
 import { Router } from 'express';
-import { TicketController } from '../../controllers/ticket.controller';
-import { validate } from '../../middlewares/validate.middleware';
-import { Container } from '../../../../container';
-import { createAuthMiddleware } from '../../middlewares/auth.middleware';
-import { createTenantMiddleware } from '../../middlewares/tenant.middleware';
-import { requireRole } from '../../middlewares/rbac.middleware';
-import { asyncHandler } from '../../utils/async-handler';
+
+import type { Container } from '../../../../infrastructure/di';
+import type { TicketController } from '../../controllers/ticket.controller';
 import {
   createTicketSchema,
   updateTicketSchema,
@@ -15,6 +11,11 @@ import {
   addCommentSchema,
   listTicketsQuerySchema,
 } from '../../dtos/ticket/ticket.dto';
+import { createAuthMiddleware } from '../../middlewares/auth.middleware';
+import { requireRole } from '../../middlewares/rbac.middleware';
+import { createTenantMiddleware } from '../../middlewares/tenant.middleware';
+import { validate } from '../../middlewares/validate.middleware';
+import { asyncHandler } from '../../utils/async-handler';
 
 export function createTicketRoutes(container: Container): Router {
   const router = Router();

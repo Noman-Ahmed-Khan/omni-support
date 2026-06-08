@@ -1,4 +1,4 @@
-import { CustomerEntity } from '../entities/customer.entity';
+import type { CustomerEntity } from '../entities/customer.entity';
 
 export interface CustomerFilters {
   tenantId: string;

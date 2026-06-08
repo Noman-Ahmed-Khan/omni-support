@@ -1,4 +1,4 @@
-import { TenantEntity } from '../entities/tenant.entity';
+import type { TenantEntity } from '../entities/tenant.entity';
 
 export interface TenantFilters {
   status?: string;

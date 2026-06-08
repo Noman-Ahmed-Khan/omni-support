@@ -1,5 +1,5 @@
-import { TicketEntity } from '../../../domain/ticket/entities/ticket.entity';
-import { TicketService } from '../services/ticket.service';
+import type { TicketEntity } from '../../../domain/ticket/entities/ticket.entity';
+import type { TicketService } from '../services/ticket.service';
 
 export interface ChangeTicketStatusCommand {
   tenantId: string;

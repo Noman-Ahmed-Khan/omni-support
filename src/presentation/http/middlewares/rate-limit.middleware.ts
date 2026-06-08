@@ -1,5 +1,6 @@
-import rateLimit from 'express-rate-limit';
+import createRateLimit from 'express-rate-limit';
 import { RedisStore, type RedisReply } from 'rate-limit-redis';
+
 import { getRedisClient } from '../../../infrastructure/cache/redis.client';
 
 const skipRedisRateLimit = process.env.SKIP_REDIS === 'true';
@@ -7,7 +8,7 @@ const redisSendCommand = (...args: string[]): Promise<RedisReply> =>
   getRedisClient().sendCommand(args);
 
 // Global rate limit
-export const rateLimitMiddleware = rateLimit({
+export const rateLimitMiddleware = createRateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW ?? '60000'),
   max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS ?? '100'),
   standardHeaders: true,
@@ -33,7 +34,7 @@ export const rateLimitMiddleware = rateLimit({
 });
 
 // Strict rate limit for auth endpoints
-export const authRateLimitMiddleware = rateLimit({
+export const authRateLimitMiddleware = createRateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 10,
   standardHeaders: true,
@@ -55,7 +56,7 @@ export const authRateLimitMiddleware = rateLimit({
 });
 
 // AI endpoint rate limit (expensive operations)
-export const aiRateLimitMiddleware = rateLimit({
+export const aiRateLimitMiddleware = createRateLimit({
   windowMs: 60 * 1000,
   max: 20,
   standardHeaders: true,

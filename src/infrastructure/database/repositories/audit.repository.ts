@@ -1,4 +1,5 @@
-import { AuditAction, AuditLog, Prisma, PrismaClient } from '@prisma/client';
+import type { AuditAction, AuditLog, Prisma, PrismaClient } from '@prisma/client';
+
 import { InfrastructureError } from '../../../shared/errors/infrastructure.error';
 import { logger } from '../../../shared/utils/logger.util';
 

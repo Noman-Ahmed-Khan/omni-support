@@ -1,5 +1,5 @@
-import { AuthService } from '../services/auth.service';
-import { RegisterCommand } from '../commands/register.command';
+import type { RegisterCommand } from '../commands/register.command';
+import type { AuthService } from '../services/auth.service';
 
 export class RegisterHandler {
   constructor(private readonly authService: AuthService) {}

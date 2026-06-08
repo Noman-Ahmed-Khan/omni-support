@@ -1,3 +1,14 @@
-// Placeholder: domain event for user role changes.
-// Current role changes are not modeled as a separate emitted domain event.
-// Implement this when role-change auditing or notifications subscribe to it.
+import { BaseDomainEvent } from '../../shared/base.event';
+
+export class UserRoleChangedEvent extends BaseDomainEvent {
+  constructor(
+    public readonly userId: string,
+    public readonly tenantId: string | undefined,
+    public readonly previousRole: string,
+    public readonly nextRole: string,
+    public readonly changedById?: string,
+    public readonly changedByRole?: string,
+  ) {
+    super('USER_ROLE_CHANGED');
+  }
+}

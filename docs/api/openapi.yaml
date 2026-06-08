@@ -1,3 +1,24 @@
-# Placeholder: OpenAPI contract for OmniSupport HTTP APIs.
-# Current API behavior is defined by Express routes and DTO schemas in src/presentation.
-# Generate or author this once the public v1 route contract is frozen.
+openapi: 3.0.0
+info:
+  title: OmniSupport API
+  description: API for the OmniSupport customer support platform.
+  version: 1.0.0
+servers:
+  - url: http://localhost:3000/api/v1
+    description: Local development server
+paths:
+  /health:
+    get:
+      summary: Health check
+      description: Returns the health status of the API.
+      responses:
+        '200':
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok

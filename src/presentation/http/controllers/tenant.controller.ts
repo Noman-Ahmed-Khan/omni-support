@@ -1,14 +1,15 @@
-import { Request, Response, NextFunction } from 'express';
-import { ParamsDictionary } from 'express-serve-static-core';
-import { TenantEntity } from '../../../domain/tenant/entities/tenant.entity';
+import type { Request, Response, NextFunction } from 'express';
+import type { ParamsDictionary } from 'express-serve-static-core';
+
+import type { CreateTenantHandler } from '../../../application/tenant/handlers/create-tenant.handler';
+import type { GetTenantHandler } from '../../../application/tenant/handlers/get-tenant.handler';
+import type { ListTenantsHandler } from '../../../application/tenant/handlers/list-tenants.handler';
+import type { RestoreTenantHandler } from '../../../application/tenant/handlers/restore-tenant.handler';
+import type { SuspendTenantHandler } from '../../../application/tenant/handlers/suspend-tenant.handler';
+import type { UpdateTenantHandler } from '../../../application/tenant/handlers/update-tenant.handler';
+import type { TenantEntity } from '../../../domain/tenant/entities/tenant.entity';
 import { successResponse, paginatedResponse } from '../dtos/common/response.dto';
-import { CreateTenantHandler } from '../../../application/tenant/handlers/create-tenant.handler';
-import { UpdateTenantHandler } from '../../../application/tenant/handlers/update-tenant.handler';
-import { SuspendTenantHandler } from '../../../application/tenant/handlers/suspend-tenant.handler';
-import { RestoreTenantHandler } from '../../../application/tenant/handlers/restore-tenant.handler';
-import { GetTenantHandler } from '../../../application/tenant/handlers/get-tenant.handler';
-import { ListTenantsHandler } from '../../../application/tenant/handlers/list-tenants.handler';
-import {
+import type {
   CreateTenantDto,
   UpdateTenantDto,
   SuspendTenantDto,

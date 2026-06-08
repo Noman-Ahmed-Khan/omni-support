@@ -1,6 +1,7 @@
-import { Request, Response, NextFunction } from 'express';
-import { ParamsDictionary } from 'express-serve-static-core';
-import { SearchService } from '../../../application/search/services/search.service';
+import type { Request, Response, NextFunction } from 'express';
+import type { ParamsDictionary } from 'express-serve-static-core';
+
+import type { SearchService } from '../../../application/search/services/search.service';
 import { successResponse } from '../dtos/common/response.dto';
 
 interface SearchQuery {

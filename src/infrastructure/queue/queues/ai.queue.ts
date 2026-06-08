@@ -1,4 +1,5 @@
-import { Queue } from 'bullmq';
+import type { Queue } from 'bullmq';
+
 import { createQueue, QueueName } from '../queue.factory';
 
 export type AIJobType =

@@ -1,9 +1,10 @@
 import { Router } from 'express';
-import { AnalyticsController } from '../../controllers/analytics.controller';
-import { Container } from '../../../../container';
+
+import type { Container } from '../../../../infrastructure/di';
+import type { AnalyticsController } from '../../controllers/analytics.controller';
 import { createAuthMiddleware } from '../../middlewares/auth.middleware';
-import { createTenantMiddleware } from '../../middlewares/tenant.middleware';
 import { requireRole } from '../../middlewares/rbac.middleware';
+import { createTenantMiddleware } from '../../middlewares/tenant.middleware';
 import { asyncHandler } from '../../utils/async-handler';
 
 export function createAnalyticsRoutes(container: Container): Router {
@@ -13,12 +14,6 @@ export function createAnalyticsRoutes(container: Container): Router {
   const tenantMiddleware = createTenantMiddleware(container.resolve('prisma'));
 
   router.use(authMiddleware, tenantMiddleware);
-
-  router.get(
-    '/dashboard',
-    requireRole('TENANT_MANAGER', 'AGENT'),
-    asyncHandler((req, res, next) => controller.getDashboard(req, res, next)),
-  );
 
   router.get(
     '/trends',

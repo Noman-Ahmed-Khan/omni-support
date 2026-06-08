@@ -1,8 +1,12 @@
-import { NextFunction, Request, Response, RequestHandler } from 'express';
-import { FeatureFlag } from './feature.enum';
-import { FeatureFlagService } from './feature-flag.service';
-import { ForbiddenError, UnauthorizedError } from '../../shared/errors/application.error';
-import { asyncHandler } from '../../shared/utils/express.util';
+import type { NextFunction, Request, Response, RequestHandler } from 'express';
+
+import type { FeatureFlagService } from '../../../application/feature-flags/feature-flag.service';
+import type { FeatureFlag } from '../../../application/feature-flags/feature.enum';
+import {
+  ForbiddenError,
+  UnauthorizedError,
+} from '../../../shared/errors/application.error';
+import { asyncHandler } from '../../../shared/utils/express.util';
 
 export function requireFeature(
   featureFlag: FeatureFlag | string,

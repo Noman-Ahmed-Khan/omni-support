@@ -1,4 +1,4 @@
-import { CommandHandler } from './command-handler.interface';
+import type { CommandHandler } from './command-handler.interface';
 
 export interface CommandBusTransactionRunner {
   <T>(work: () => Promise<T>): Promise<T>;

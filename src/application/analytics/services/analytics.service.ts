@@ -1,5 +1,7 @@
-import { PrismaClient, Prisma } from '@prisma/client';
-import { CacheService } from '../../../infrastructure/cache/cache.service';
+import type { PrismaClient, Prisma } from '@prisma/client';
+
+import type { CacheService } from '../../../infrastructure/cache/cache.service';
+import { AnalyticsCacheStrategy } from '../../../infrastructure/cache/strategies/analytics.cache';
 import { logger } from '../../../shared/utils/logger.util';
 
 export interface DashboardMetrics {
@@ -30,19 +32,28 @@ export interface TrendData {
 }
 
 export class AnalyticsService {
+  private readonly analyticsCache: AnalyticsCacheStrategy;
+
   constructor(
     private readonly prisma: PrismaClient,
     private readonly cache: CacheService,
-  ) {}
+  ) {
+    this.analyticsCache = new AnalyticsCacheStrategy(cache);
+  }
 
   async getDashboardMetrics(tenantId: string): Promise<DashboardMetrics> {
-    const cacheKey = CacheService.dashboardKey(tenantId, 'metrics');
-
-    return this.cache.getOrSet(
-      cacheKey,
-      async () => this.computeDashboardMetrics(tenantId),
-      { ttl: 60 }, // 1 minute cache
+    const cached = await this.analyticsCache.getDashboard<DashboardMetrics>(
+      tenantId,
+      'metrics',
     );
+
+    if (cached) {
+      return cached;
+    }
+
+    const metrics = await this.computeDashboardMetrics(tenantId);
+    await this.analyticsCache.setDashboard(tenantId, 'metrics', metrics);
+    return metrics;
   }
 
   private async computeDashboardMetrics(tenantId: string): Promise<DashboardMetrics> {

@@ -1,5 +1,5 @@
-import { BaseDomainEvent } from '../../domain/shared/base.event';
-import { EventHandler } from './event-handler.interface';
+import type { EventHandler } from './event-handler.interface';
+import type { BaseDomainEvent } from '../../domain/shared/base.event';
 import { logger } from '../../shared/utils/logger.util';
 
 interface RegisteredEventHandler {

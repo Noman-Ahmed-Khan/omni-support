@@ -1,4 +1,4 @@
-import { ITenantRepository } from '../../domain/tenant/repositories/tenant.repository.interface';
+import type { ITenantRepository } from '../../domain/tenant/repositories/tenant.repository.interface';
 
 export function createTenantCleanupJob(
   tenantRepository: ITenantRepository,

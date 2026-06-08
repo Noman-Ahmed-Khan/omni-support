@@ -1,6 +1,8 @@
-import { createClient, RedisClientType } from 'redis';
-import { logger } from '../../shared/utils/logger.util';
+import type { RedisClientType } from 'redis';
+import { createClient } from 'redis';
+
 import { redisConfig } from '../../config/redis.config';
+import { logger } from '../../shared/utils/logger.util';
 
 let redisClient: RedisClientType;
 

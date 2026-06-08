@@ -1,17 +1,19 @@
-import { AIResult, PrismaClient, Prisma } from '@prisma/client';
-import { IAIProvider } from '../../../infrastructure/ai/ai-provider.interface';
-import { ITicketRepository } from '../../../domain/ticket/repositories/ticket.repository.interface';
-import { CustomerService } from '../../customer/services/customer.service';
-import { TicketService } from '../../ticket/services/ticket.service';
-import { ActivityRepository } from '../../../infrastructure/database/repositories/activity.repository';
-import { WebSocketGateway } from '../../../infrastructure/realtime/websocket.gateway';
-import { aiConfig } from '../../../config/ai.config';
-import { logger } from '../../../shared/utils/logger.util';
-import { FeatureFlagService } from '../../feature-flags/feature-flag.service';
-import { FeatureFlagDefinition } from '../../feature-flags/feature.repository';
-import { FeatureFlag } from '../../feature-flags/feature.enum';
-import { AiPolicy } from '../../../domain/policies/ai-policy';
 import crypto from 'crypto';
+
+import type { AIResult, PrismaClient, Prisma } from '@prisma/client';
+
+import { aiConfig } from '../../../config/ai.config';
+import { AiPolicy } from '../../../domain/policies/ai-policy';
+import type { ITicketRepository } from '../../../domain/ticket/repositories/ticket.repository.interface';
+import type { IAIProvider } from '../../../infrastructure/ai/ai-provider.interface';
+import type { ActivityRepository } from '../../../infrastructure/database/repositories/activity.repository';
+import type { WebSocketGateway } from '../../../infrastructure/realtime/websocket.gateway';
+import { logger } from '../../../shared/utils/logger.util';
+import type { CustomerService } from '../../customer/services/customer.service';
+import { FeatureFlagService } from '../../feature-flags/feature-flag.service';
+import { FeatureFlag } from '../../feature-flags/feature.enum';
+import type { FeatureFlagDefinition } from '../../feature-flags/feature.repository';
+import type { TicketService } from '../../ticket/services/ticket.service';
 
 export interface AIJobData {
   jobType: string;

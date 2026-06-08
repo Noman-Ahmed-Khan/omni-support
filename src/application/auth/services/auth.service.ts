@@ -1,18 +1,20 @@
 import crypto from 'crypto';
-import { Prisma, PrismaClient, UserRole } from '@prisma/client';
-import { TokenPair, TokenService } from './token.service';
-import { EmailQueue } from '../../../infrastructure/queue/queues/email.queue';
-import { AuditRepository } from '../../../infrastructure/database/repositories/audit.repository';
-import { CacheService } from '../../../infrastructure/cache/cache.service';
-import { PasswordHasher } from '../../../infrastructure/security/password-hasher';
+
+import type { Prisma, PrismaClient, UserRole } from '@prisma/client';
+
+import type { TokenPair, TokenService } from './token.service';
+import { appConfig } from '../../../config/app.config';
 import { Password } from '../../../domain/user/value-objects/password.vo';
+import type { CacheService } from '../../../infrastructure/cache/cache.service';
+import type { AuditRepository } from '../../../infrastructure/database/repositories/audit.repository';
+import type { EmailQueue } from '../../../infrastructure/queue/queues/email.queue';
+import { PasswordHasher } from '../../../infrastructure/security/password-hasher';
 import {
   UnauthorizedError,
   ForbiddenError,
 } from '../../../shared/errors/application.error';
 import { ConflictError, ValidationError } from '../../../shared/errors/domain.error';
 import { logger } from '../../../shared/utils/logger.util';
-import { appConfig } from '../../../config/app.config';
 
 export interface RegisterDto {
   email: string;

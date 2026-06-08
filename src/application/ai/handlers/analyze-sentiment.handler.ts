@@ -1,5 +1,5 @@
-import { AnalyzeSentimentCommand } from '../commands/analyze-sentiment.command';
-import { AIService } from '../services/ai.service';
+import type { AnalyzeSentimentCommand } from '../commands/analyze-sentiment.command';
+import type { AIService } from '../services/ai.service';
 
 export class AnalyzeSentimentHandler {
   constructor(private readonly aiService: AIService) {}

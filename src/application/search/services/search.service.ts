@@ -1,13 +1,8 @@
-import { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@prisma/client';
+
+import { PostgresSearchProvider } from '../../../infrastructure/search/postgres-search.provider';
+import type { ISearchProvider } from '../../../infrastructure/search/search-provider.interface';
 import { logger } from '../../../shared/utils/logger.util';
-import {
-  CustomerProjection,
-  CustomerSearchResult,
-} from '../../projections/customer.projection';
-import {
-  TicketProjection,
-  TicketSearchResult,
-} from '../../projections/ticket.projection';
 
 export interface SearchResult {
   type: 'ticket' | 'customer' | 'comment';
@@ -28,12 +23,10 @@ export interface SearchOptions {
 }
 
 export class SearchService {
-  private readonly ticketProjection: TicketProjection;
-  private readonly customerProjection: CustomerProjection;
+  private readonly searchProvider: ISearchProvider;
 
-  constructor(prisma: PrismaClient) {
-    this.ticketProjection = new TicketProjection(prisma);
-    this.customerProjection = new CustomerProjection(prisma);
+  constructor(prisma: PrismaClient, searchProvider?: ISearchProvider) {
+    this.searchProvider = searchProvider ?? new PostgresSearchProvider(prisma);
   }
 
   async search(options: SearchOptions): Promise<{
@@ -58,7 +51,7 @@ export class SearchService {
 
     if (types.includes('ticket')) {
       searchPromises.push(
-        this.ticketProjection
+        this.searchProvider
           .searchTickets(tenantId, sanitizedQuery, 10)
           .then((rows) => rows.map((row) => this.toSearchResult('ticket', row))),
       );
@@ -66,7 +59,7 @@ export class SearchService {
 
     if (types.includes('customer')) {
       searchPromises.push(
-        this.customerProjection
+        this.searchProvider
           .searchCustomers(tenantId, sanitizedQuery, 10)
           .then((rows) => rows.map((row) => this.toSearchResult('customer', row))),
       );
@@ -74,7 +67,7 @@ export class SearchService {
 
     if (types.includes('comment')) {
       searchPromises.push(
-        this.ticketProjection
+        this.searchProvider
           .searchComments(tenantId, sanitizedQuery, 10)
           .then((rows) => rows.map((row) => this.toSearchResult('comment', row))),
       );
@@ -98,7 +91,14 @@ export class SearchService {
 
   private toSearchResult(
     type: SearchResult['type'],
-    result: TicketSearchResult | CustomerSearchResult,
+    result: {
+      id: string;
+      title: string;
+      excerpt: string;
+      url: string;
+      metadata: Record<string, unknown>;
+      rank: number;
+    },
   ): SearchResult {
     return {
       type,
