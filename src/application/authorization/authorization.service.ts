@@ -1,7 +1,9 @@
-import { PrismaClient, UserRole } from '@prisma/client';
+import type { PrismaClient, UserRole } from '@prisma/client';
+
 import { PermissionName } from '../../domain/authorization/value-objects/permission-name.vo';
 import { RoleName } from '../../domain/authorization/value-objects/role-name.vo';
 import { permissionKey } from '../../shared/constants/permissions.constants';
+import { ROLE_NAMES } from '../../shared/constants/roles.constants';
 
 export interface CachedPermissions {
   userId: string;
@@ -15,7 +17,6 @@ export interface PermissionCache {
   getPermissions(userId: string): Promise<CachedPermissions | null>;
   setPermissions(permissions: CachedPermissions): Promise<void>;
 }
-import { ROLE_NAMES } from '../../shared/constants/roles.constants';
 
 export interface AuthorizationContext {
   userId: string;
