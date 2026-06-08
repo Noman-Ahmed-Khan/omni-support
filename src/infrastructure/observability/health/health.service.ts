@@ -1,6 +1,7 @@
-import { PrismaClient } from '@prisma/client';
-import { RedisClientType } from 'redis';
-import { MetricsService } from '../metrics/metrics.service';
+import type { PrismaClient } from '@prisma/client';
+import type { RedisClientType } from 'redis';
+
+import type { MetricsService } from '../metrics/metrics.service';
 
 export interface HealthCheckResult {
   status: 'ok' | 'error';

@@ -1,5 +1,6 @@
-import { NextFunction, Request, Response } from 'express';
-import { MetricsService } from './metrics.service';
+import type { NextFunction, Request, Response } from 'express';
+
+import type { MetricsService } from './metrics.service';
 
 export function createMetricsMiddleware(metrics: MetricsService) {
   return function metricsMiddleware(

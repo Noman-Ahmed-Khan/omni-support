@@ -1,6 +1,8 @@
-import { NextFunction, Request, Response } from 'express';
 import { randomUUID } from 'crypto';
-import { TracingService } from './tracing.service';
+
+import type { NextFunction, Request, Response } from 'express';
+
+import type { TracingService } from './tracing.service';
 
 export function createTracingMiddleware(tracingService: TracingService) {
   return function tracingMiddleware(
