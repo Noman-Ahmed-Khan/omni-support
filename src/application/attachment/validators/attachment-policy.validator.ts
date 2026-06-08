@@ -1,7 +1,7 @@
-import { MimeValidator } from './mime.validator';
-import { FileSizeValidator } from './file-size.validator';
-import { FileContentValidator } from './file-content.validator';
 import { AntivirusValidator } from './antivirus.validator';
+import { FileContentValidator } from './file-content.validator';
+import { FileSizeValidator } from './file-size.validator';
+import { MimeValidator } from './mime.validator';
 
 export interface AttachmentPolicyInput {
   filename: string;
