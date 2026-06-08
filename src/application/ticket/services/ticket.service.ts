@@ -1,28 +1,32 @@
 import crypto from 'crypto';
-import {
+
+import type { ActivityLog, PrismaClient, TicketComment } from '@prisma/client';
+
+import type { ICustomerRepository } from '../../../domain/customer/repositories/customer.repository.interface';
+import { TenantLimitsPolicy } from '../../../domain/policies/tenant-limits.policy';
+import { TicketAssignmentPolicy } from '../../../domain/policies/ticket-assignment.policy';
+import { TicketEscalationPolicy } from '../../../domain/policies/ticket-escalation.policy';
+import { TicketCommentEntity } from '../../../domain/ticket/entities/ticket-comment.entity';
+import { TicketEntity } from '../../../domain/ticket/entities/ticket.entity';
+import type { ICommentRepository } from '../../../domain/ticket/repositories/comment.repository.interface';
+import type {
   ITicketRepository,
   TicketFilters,
   PaginationOptions,
   PaginatedResult,
 } from '../../../domain/ticket/repositories/ticket.repository.interface';
-import { ICustomerRepository } from '../../../domain/customer/repositories/customer.repository.interface';
-import { TicketEntity } from '../../../domain/ticket/entities/ticket.entity';
-import { TicketStatus } from '../../../domain/ticket/value-objects/ticket-status.vo';
 import { TicketPriority } from '../../../domain/ticket/value-objects/ticket-priority.vo';
-import { IEventBus } from '../../event-bus/event-bus.interface';
-import { AIQueue } from '../../../infrastructure/queue/queues/ai.queue';
-import { ActivityRepository } from '../../../infrastructure/database/repositories/activity.repository';
-import { AuditRepository } from '../../../infrastructure/database/repositories/audit.repository';
-import { DashboardCacheStrategy } from '../../../infrastructure/cache/strategies/dashboard.cache';
-import { NotFoundError, DomainError } from '../../../shared/errors/domain.error';
+import { TicketStatus } from '../../../domain/ticket/value-objects/ticket-status.vo';
+import type { DashboardCacheStrategy } from '../../../infrastructure/cache/strategies/dashboard.cache';
+import type { ActivityRepository } from '../../../infrastructure/database/repositories/activity.repository';
+import type { AuditRepository } from '../../../infrastructure/database/repositories/audit.repository';
+import type { AIQueue } from '../../../infrastructure/queue/queues/ai.queue';
 import { ForbiddenError } from '../../../shared/errors/application.error';
-import { logger } from '../../../shared/utils/logger.util';
-import { PrismaClient } from '@prisma/client';
-import { TicketAssignmentPolicy } from '../../../domain/policies/ticket-assignment.policy';
-import { TicketEscalationPolicy } from '../../../domain/policies/ticket-escalation.policy';
-import { TenantLimitsPolicy } from '../../../domain/policies/tenant-limits.policy';
+import { NotFoundError, DomainError } from '../../../shared/errors/domain.error';
 import { mapPrismaTenantToEntity } from '../../../shared/mappers/tenant.mapper';
 import { startOfUtcDay } from '../../../shared/utils/date.util';
+import { logger } from '../../../shared/utils/logger.util';
+import type { IEventBus } from '../../event-bus/event-bus.interface';
 
 export interface CreateTicketDto {
   tenantId: string;
@@ -85,6 +89,30 @@ export interface AddCommentDto {
   type: 'PUBLIC' | 'INTERNAL';
 }
 
+export interface EditCommentDto {
+  tenantId: string;
+  commentId: string;
+  authorId: string;
+  content: string;
+}
+
+export interface DeleteCommentDto {
+  tenantId: string;
+  commentId: string;
+  authorId: string;
+  authorRole: string;
+}
+
+type TicketCommentWithAuthor = TicketComment & {
+  author: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    role: string;
+    avatarUrl: string | null;
+  };
+};
+
 export class TicketService {
   constructor(
     private readonly ticketRepo: ITicketRepository,
@@ -95,6 +123,7 @@ export class TicketService {
     private readonly activityRepo: ActivityRepository,
     private readonly auditRepo: AuditRepository,
     private readonly dashboardCache: DashboardCacheStrategy,
+    private readonly commentRepo: ICommentRepository,
   ) {}
 
   async createTicket(dto: CreateTicketDto): Promise<TicketEntity> {
@@ -406,17 +435,7 @@ export class TicketService {
     return updated;
   }
 
-  async addComment(dto: AddCommentDto): Promise<
-    import('@prisma/client').TicketComment & {
-      author: {
-        id: string;
-        firstName: string;
-        lastName: string;
-        role: string;
-        avatarUrl: string | null;
-      };
-    }
-  > {
+  async addComment(dto: AddCommentDto): Promise<TicketCommentWithAuthor> {
     const ticket = await this.getTicketOrThrow(dto.ticketId, dto.tenantId);
 
     // Validate author exists
@@ -435,27 +454,42 @@ export class TicketService {
 
     const commentId = crypto.randomUUID();
 
-    const comment = await this.prisma.ticketComment.create({
-      data: {
-        id: commentId,
-        tenantId: dto.tenantId,
-        ticketId: dto.ticketId,
-        authorId: dto.authorId,
-        content: dto.content,
-        type: dto.type,
-      },
-      include: {
-        author: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            role: true,
-            avatarUrl: true,
-          },
-        },
-      },
+    const commentEntity = TicketCommentEntity.create(commentId, {
+      tenantId: dto.tenantId,
+      ticketId: dto.ticketId,
+      authorId: dto.authorId,
+      content: dto.content,
+      type: dto.type,
+      isAiDraft: false,
+      metadata: {},
     });
+
+    await this.commentRepo.save(commentEntity);
+
+    // Fetch author details for the response format
+    const authorDetails = {
+      id: author.id,
+      firstName: author.firstName,
+      lastName: author.lastName,
+      role: author.role,
+      avatarUrl: author.avatarUrl,
+    };
+
+    const comment = {
+      id: commentEntity.id,
+      tenantId: commentEntity.tenantId,
+      ticketId: commentEntity.ticketId,
+      authorId: commentEntity.authorId,
+      content: commentEntity.content,
+      type: commentEntity.type,
+      isAiDraft: commentEntity.isAiDraft,
+      aiDraftId: commentEntity.aiDraftId ?? null,
+      editedAt: commentEntity.editedAt ?? null,
+      metadata: commentEntity.metadata,
+      createdAt: new Date(), // Approximate, or we can fetch from DB
+      updatedAt: new Date(),
+      author: authorDetails,
+    } as TicketCommentWithAuthor;
 
     // Update ticket status if customer replies to pending ticket
     if (dto.authorRole === 'CUSTOMER' && ticket.status === 'PENDING_CUSTOMER') {
@@ -496,6 +530,72 @@ export class TicketService {
     return comment;
   }
 
+  async editComment(dto: EditCommentDto): Promise<TicketCommentEntity> {
+    const comment = await this.commentRepo.findById(dto.commentId, dto.tenantId);
+
+    if (!comment) {
+      throw new NotFoundError('Comment', dto.commentId);
+    }
+
+    if (comment.authorId !== dto.authorId) {
+      throw new ForbiddenError('You can only edit your own comments');
+    }
+
+    const ticket = await this.getTicketOrThrow(comment.ticketId, dto.tenantId);
+    if (!ticket.isActive()) {
+      throw new DomainError('Cannot edit comments on a closed or resolved ticket');
+    }
+
+    comment.edit(dto.content);
+
+    const updated = await this.commentRepo.update(comment);
+
+    await this.activityRepo.create({
+      tenantId: dto.tenantId,
+      ticketId: comment.ticketId,
+      actorId: dto.authorId,
+      actorRole: 'AGENT', // Simplified for now
+      eventType: 'COMMENT_EDITED',
+      description: 'Comment was edited',
+      newValue: { commentId: comment.id },
+    });
+
+    return updated;
+  }
+
+  async deleteComment(dto: DeleteCommentDto): Promise<void> {
+    const comment = await this.commentRepo.findById(dto.commentId, dto.tenantId);
+
+    if (!comment) {
+      throw new NotFoundError('Comment', dto.commentId);
+    }
+
+    if (
+      comment.authorId !== dto.authorId &&
+      dto.authorRole !== 'PLATFORM_ADMIN' &&
+      dto.authorRole !== 'TENANT_MANAGER'
+    ) {
+      throw new ForbiddenError('You do not have permission to delete this comment');
+    }
+
+    const ticket = await this.getTicketOrThrow(comment.ticketId, dto.tenantId);
+    if (!ticket.isActive() && dto.authorRole !== 'PLATFORM_ADMIN') {
+      throw new DomainError('Cannot delete comments on a closed or resolved ticket');
+    }
+
+    await this.commentRepo.delete(dto.commentId, dto.tenantId);
+
+    await this.activityRepo.create({
+      tenantId: dto.tenantId,
+      ticketId: comment.ticketId,
+      actorId: dto.authorId,
+      actorRole: dto.authorRole,
+      eventType: 'COMMENT_DELETED',
+      description: 'Comment was deleted',
+      oldValue: { commentId: comment.id },
+    });
+  }
+
   async getTicket(id: string, tenantId: string): Promise<TicketEntity> {
     return this.getTicketOrThrow(id, tenantId);
   }
@@ -513,7 +613,7 @@ export class TicketService {
     page: number = 1,
     limit: number = 50,
   ): Promise<{
-    data: import('@prisma/client').ActivityLog[];
+    data: ActivityLog[];
     total: number;
     page: number;
     limit: number;
