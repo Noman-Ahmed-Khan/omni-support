@@ -6,13 +6,14 @@ import {
   HeadObjectCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import {
+
+import type {
   IStorageProvider,
   UploadOptions,
   UploadResult,
   SignedUrlOptions,
 } from './storage-provider.interface';
-import { AwsStorageConfig } from '../../config/storage.config';
+import type { AwsStorageConfig } from '../../config/storage.config';
 import { InfrastructureError } from '../../shared/errors/infrastructure.error';
 import { logger } from '../../shared/utils/logger.util';
 

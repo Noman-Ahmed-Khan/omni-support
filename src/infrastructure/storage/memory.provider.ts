@@ -1,5 +1,6 @@
 import crypto from 'crypto';
-import {
+
+import type {
   IStorageProvider,
   UploadOptions,
   UploadResult,
