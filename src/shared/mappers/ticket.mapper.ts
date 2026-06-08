@@ -1,4 +1,4 @@
-import { TicketEntity } from '../../domain/ticket/entities/ticket.entity';
+import type { TicketEntity } from '../../domain/ticket/entities/ticket.entity';
 
 export interface TicketResponse {
   id: string;

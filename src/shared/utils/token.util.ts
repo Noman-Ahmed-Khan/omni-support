@@ -1,6 +1,7 @@
-import { IncomingMessage } from 'http';
-import { Request } from 'express';
+import type { IncomingMessage } from 'http';
 import { parse } from 'url';
+
+import type { Request } from 'express';
 
 export function extractBearerTokenFromHeader(authHeader?: string): string | null {
   if (authHeader?.startsWith('Bearer ')) {

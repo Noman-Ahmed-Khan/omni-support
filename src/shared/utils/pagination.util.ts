@@ -1,4 +1,4 @@
-import { PaginationInput, PaginationResultMeta } from '../types';
+import type { PaginationInput, PaginationResultMeta } from '../types';
 
 export function normalizePagination(
   input: PaginationInput,
