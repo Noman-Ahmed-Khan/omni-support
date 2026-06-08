@@ -1,15 +1,16 @@
 import { Router } from 'express';
-import { TenantController } from '../../controllers/tenant.controller';
-import { Container } from '../../../../container';
-import { validate } from '../../middlewares/validate.middleware';
-import { createAuthMiddleware } from '../../middlewares/auth.middleware';
-import { requireRole } from '../../middlewares/rbac.middleware';
-import { asyncHandler } from '../../utils/async-handler';
+
+import type { Container } from '../../../../infrastructure/di';
+import type { TenantController } from '../../controllers/tenant.controller';
 import {
   createTenantSchema,
   updateTenantSchema,
   suspendTenantSchema,
 } from '../../dtos/tenant/tenant.dto';
+import { createAuthMiddleware } from '../../middlewares/auth.middleware';
+import { requireRole } from '../../middlewares/rbac.middleware';
+import { validate } from '../../middlewares/validate.middleware';
+import { asyncHandler } from '../../utils/async-handler';
 
 export function createTenantRoutes(container: Container): Router {
   const router = Router();

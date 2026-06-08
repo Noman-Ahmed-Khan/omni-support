@@ -1,10 +1,7 @@
 import { Router } from 'express';
-import { AuthController } from '../../controllers/auth.controller';
-import { validate } from '../../middlewares/validate.middleware';
-import { Container } from '../../../../container';
-import { createAuthMiddleware } from '../../middlewares/auth.middleware';
-import { authRateLimitMiddleware } from '../../middlewares/rate-limit.middleware';
-import { asyncHandler } from '../../utils/async-handler';
+
+import type { Container } from '../../../../infrastructure/di';
+import type { AuthController } from '../../controllers/auth.controller';
 import {
   registerSchema,
   loginSchema,
@@ -13,6 +10,10 @@ import {
   verifyEmailSchema,
   refreshTokenSchema,
 } from '../../dtos/auth/auth.dto';
+import { createAuthMiddleware } from '../../middlewares/auth.middleware';
+import { authRateLimitMiddleware } from '../../middlewares/rate-limit.middleware';
+import { validate } from '../../middlewares/validate.middleware';
+import { asyncHandler } from '../../utils/async-handler';
 
 export function createAuthRoutes(container: Container): Router {
   const router = Router();

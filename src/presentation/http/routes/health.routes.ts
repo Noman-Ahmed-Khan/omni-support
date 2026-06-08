@@ -1,6 +1,7 @@
 import { Router } from 'express';
-import { HealthController } from '../controllers/health.controller';
-import { Container } from '../../../container';
+
+import type { Container } from '../../../infrastructure/di';
+import type { HealthController } from '../controllers/health.controller';
 import { asyncHandler } from '../utils/async-handler';
 
 export function createHealthRouter(container: Container): Router {
