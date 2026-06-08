@@ -1,5 +1,5 @@
-import { SuggestResponseCommand } from '../commands/suggest-response.command';
-import { AIService } from '../services/ai.service';
+import type { SuggestResponseCommand } from '../commands/suggest-response.command';
+import type { AIService } from '../services/ai.service';
 
 export class SuggestResponseHandler {
   constructor(private readonly aiService: AIService) {}
