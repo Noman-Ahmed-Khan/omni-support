@@ -3,7 +3,9 @@ WORKDIR /app
 RUN apk add --no-cache python3 make g++
 COPY package*.json ./
 COPY prisma ./prisma/
-RUN npm ci --only=production && npx prisma generate
+RUN apk add --no-cache openssl \
+    && npm ci --omit=dev \
+    && npx prisma generate
 
 FROM node:20-alpine AS builder
 WORKDIR /app
