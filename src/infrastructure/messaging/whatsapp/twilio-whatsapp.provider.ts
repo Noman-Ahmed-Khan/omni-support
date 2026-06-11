@@ -13,18 +13,53 @@ import { messagingConfig } from '../../../config/messaging.config';
 import { InfrastructureError } from '../../../shared/errors/infrastructure.error';
 import { logger } from '../../../shared/utils/logger.util';
 
+interface TwilioWhatsAppConfig {
+  accountSid: string;
+  authToken: string;
+  fromNumber: string;
+  webhookSecret: string;
+}
+
+const TWILIO_ACCOUNT_SID_PREFIX = 'AC';
+
+function resolveTwilioConfig(): TwilioWhatsAppConfig | null {
+  const whatsappConfig = messagingConfig.whatsapp;
+
+  if (!whatsappConfig.provider || whatsappConfig.provider !== 'twilio') {
+    logger.warn('Twilio disabled - missing or invalid configuration');
+    return null;
+  }
+
+  if (
+    !whatsappConfig.accountSid ||
+    !whatsappConfig.accountSid.startsWith(TWILIO_ACCOUNT_SID_PREFIX) ||
+    !whatsappConfig.authToken ||
+    !whatsappConfig.fromNumber ||
+    !whatsappConfig.webhookSecret
+  ) {
+    logger.warn('Twilio disabled - missing or invalid configuration');
+    return null;
+  }
+
+  return {
+    accountSid: whatsappConfig.accountSid,
+    authToken: whatsappConfig.authToken,
+    fromNumber: whatsappConfig.fromNumber,
+    webhookSecret: whatsappConfig.webhookSecret,
+  };
+}
+
 export class TwilioWhatsAppProvider implements IWhatsAppProvider {
   private readonly client: Twilio;
   private readonly fromNumber: string;
   private readonly webhookSecret: string;
 
-  constructor() {
-    this.client = twilio(
-      messagingConfig.whatsapp.accountSid,
-      messagingConfig.whatsapp.authToken,
-    );
-    this.fromNumber = messagingConfig.whatsapp.fromNumber;
-    this.webhookSecret = messagingConfig.whatsapp.webhookSecret;
+  constructor(config: TwilioWhatsAppConfig) {
+    this.client = twilio(config.accountSid, config.authToken);
+    this.fromNumber = config.fromNumber;
+    this.webhookSecret = config.webhookSecret;
+
+    logger.info('Twilio WhatsApp provider initialized');
   }
 
   async send(message: WhatsAppMessage): Promise<WhatsAppResult> {
@@ -87,16 +122,21 @@ export class TwilioWhatsAppProvider implements IWhatsAppProvider {
   }
 }
 
-class StubWhatsAppProvider implements IWhatsAppProvider {
+class DisabledWhatsAppProvider implements IWhatsAppProvider {
+  constructor() {
+    logger.warn('WhatsApp messaging is disabled. Twilio integration is not available.');
+  }
+
   send(_message: WhatsAppMessage): Promise<WhatsAppResult> {
+    logger.warn('WhatsApp send skipped because messaging is disabled');
     return Promise.resolve({
-      messageId: 'stubbed',
-      status: 'skipped',
+      messageId: 'disabled',
+      status: 'disabled',
     });
   }
 
   verifyWebhook(_signature: string, _payload: string): boolean {
-    return true;
+    return false;
   }
 
   parseInboundMessage(_rawPayload: unknown): WhatsAppWebhookPayload | null {
@@ -105,9 +145,12 @@ class StubWhatsAppProvider implements IWhatsAppProvider {
 }
 
 export function createWhatsAppProvider(): IWhatsAppProvider {
-  if (process.env.SKIP_TWILIO === 'true') {
-    return new StubWhatsAppProvider();
+  const config = resolveTwilioConfig();
+
+  if (!config) {
+    // TODO: Re-enable Twilio integration after production credentials are available.
+    return new DisabledWhatsAppProvider();
   }
 
-  return new TwilioWhatsAppProvider();
+  return new TwilioWhatsAppProvider(config);
 }

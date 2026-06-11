@@ -1,6 +1,7 @@
 import express from 'express';
 import { createApp } from '../../src/presentation/http/app';
 import { buildContainer } from '../../src/infrastructure/di';
+import { createRedisClient, getRedisClient } from '../../src/infrastructure/cache/redis.client';
 import { getTestPrisma } from './test-db';
 import { Application } from 'express';
 
@@ -16,20 +17,8 @@ export async function getTestApp(): Promise<{
   }
 
   const prisma = getTestPrisma();
-
-  // Mock Redis for tests
-  const mockRedis = {
-    get: jest.fn().mockResolvedValue(null),
-    set: jest.fn().mockResolvedValue('OK'),
-    setEx: jest.fn().mockResolvedValue('OK'),
-    del: jest.fn().mockResolvedValue(1),
-    keys: jest.fn().mockResolvedValue([]),
-    exists: jest.fn().mockResolvedValue(0),
-    incr: jest.fn().mockResolvedValue(1),
-    expire: jest.fn().mockResolvedValue(1),
-    ping: jest.fn().mockResolvedValue('PONG'),
-    sendCommand: jest.fn().mockResolvedValue(null),
-  } as any;
+  await createRedisClient();
+  const redis = getRedisClient();
 
   // Mock WebSocket gateway for tests
   const mockWsGateway = {
@@ -41,10 +30,15 @@ export async function getTestApp(): Promise<{
     shutdown: jest.fn(),
   } as any;
 
-  testContainer = await buildContainer(prisma, mockRedis, mockWsGateway);
+  testContainer = await buildContainer(prisma, redis, mockWsGateway);
   testApp = createApp(testContainer);
 
   return { app: testApp, container: testContainer };
+}
+
+export async function resetTestApp(): Promise<void> {
+  testApp = null;
+  testContainer = null;
 }
 
 export async function getAuthToken(

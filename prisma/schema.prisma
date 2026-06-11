@@ -3,10 +3,10 @@ generator client {
   previewFeatures = ["fullTextSearch", "fullTextIndex"]
 }
 
-generator dbml {
-  provider = "prisma-dbml-generator"
-  output   = "../docs/erd"
-}
+// generator dbml {
+//   provider = "prisma-dbml-generator"
+//   output   = "../docs/erd"
+// }
 
 datasource db {
   provider = "postgresql"

@@ -54,7 +54,6 @@ const config: Config = {
   restoreMocks: true,
   verbose: true,
   detectOpenHandles: true,
-  forceExit: true,
   projects: [
     {
       displayName: 'unit',
