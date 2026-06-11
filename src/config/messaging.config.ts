@@ -11,13 +11,15 @@ const messagingConfigSchema = z.object({
     user: z.string(),
     password: z.string(),
   }),
-  whatsapp: z.object({
-    provider: z.enum(['twilio']).default('twilio'),
-    accountSid: z.string(),
-    authToken: z.string(),
-    fromNumber: z.string(),
-    webhookSecret: z.string(),
-  }),
+  whatsapp: z
+    .object({
+      provider: z.enum(['twilio']).optional(),
+      accountSid: z.string().optional(),
+      authToken: z.string().optional(),
+      fromNumber: z.string().optional(),
+      webhookSecret: z.string().optional(),
+    })
+    .default({}),
 });
 
 export const messagingConfig = messagingConfigSchema.parse({
