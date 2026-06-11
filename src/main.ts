@@ -12,6 +12,7 @@ import { connectDatabase, prisma } from './infrastructure/database/prisma.client
 import { buildContainer } from './infrastructure/di';
 import type { Container } from './infrastructure/di';
 import type { SMTPEmailProvider } from './infrastructure/messaging/email/smtp.provider';
+import type { OutboxWorker } from './infrastructure/outbox/outbox.worker';
 import { createAIWorker } from './infrastructure/queue/workers/ai.worker';
 import { createEmailWorker } from './infrastructure/queue/workers/email.worker';
 import { createNotificationWorker } from './infrastructure/queue/workers/notification.worker';
@@ -40,16 +41,15 @@ async function bootstrap(): Promise<void> {
 
     // Create real HTTP server with full app
     const app = createApp(container);
+    const workerLifecycle = startWorkers(container);
     const server = new HttpServer(app, {
       server: rawServer,
       wsGateway,
+      shutdownHook: async () => {
+        await workerLifecycle.stop();
+      },
     });
     server.setupSignalHandlers();
-
-    // Start background workers (only in non-test mode)
-    if (process.env.NODE_ENV !== 'test') {
-      startWorkers(container);
-    }
 
     // Start server
     await server.start();
@@ -59,12 +59,26 @@ async function bootstrap(): Promise<void> {
       env: process.env.NODE_ENV,
     });
   } catch (error) {
-    logger.error('Failed to start platform', { error });
+    logger.error('Failed to start platform', {
+      error:
+        error instanceof Error
+          ? {
+              message: error.message,
+              stack: error.stack,
+              name: error.name,
+            }
+          : error,
+    });
+
     process.exit(1);
   }
 }
 
-function startWorkers(container: Container): void {
+type WorkerLifecycle = {
+  stop(): Promise<void>;
+};
+
+function startWorkers(container: Container): WorkerLifecycle {
   const categorizeTicketHandler: CategorizeTicketHandler = container.resolve(
     'categorizeTicketHandler',
   );
@@ -84,7 +98,7 @@ function startWorkers(container: Container): void {
     'calculateRiskScoreHandler',
   );
   const emailProvider: SMTPEmailProvider = container.resolve('emailProvider');
-  const outboxWorker = container.resolve<{ start(): void }>('outboxWorker');
+  const outboxWorker = container.resolve<OutboxWorker>('outboxWorker');
   const schedulerService = container.resolve<{
     register(job: {
       name: string;
@@ -92,6 +106,7 @@ function startWorkers(container: Container): void {
       handler: () => Promise<void>;
     }): void;
     start(): void;
+    stop(): void;
   }>('schedulerService');
   const analyticsRollupJob = container.resolve<() => Promise<void>>('analyticsRollupJob');
   const ticketEscalationJob =
@@ -99,88 +114,98 @@ function startWorkers(container: Container): void {
   const tenantCleanupJob = container.resolve<() => Promise<void>>('tenantCleanupJob');
   const outboxRetryJob = container.resolve<() => Promise<void>>('outboxRetryJob');
 
-  schedulerService.register({
-    name: 'analytics-rollup',
-    cronExpression: '0 1 * * *',
-    handler: analyticsRollupJob,
-  });
-  schedulerService.register({
-    name: 'ticket-escalation',
-    cronExpression: '*/15 * * * *',
-    handler: ticketEscalationJob,
-  });
-  schedulerService.register({
-    name: 'tenant-cleanup',
-    cronExpression: '30 2 * * *',
-    handler: tenantCleanupJob,
-  });
-  schedulerService.register({
-    name: 'outbox-retry',
-    cronExpression: '*/5 * * * *',
-    handler: outboxRetryJob,
-  });
+  if (process.env.NODE_ENV !== 'test') {
+    schedulerService.register({
+      name: 'analytics-rollup',
+      cronExpression: '0 1 * * *',
+      handler: analyticsRollupJob,
+    });
+    schedulerService.register({
+      name: 'ticket-escalation',
+      cronExpression: '*/15 * * * *',
+      handler: ticketEscalationJob,
+    });
+    schedulerService.register({
+      name: 'tenant-cleanup',
+      cronExpression: '30 2 * * *',
+      handler: tenantCleanupJob,
+    });
+    schedulerService.register({
+      name: 'outbox-retry',
+      cronExpression: '*/5 * * * *',
+      handler: outboxRetryJob,
+    });
 
-  // AI Worker
-  createAIWorker({
-    categorize: (data) =>
-      categorizeTicketHandler.execute({
-        tenantId: data.tenantId,
-        ticketId: data.ticketId!,
-        content: data.content,
-        metadata: data.metadata,
-      }),
-    sentiment: (data) =>
-      analyzeSentimentHandler.execute({
-        tenantId: data.tenantId,
-        ticketId: data.ticketId!,
-        content: data.content,
-        metadata: data.metadata,
-      }),
-    urgency: (data) =>
-      predictUrgencyHandler.execute({
-        tenantId: data.tenantId,
-        ticketId: data.ticketId!,
-        content: data.content,
-        metadata: data.metadata,
-      }),
-    'suggest-response': (data) =>
-      suggestResponseHandler.execute({
-        tenantId: data.tenantId,
-        ticketId: data.ticketId!,
-        content: data.content,
-        metadata: data.metadata,
-      }),
-    summarize: (data) =>
-      generateSummaryHandler.execute({
-        tenantId: data.tenantId,
-        ticketId: data.ticketId!,
-        content: data.content,
-        metadata: data.metadata,
-      }),
-    'risk-score': (data) =>
-      calculateRiskScoreHandler.execute({
-        tenantId: data.tenantId,
-        customerId: data.customerId!,
-        content: data.content,
-        metadata: data.metadata,
-      }),
-  });
+    // AI Worker
+    createAIWorker({
+      categorize: (data) =>
+        categorizeTicketHandler.execute({
+          tenantId: data.tenantId,
+          ticketId: data.ticketId!,
+          content: data.content,
+          metadata: data.metadata,
+        }),
+      sentiment: (data) =>
+        analyzeSentimentHandler.execute({
+          tenantId: data.tenantId,
+          ticketId: data.ticketId!,
+          content: data.content,
+          metadata: data.metadata,
+        }),
+      urgency: (data) =>
+        predictUrgencyHandler.execute({
+          tenantId: data.tenantId,
+          ticketId: data.ticketId!,
+          content: data.content,
+          metadata: data.metadata,
+        }),
+      'suggest-response': (data) =>
+        suggestResponseHandler.execute({
+          tenantId: data.tenantId,
+          ticketId: data.ticketId!,
+          content: data.content,
+          metadata: data.metadata,
+        }),
+      summarize: (data) =>
+        generateSummaryHandler.execute({
+          tenantId: data.tenantId,
+          ticketId: data.ticketId!,
+          content: data.content,
+          metadata: data.metadata,
+        }),
+      'risk-score': (data) =>
+        calculateRiskScoreHandler.execute({
+          tenantId: data.tenantId,
+          customerId: data.customerId!,
+          content: data.content,
+          metadata: data.metadata,
+        }),
+    });
 
-  // Email Worker
-  createEmailWorker(async (data) => {
-    await emailProvider.send(data);
-  });
+    // Email Worker
+    createEmailWorker(async (data) => {
+      await emailProvider.send(data);
+    });
 
-  // Notification Worker
-  createNotificationWorker((data) => {
-    logger.debug('Processing notification', { channel: data.channel });
-    return Promise.resolve();
-  });
+    // Notification Worker
+    createNotificationWorker((data) => {
+      logger.debug('Processing notification', { channel: data.channel });
+      return Promise.resolve();
+    });
 
-  outboxWorker.start();
-  schedulerService.start();
+    outboxWorker.start();
+    schedulerService.start();
 
-  logger.info('Background workers started');
+    logger.info('Background workers started');
+  }
+
+  return {
+    stop(): Promise<void> {
+      outboxWorker.stop();
+      schedulerService.stop();
+      return Promise.resolve();
+    },
+  };
 }
 
 void bootstrap();

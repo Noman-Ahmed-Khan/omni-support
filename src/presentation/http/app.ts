@@ -5,9 +5,10 @@ import express, { json, urlencoded } from 'express';
 
 import { correlationMiddleware } from './middlewares/correlation.middleware';
 import { errorHandlerMiddleware } from './middlewares/error-handler.middleware';
-import { rateLimitMiddleware } from './middlewares/rate-limit.middleware';
+import { createRateLimitMiddleware } from './middlewares/rate-limit.middleware';
 import { sanitizeMiddleware } from './middlewares/sanitize.middleware';
 import { createApplicationRouter } from './router';
+import { createSwaggerRouter } from './swagger';
 import { appConfig } from '../../config/app.config';
 import type { Container } from '../../infrastructure/di';
 import { createMetricsMiddleware } from '../../infrastructure/observability/metrics/metrics.middleware';
@@ -67,7 +68,7 @@ export function createApp(container: Container): Application {
   app.use(sanitizeMiddleware);
 
   // Rate Limiting (global)
-  app.use(rateLimitMiddleware);
+  app.use(createRateLimitMiddleware());
 
   // Trust Proxy (for AWS ALB/NLB)
   app.set('trust proxy', 1);
@@ -86,6 +87,7 @@ export function createApp(container: Container): Application {
   });
 
   // Application Routes
+  app.use('/', createSwaggerRouter());
   app.use('/', createApplicationRouter(container));
 
   // 404 Handler

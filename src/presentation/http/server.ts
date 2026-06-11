@@ -10,10 +10,13 @@ import { WebSocketAuth } from '../../infrastructure/realtime/websocket.auth';
 import { WebSocketGateway } from '../../infrastructure/realtime/websocket.gateway';
 import { logger } from '../../shared/utils/logger.util';
 
+type ShutdownHook = () => Promise<void>;
+
 export class HttpServer {
   private server: http.Server;
   private wsGateway: WebSocketGateway;
   private isShuttingDown = false;
+  private shutdownHook: ShutdownHook | null = null;
 
   constructor(
     app: Application,
@@ -21,6 +24,7 @@ export class HttpServer {
       server?: http.Server;
       wsGateway?: WebSocketGateway;
       wsAuth?: WebSocketAuth;
+      shutdownHook?: ShutdownHook;
     } = {},
   ) {
     if (options.server) {
@@ -37,6 +41,8 @@ export class HttpServer {
       const wsAuth = options.wsAuth ?? new WebSocketAuth();
       this.wsGateway = new WebSocketGateway(this.server, wsAuth);
     }
+
+    this.shutdownHook = options.shutdownHook ?? null;
   }
 
   getWebSocketGateway(): WebSocketGateway {
@@ -74,7 +80,11 @@ export class HttpServer {
     await this.wsGateway.shutdown();
     logger.info('WebSocket gateway closed');
 
-    // Close queues
+    if (this.shutdownHook) {
+      await this.shutdownHook();
+    }
+
+    // Close queues and workers
     await closeAllQueues();
     logger.info('Job queues closed');
 

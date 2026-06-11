@@ -11,7 +11,7 @@ import {
   refreshTokenSchema,
 } from '../../dtos/auth/auth.dto';
 import { createAuthMiddleware } from '../../middlewares/auth.middleware';
-import { authRateLimitMiddleware } from '../../middlewares/rate-limit.middleware';
+import { createAuthRateLimitMiddleware } from '../../middlewares/rate-limit.middleware';
 import { validate } from '../../middlewares/validate.middleware';
 import { asyncHandler } from '../../utils/async-handler';
 
@@ -19,6 +19,7 @@ export function createAuthRoutes(container: Container): Router {
   const router = Router();
   const controller: AuthController = container.resolve('authController');
   const authMiddleware = createAuthMiddleware(container.resolve('tokenService'));
+  const authRateLimitMiddleware = createAuthRateLimitMiddleware();
 
   // Public routes with strict rate limiting
   router.post(
