@@ -1,16 +1,13 @@
-import type { Job, ConnectionOptions } from 'bullmq';
+import type { Job } from 'bullmq';
 import { Worker } from 'bullmq';
 
 import { logger } from '../../../shared/utils/logger.util';
-import { getRedisClient } from '../../cache/redis.client';
-import { QueueName } from '../queue.factory';
+import { getBullMqConnectionOptions, registerWorker, QueueName } from '../queue.factory';
 import type { AnalyticsJobData } from '../queues/analytics.queue';
 
 export function createAnalyticsWorker(
   handler: (data: AnalyticsJobData) => Promise<void>,
 ): Worker {
-  const connection = getRedisClient();
-
   const worker = new Worker(
     QueueName.ANALYTICS,
     async (job: Job<AnalyticsJobData>) => {
@@ -23,7 +20,7 @@ export function createAnalyticsWorker(
       await handler(job.data);
     },
     {
-      connection: connection as unknown as ConnectionOptions,
+      connection: getBullMqConnectionOptions(),
       concurrency: 2,
     },
   );
@@ -36,5 +33,5 @@ export function createAnalyticsWorker(
     });
   });
 
-  return worker;
+  return registerWorker(worker);
 }

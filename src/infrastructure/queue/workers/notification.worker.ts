@@ -1,16 +1,13 @@
-import type { Job, ConnectionOptions } from 'bullmq';
+import type { Job } from 'bullmq';
 import { Worker } from 'bullmq';
 
 import { logger } from '../../../shared/utils/logger.util';
-import { getRedisClient } from '../../cache/redis.client';
-import { QueueName } from '../queue.factory';
+import { getBullMqConnectionOptions, registerWorker, QueueName } from '../queue.factory';
 import type { NotificationJobData } from '../queues/notification.queue';
 
 export function createNotificationWorker(
   handler: (data: NotificationJobData) => Promise<void>,
 ): Worker {
-  const connection = getRedisClient();
-
   const worker = new Worker(
     QueueName.NOTIFICATIONS,
     async (job: Job<NotificationJobData>) => {
@@ -23,7 +20,7 @@ export function createNotificationWorker(
       await handler(job.data);
     },
     {
-      connection: connection as unknown as ConnectionOptions,
+      connection: getBullMqConnectionOptions(),
       concurrency: 20,
     },
   );
@@ -36,5 +33,5 @@ export function createNotificationWorker(
     });
   });
 
-  return worker;
+  return registerWorker(worker);
 }

@@ -1,16 +1,13 @@
-import type { Job, ConnectionOptions } from 'bullmq';
+import type { Job } from 'bullmq';
 import { Worker } from 'bullmq';
 
 import { logger } from '../../../shared/utils/logger.util';
-import { getRedisClient } from '../../cache/redis.client';
-import { QueueName } from '../queue.factory';
+import { getBullMqConnectionOptions, registerWorker, QueueName } from '../queue.factory';
 import type { WhatsAppJobData } from '../queues/whatsapp.queue';
 
 export function createWhatsAppWorker(
   sendWhatsApp: (data: WhatsAppJobData) => Promise<void>,
 ): Worker {
-  const connection = getRedisClient();
-
   const worker = new Worker(
     QueueName.WHATSAPP,
     async (job: Job<WhatsAppJobData>) => {
@@ -22,7 +19,7 @@ export function createWhatsAppWorker(
       await sendWhatsApp(job.data);
     },
     {
-      connection: connection as unknown as ConnectionOptions,
+      connection: getBullMqConnectionOptions(),
       concurrency: 5,
     },
   );
@@ -35,5 +32,5 @@ export function createWhatsAppWorker(
     });
   });
 
-  return worker;
+  return registerWorker(worker);
 }

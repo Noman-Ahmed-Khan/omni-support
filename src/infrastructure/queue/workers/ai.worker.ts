@@ -1,9 +1,8 @@
-import type { Job, ConnectionOptions } from 'bullmq';
+import type { Job } from 'bullmq';
 import { Worker } from 'bullmq';
 
 import { logger } from '../../../shared/utils/logger.util';
-import { getRedisClient } from '../../cache/redis.client';
-import { QueueName } from '../queue.factory';
+import { getBullMqConnectionOptions, registerWorker, QueueName } from '../queue.factory';
 import type { AIJobData } from '../queues/ai.queue';
 
 export function createAIWorker(handlers: {
@@ -14,8 +13,6 @@ export function createAIWorker(handlers: {
   summarize: (data: AIJobData) => Promise<void>;
   'risk-score': (data: AIJobData) => Promise<void>;
 }): Worker {
-  const connection = getRedisClient();
-
   const worker = new Worker(
     QueueName.AI_PROCESSING,
     async (job: Job<AIJobData>) => {
@@ -39,7 +36,7 @@ export function createAIWorker(handlers: {
       logger.info('AI job completed', { jobId: job.id, jobType });
     },
     {
-      connection: connection as unknown as ConnectionOptions,
+      connection: getBullMqConnectionOptions(),
       concurrency: 5,
       limiter: {
         max: 10,
@@ -61,5 +58,5 @@ export function createAIWorker(handlers: {
     logger.debug('AI job completed successfully', { jobId: job.id });
   });
 
-  return worker;
+  return registerWorker(worker);
 }
