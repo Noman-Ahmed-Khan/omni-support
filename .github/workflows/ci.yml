@@ -94,6 +94,25 @@ jobs:
           JWT_REFRESH_SECRET: test_refresh_secret_minimum_32_characters_long
           OPENAI_API_KEY: sk-test
           DATABASE_URL: postgresql://test:test@localhost:5432/test
+          EMAIL_PROVIDER: smtp
+          EMAIL_FROM: test@example.com
+          SMTP_HOST: localhost
+          SMTP_PORT: 1025
+          SMTP_USER: test
+          SMTP_PASSWORD: test
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+          SKIP_REDIS: 'true'
+          SKIP_TWILIO: 'true'
+          WHATSAPP_PROVIDER: twilio
+          WHATSAPP_ACCOUNT_SID: test_sid
+          WHATSAPP_AUTH_TOKEN: test_token
+          WHATSAPP_FROM_NUMBER: '+14155238886'
+          WHATSAPP_WEBHOOK_SECRET: test_webhook_secret
+          STORAGE_PROVIDER: local
+          FRONTEND_URL: http://localhost:3001
+          CORS_ORIGINS: http://localhost:3001
+          LOG_LEVEL: error
 
       - name: Upload unit test coverage
         uses: actions/upload-artifact@v4

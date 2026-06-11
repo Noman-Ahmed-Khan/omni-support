@@ -1,0 +1,76 @@
+name: E2E Tests
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'tests/e2e/**'
+      - 'jest.config.ts'
+      - 'prisma/**'
+
+jobs:
+  e2e-tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: omnisupport
+          POSTGRES_PASSWORD: omnisupport_secret
+          POSTGRES_DB: omnisupport_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run db:generate
+        env:
+          DATABASE_URL: postgresql://omnisupport:omnisupport_secret@localhost:5432/omnisupport_test
+      - run: npm run db:migrate:prod
+        env:
+          DATABASE_URL: postgresql://omnisupport:omnisupport_secret@localhost:5432/omnisupport_test
+      - run: npm run test:e2e
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://omnisupport:omnisupport_secret@localhost:5432/omnisupport_test
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+          JWT_ACCESS_SECRET: test_access_secret_minimum_32_characters_long
+          JWT_REFRESH_SECRET: test_refresh_secret_minimum_32_characters_long
+          OPENAI_API_KEY: sk-test
+          EMAIL_FROM: test@test.com
+          SMTP_HOST: localhost
+          SMTP_PORT: 1025
+          SMTP_USER: test
+          SMTP_PASSWORD: test
+          STORAGE_PROVIDER: local
+          LOCAL_STORAGE_PATH: /tmp/uploads-test
+          LOCAL_STORAGE_SECRET: test_secret
+          WHATSAPP_ACCOUNT_SID: test
+          WHATSAPP_AUTH_TOKEN: test
+          WHATSAPP_FROM_NUMBER: '+14155238886'
+          WHATSAPP_WEBHOOK_SECRET: test
+          FRONTEND_URL: http://localhost:3001
+          CORS_ORIGINS: http://localhost:3001
+          LOG_LEVEL: error
