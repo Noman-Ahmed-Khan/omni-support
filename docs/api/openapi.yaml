@@ -1,24 +1,2315 @@
-openapi: 3.0.0
+openapi: 3.0.3
 info:
   title: OmniSupport API
-  description: API for the OmniSupport customer support platform.
+  description: API documentation for the OmniSupport customer support backend.
   version: 1.0.0
 servers:
-  - url: http://localhost:3000/api/v1
+  - url: http://localhost:3000
     description: Local development server
+tags:
+  - name: Health
+    description: Health and readiness endpoints
+  - name: Auth
+    description: Authentication, session, and OAuth routes
+  - name: Users
+    description: User profile and admin user management
+  - name: Tenants
+    description: Tenant administration
+  - name: Tickets
+    description: Ticket lifecycle and ticket-related actions
+  - name: Customers
+    description: Customer management and profile data
+  - name: Comments
+    description: Ticket comment management
+  - name: Attachments
+    description: File upload and download
+  - name: AI
+    description: AI-powered ticket analysis and suggestions
+  - name: Analytics
+    description: Analytics and dashboard data
+  - name: Reports
+    description: Report generation and export jobs
+  - name: Search
+    description: Global search across tenants
+  - name: Notifications
+    description: User notification management
+  - name: Webhooks
+    description: Incoming webhook receivers
 paths:
   /health:
     get:
-      summary: Health check
-      description: Returns the health status of the API.
+      tags:
+        - Health
+      summary: Full health snapshot
+      description: Returns application readiness and internal system checks.
       responses:
         '200':
-          description: API is healthy
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthFullResponse'
+        '503':
+          description: Service is not healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthFullResponse'
+  /health/live:
+    get:
+      tags:
+        - Health
+      summary: Liveness probe
+      description: Returns a lightweight liveness response.
+      responses:
+        '200':
+          description: Service is running
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthLivenessResponse'
+  /health/ready:
+    get:
+      tags:
+        - Health
+      summary: Readiness probe
+      description: Returns readiness status for external dependencies.
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthReadyResponse'
+        '503':
+          description: Service is not ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthReadyResponse'
+  /metrics:
+    get:
+      tags:
+        - Health
+      summary: Prometheus metrics
+      description: Returns application metrics in Prometheus text format.
+      responses:
+        '200':
+          description: Metrics text
+          content:
+            text/plain:
+              schema:
+                type: string
+  /api/v1/auth/register:
+    post:
+      tags:
+        - Auth
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthRegisterRequest'
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponseWrapper'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+  /api/v1/auth/login:
+    post:
+      tags:
+        - Auth
+      summary: Authenticate and issue JWT access token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthLoginRequest'
+      responses:
+        '200':
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthLoginResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /api/v1/auth/refresh:
+    post:
+      tags:
+        - Auth
+      summary: Rotate refresh token and issue a new access token
+      description: Uses the refresh token from cookie or request body.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthRefreshRequest'
+      responses:
+        '200':
+          description: Refresh successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthRefreshResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /api/v1/auth/forgot-password:
+    post:
+      tags:
+        - Auth
+      summary: Request a password reset email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForgotPasswordRequest'
+      responses:
+        '200':
+          description: Password reset request accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+  /api/v1/auth/reset-password:
+    post:
+      tags:
+        - Auth
+      summary: Reset a user password using a token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+      responses:
+        '200':
+          description: Password reset successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /api/v1/auth/verify-email:
+    post:
+      tags:
+        - Auth
+      summary: Verify a user's email address
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyEmailRequest'
+      responses:
+        '200':
+          description: Email verified successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+  /api/v1/auth/google:
+    get:
+      tags:
+        - Auth
+      summary: Redirect to Google OAuth authorization
+      responses:
+        '302':
+          description: Redirects to Google sign-in
+  /api/v1/auth/google/callback:
+    get:
+      tags:
+        - Auth
+      summary: Handle Google OAuth callback
+      responses:
+        '302':
+          description: Redirects to frontend after successful OAuth login
+        '400':
+          $ref: '#/components/responses/ValidationError'
+  /api/v1/auth/logout:
+    post:
+      tags:
+        - Auth
+      summary: Revoke the current refresh token and clear session cookie
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /api/v1/auth/me:
+    get:
+      tags:
+        - Auth
+      summary: Return current authenticated user
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Authenticated user profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponseWrapper'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /api/v1/users/me:
+    get:
+      tags:
+        - Users
+      summary: Get profile for current user
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/UserResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+    put:
+      tags:
+        - Users
+      summary: Update current user profile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserProfileRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/UserResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /api/v1/users:
+    get:
+      tags:
+        - Users
+      summary: List users
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/SortByUsers'
+        - $ref: '#/components/parameters/SortOrder'
+        - name: role
+          in: query
+          schema:
+            type: string
+          description: Filter by one or more roles
+        - name: status
+          in: query
+          schema:
+            type: string
+          description: Filter by user status
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search text for users
+      responses:
+        '200':
+          description: Paginated user list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedUserResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+  /api/v1/users/{id}:
+    get:
+      tags:
+        - Users
+      summary: Get user by id
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          $ref: '#/components/responses/UserResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+  /api/v1/users/{id}/role:
+    put:
+      tags:
+        - Users
+      summary: Change a user's role
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangeUserRoleRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/UserResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+  /api/v1/tenants:
+    get:
+      tags:
+        - Tenants
+      summary: List tenants
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Tenant list
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  status:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TenantResponse'
+                  timestamp:
                     type: string
-                    example: ok
+                    format: date-time
+              
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+    post:
+      tags:
+        - Tenants
+      summary: Create a new tenant
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTenantRequest'
+      responses:
+        '201':
+          description: Tenant created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantResponseWrapper'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+  /api/v1/tenants/{id}:
+    get:
+      tags:
+        - Tenants
+      summary: Get tenant by id
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          $ref: '#/components/responses/TenantResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+    patch:
+      tags:
+        - Tenants
+      summary: Update tenant settings
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTenantRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/TenantResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+    post:
+      tags:
+        - Tenants
+      summary: Suspend a tenant
+      description: Platform admin only action
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SuspendTenantRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/MessageResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+  /api/v1/tenants/{id}/restore:
+    post:
+      tags:
+        - Tenants
+      summary: Restore a suspended tenant
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          $ref: '#/components/responses/MessageResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+  /api/v1/tickets:
+    get:
+      tags:
+        - Tickets
+      summary: List tickets
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/SortByTickets'
+        - $ref: '#/components/parameters/SortOrder'
+        - name: status
+          in: query
+          schema:
+            type: string
+          description: Comma-separated ticket statuses
+        - name: priority
+          in: query
+          schema:
+            type: string
+          description: Comma-separated priorities
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: assignedAgentId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: customerId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: isEscalated
+          in: query
+          schema:
+            type: boolean
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: dateFrom
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: dateTo
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: tags
+          in: query
+          schema:
+            type: string
+            description: Comma-separated tag values
+      responses:
+        '200':
+          description: Paginated ticket list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedTicketResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+    post:
+      tags:
+        - Tickets
+      summary: Create a new ticket
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTicketRequest'
+      responses:
+        '201':
+          description: Ticket created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketResponseWrapper'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /api/v1/tickets/{id}:
+    get:
+      tags:
+        - Tickets
+      summary: Get ticket details
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TicketId'
+      responses:
+        '200':
+          $ref: '#/components/responses/TicketResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+    patch:
+      tags:
+        - Tickets
+      summary: Update ticket fields
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TicketId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTicketRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/TicketResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+  /api/v1/tickets/{id}/assign:
+    post:
+      tags:
+        - Tickets
+      summary: Assign a ticket to an agent
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TicketId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignTicketRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/TicketResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+  /api/v1/tickets/{id}/status:
+    patch:
+      tags:
+        - Tickets
+      summary: Change ticket status
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TicketId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangeTicketStatusRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/TicketResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+  /api/v1/tickets/{id}/escalate:
+    post:
+      tags:
+        - Tickets
+      summary: Escalate a ticket
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TicketId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EscalateTicketRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/TicketResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+  /api/v1/tickets/{id}/comments:
+    post:
+      tags:
+        - Tickets
+      summary: Add a comment to a ticket
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TicketId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddCommentRequest'
+      responses:
+        '201':
+          description: Comment created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommentResponseWrapper'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /api/v1/tickets/{id}/history:
+    get:
+      tags:
+        - Tickets
+      summary: Get ticket history log
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TicketId'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Ticket activity log
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedActivityLogResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+  /api/v1/comments/{id}:
+    put:
+      tags:
+        - Comments
+      summary: Edit an existing comment
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CommentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EditCommentRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/MessageResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+    delete:
+      tags:
+        - Comments
+      summary: Delete a comment
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CommentId'
+      responses:
+        '204':
+          description: Comment deleted successfully
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /api/v1/attachments/upload:
+    post:
+      tags:
+        - Attachments
+      summary: Upload an attachment
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UploadAttachmentRequest'
+      responses:
+        '201':
+          description: Attachment metadata created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttachmentResponseWrapper'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+  /api/v1/attachments/{id}/download-url:
+    get:
+      tags:
+        - Attachments
+      summary: Get a secure download URL for an attachment
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AttachmentId'
+      responses:
+        '200':
+          description: Download URL
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttachmentDownloadResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /api/v1/attachments/{id}:
+    delete:
+      tags:
+        - Attachments
+      summary: Delete an attachment
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AttachmentId'
+      responses:
+        '204':
+          description: Attachment deleted successfully
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /api/v1/ai/tickets/{id}/categorize:
+    post:
+      tags:
+        - AI
+      summary: Queue ticket categorization
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TicketId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AIRequest'
+      responses:
+        '202':
+          $ref: '#/components/responses/MessageResponse'
+  /api/v1/ai/tickets/{id}/sentiment:
+    post:
+      tags:
+        - AI
+      summary: Queue ticket sentiment analysis
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TicketId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AIRequest'
+      responses:
+        '202':
+          $ref: '#/components/responses/MessageResponse'
+  /api/v1/ai/tickets/{id}/urgency:
+    post:
+      tags:
+        - AI
+      summary: Queue ticket urgency prediction
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TicketId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AIRequest'
+      responses:
+        '202':
+          $ref: '#/components/responses/MessageResponse'
+  /api/v1/ai/tickets/{id}/suggest-response:
+    post:
+      tags:
+        - AI
+      summary: Queue a suggested response for a ticket
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TicketId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AIRequest'
+      responses:
+        '202':
+          $ref: '#/components/responses/MessageResponse'
+  /api/v1/ai/tickets/{id}/summarize:
+    post:
+      tags:
+        - AI
+      summary: Queue ticket summarization
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TicketId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AIRequest'
+      responses:
+        '202':
+          $ref: '#/components/responses/MessageResponse'
+  /api/v1/ai/tickets/{id}/results:
+    get:
+      tags:
+        - AI
+      summary: Fetch AI results for a ticket
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TicketId'
+      responses:
+        '200':
+          description: AI results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AIResultsResponse'
+  /api/v1/ai/customers/{id}/risk-score:
+    post:
+      tags:
+        - AI
+      summary: Queue AI risk score calculation for a customer
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AIRequest'
+      responses:
+        '202':
+          $ref: '#/components/responses/MessageResponse'
+  /api/v1/ai/suggestions/{id}/accept:
+    post:
+      tags:
+        - AI
+      summary: Accept a suggested AI response
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AIRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/MessageResponse'
+  /api/v1/customers:
+    get:
+      tags:
+        - Customers
+      summary: List customers
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/SortByCustomers'
+        - $ref: '#/components/parameters/SortOrder'
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [ACTIVE, INACTIVE, BLOCKED]
+        - name: assignedAgentId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: riskLabel
+          in: query
+          schema:
+            type: string
+            enum: [LOW, MEDIUM, HIGH, CRITICAL]
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Paginated customer list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedCustomerResponse'
+    post:
+      tags:
+        - Customers
+      summary: Create a new customer record
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCustomerRequest'
+      responses:
+        '201':
+          description: Customer created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerResponseWrapper'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+  /api/v1/customers/{id}:
+    get:
+      tags:
+        - Customers
+      summary: Get a customer record
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+      responses:
+        '200':
+          $ref: '#/components/responses/CustomerResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+    patch:
+      tags:
+        - Customers
+      summary: Update a customer record
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCustomerRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/CustomerResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+    delete:
+      tags:
+        - Customers
+      summary: Delete a customer
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+      responses:
+        '204':
+          description: Customer deleted successfully
+  /api/v1/customers/{id}/timeline:
+    get:
+      tags:
+        - Customers
+      summary: Get customer timeline activity
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Paginated timeline
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedActivityLogResponse'
+  /api/v1/customers/{id}/risk-score:
+    post:
+      tags:
+        - Customers
+      summary: Trigger customer risk score calculation
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+      responses:
+        '202':
+          $ref: '#/components/responses/MessageResponse'
+  /api/v1/analytics/trends:
+    get:
+      tags:
+        - Analytics
+      summary: Ticket trend metrics for the current tenant
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: days
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 365
+          description: Lookback period in days (default 30)
+      responses:
+        '200':
+          description: Trends metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyticsTrendsResponse'
+  /api/v1/analytics/platform:
+    get:
+      tags:
+        - Analytics
+      summary: Platform metrics for administrators
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Platform metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlatformMetricsResponse'
+  /api/v1/dashboards:
+    get:
+      tags:
+        - Analytics
+      summary: Tenant dashboard metrics
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Dashboard data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardResponse'
+  /api/v1/reports/generate:
+    post:
+      tags:
+        - Reports
+      summary: Queue a report generation job
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateReportRequest'
+      responses:
+        '202':
+          $ref: '#/components/responses/MessageResponse'
+  /api/v1/search:
+    get:
+      tags:
+        - Search
+      summary: Global tenant search
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+          description: Search query text
+        - name: types
+          in: query
+          schema:
+            type: string
+          description: "Comma-separated search types: ticket, customer, comment"
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResultsResponse'
+  /api/v1/notifications:
+    get:
+      tags:
+        - Notifications
+      summary: List current user notifications
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Paginated notifications
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedNotificationResponse'
+  /api/v1/notifications/{id}/read:
+    patch:
+      tags:
+        - Notifications
+      summary: Mark a notification as read
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/NotificationId'
+      responses:
+        '200':
+          $ref: '#/components/responses/MessageResponse'
+  /api/v1/notifications/mark-all-read:
+    patch:
+      tags:
+        - Notifications
+      summary: Mark all current notifications as read
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/MessageResponse'
+  /api/v1/webhooks/whatsapp/inbound:
+    post:
+      tags:
+        - Webhooks
+      summary: Receive inbound WhatsApp webhook events
+      description: Validates Twilio signature and queues inbound messages.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Payload forwarded by the WhatsApp provider
+      responses:
+        '200':
+          description: Acknowledged webhook
+          content:
+            text/plain:
+              schema:
+                type: string
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+  /api/v1/webhooks/whatsapp/status:
+    post:
+      tags:
+        - Webhooks
+      summary: Receive WhatsApp status update webhooks
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Provider status payload
+      responses:
+        '200':
+          description: Status update acknowledged
+          content:
+            text/plain:
+              schema:
+                type: string
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+      description: Page number for pagination
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+      description: Page size for pagination
+    SortOrder:
+      name: sortOrder
+      in: query
+      schema:
+        type: string
+        enum: [asc, desc]
+        default: desc
+      description: Sort order for lists
+    SortByUsers:
+      name: sortBy
+      in: query
+      schema:
+        type: string
+        enum: [createdAt, updatedAt, fullName, role, status, email]
+      description: Field used to sort users
+    SortByTickets:
+      name: sortBy
+      in: query
+      schema:
+        type: string
+        enum: [createdAt, updatedAt, priority, status, ticketNumber]
+      description: Field used to sort tickets
+    SortByCustomers:
+      name: sortBy
+      in: query
+      schema:
+        type: string
+        enum: [createdAt, updatedAt, fullName, riskScore, lastActivityAt]
+      description: Field used to sort customers
+    UserId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: User identifier
+    TenantId:
+      $ref: '#/components/parameters/UserId'
+    TicketId:
+      $ref: '#/components/parameters/UserId'
+    CustomerId:
+      $ref: '#/components/parameters/UserId'
+    CommentId:
+      $ref: '#/components/parameters/UserId'
+    AttachmentId:
+      $ref: '#/components/parameters/UserId'
+    NotificationId:
+      $ref: '#/components/parameters/UserId'
+  schemas:
+    HealthLivenessResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+    HealthReadyResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        checks:
+          type: object
+          additionalProperties:
+            type: string
+      required: [status, checks]
+    HealthFullResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        checks:
+          type: object
+          additionalProperties:
+            type: string
+        websocket:
+          type: object
+          properties:
+            connectedClients:
+              type: integer
+      required: [status, checks, websocket]
+    AuthRegisterRequest:
+      type: object
+      required: [email, password, firstName, lastName]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+        firstName:
+          type: string
+        lastName:
+          type: string
+    AuthLoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+    AuthRefreshRequest:
+      type: object
+      properties:
+        refreshToken:
+          type: string
+    ForgotPasswordRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+    ResetPasswordRequest:
+      type: object
+      required: [token, password, confirmPassword]
+      properties:
+        token:
+          type: string
+        password:
+          type: string
+          minLength: 8
+        confirmPassword:
+          type: string
+    VerifyEmailRequest:
+      type: object
+      required: [token, userId]
+      properties:
+        token:
+          type: string
+        userId:
+          type: string
+          format: uuid
+    UserBase:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        firstName:
+          type: string
+        lastName:
+          type: string
+        fullName:
+          type: string
+        role:
+          type: string
+          enum: [PLATFORM_ADMIN, TENANT_MANAGER, AGENT, CUSTOMER]
+        status:
+          type: string
+        tenantId:
+          type: string
+          format: uuid
+        avatarUrl:
+          type: string
+          format: uri
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        timezone:
+          type: string
+          nullable: true
+        locale:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, email, firstName, lastName, fullName, role, status, tenantId, createdAt, updatedAt]
+    UserResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/UserBase'
+    UserResponseWrapper:
+      $ref: '#/components/schemas/UserResponse'
+    UpdateUserProfileRequest:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        avatarUrl:
+          type: string
+          format: uri
+        phone:
+          type: string
+        timezone:
+          type: string
+        locale:
+          type: string
+    ChangeUserRoleRequest:
+      type: object
+      required: [role]
+      properties:
+        role:
+          type: string
+          enum: [PLATFORM_ADMIN, TENANT_MANAGER, AGENT, CUSTOMER]
+    TenantBase:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          type: string
+        domain:
+          type: string
+          nullable: true
+        plan:
+          type: string
+          enum: [starter, professional, enterprise]
+        maxAgents:
+          type: integer
+        maxCustomers:
+          type: integer
+        status:
+          type: string
+        settings:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, name, plan, maxAgents, maxCustomers, status, createdAt, updatedAt]
+    TenantResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/TenantBase'
+    TenantResponseWrapper:
+      $ref: '#/components/schemas/TenantResponse'
+    CreateTenantRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+        domain:
+          type: string
+        plan:
+          type: string
+          enum: [starter, professional, enterprise]
+        maxAgents:
+          type: integer
+        maxCustomers:
+          type: integer
+    UpdateTenantRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        domain:
+          type: string
+        plan:
+          type: string
+          enum: [starter, professional, enterprise]
+        maxAgents:
+          type: integer
+        maxCustomers:
+          type: integer
+        settings:
+          type: object
+          additionalProperties: true
+    SuspendTenantRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+    TicketBase:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        ticketNumber:
+          type: string
+        customerId:
+          type: string
+          format: uuid
+        assignedAgentId:
+          type: string
+          format: uuid
+          nullable: true
+        createdById:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [OPEN, IN_PROGRESS, PENDING_CUSTOMER, RESOLVED, CLOSED]
+        priority:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+        category:
+          type: string
+          enum: [BILLING, TECHNICAL, ACCOUNT, REFUND, SHIPPING, GENERAL, OTHER]
+        tags:
+          type: array
+          items:
+            type: string
+        source:
+          type: string
+          enum: [web, email, whatsapp, api]
+        isEscalated:
+          type: boolean
+        escalatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        escalatedReason:
+          type: string
+          nullable: true
+        resolvedAt:
+          type: string
+          format: date-time
+          nullable: true
+        closedAt:
+          type: string
+          format: date-time
+          nullable: true
+        firstResponseAt:
+          type: string
+          format: date-time
+          nullable: true
+        dueAt:
+          type: string
+          format: date-time
+          nullable: true
+        slaBreached:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, tenantId, ticketNumber, customerId, createdById, title, description, status, priority, category, tags, source, isEscalated, slaBreached, createdAt, updatedAt]
+    TicketResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/TicketBase'
+    TicketResponseWrapper:
+      $ref: '#/components/schemas/TicketResponse'
+    CreateTicketRequest:
+      type: object
+      required: [customerId, title, description]
+      properties:
+        customerId:
+          type: string
+          format: uuid
+        title:
+          type: string
+          minLength: 5
+        description:
+          type: string
+          minLength: 10
+        priority:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+          default: MEDIUM
+        category:
+          type: string
+          enum: [BILLING, TECHNICAL, ACCOUNT, REFUND, SHIPPING, GENERAL, OTHER]
+          default: GENERAL
+        tags:
+          type: array
+          items:
+            type: string
+        source:
+          type: string
+          enum: [web, email, whatsapp, api]
+          default: web
+        assignedAgentId:
+          type: string
+          format: uuid
+        dueAt:
+          type: string
+          format: date-time
+    UpdateTicketRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 5
+        description:
+          type: string
+          minLength: 10
+        priority:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+        category:
+          type: string
+          enum: [BILLING, TECHNICAL, ACCOUNT, REFUND, SHIPPING, GENERAL, OTHER]
+        tags:
+          type: array
+          items:
+            type: string
+        dueAt:
+          type: string
+          format: date-time
+    AssignTicketRequest:
+      type: object
+      required: [agentId]
+      properties:
+        agentId:
+          type: string
+          format: uuid
+    ChangeTicketStatusRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [OPEN, IN_PROGRESS, PENDING_CUSTOMER, RESOLVED, CLOSED]
+    EscalateTicketRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          minLength: 10
+    AddCommentRequest:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+          minLength: 1
+        type:
+          type: string
+          enum: [PUBLIC, INTERNAL]
+          default: PUBLIC
+    CommentResponseWrapper:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+    AttachmentBase:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        filename:
+          type: string
+        mimeType:
+          type: string
+        sizeBytes:
+          type: integer
+        publicUrl:
+          type: string
+          format: uri
+    AttachmentResponseWrapper:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/AttachmentBase'
+        timestamp:
+          type: string
+          format: date-time
+    AttachmentDownloadResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            url:
+              type: string
+              format: uri
+        timestamp:
+          type: string
+          format: date-time
+    UploadAttachmentRequest:
+      type: object
+      required: [filename, mimeType, base64Content]
+      properties:
+        filename:
+          type: string
+        mimeType:
+          type: string
+        base64Content:
+          type: string
+        ticketId:
+          type: string
+          format: uuid
+        commentId:
+          type: string
+          format: uuid
+    AIRequest:
+      type: object
+      properties:
+        content:
+          type: string
+    AIResultsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          additionalProperties: true
+        timestamp:
+          type: string
+          format: date-time
+    CreateCustomerRequest:
+      type: object
+      required: [fullName, email]
+      properties:
+        fullName:
+          type: string
+          minLength: 2
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        company:
+          type: string
+        notes:
+          type: string
+        assignedAgentId:
+          type: string
+          format: uuid
+        externalId:
+          type: string
+    UpdateCustomerRequest:
+      type: object
+      properties:
+        fullName:
+          type: string
+          minLength: 2
+        phone:
+          type: string
+        company:
+          type: string
+        notes:
+          type: string
+        assignedAgentId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [ACTIVE, INACTIVE, BLOCKED]
+    CustomerBase:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        assignedAgentId:
+          type: string
+          format: uuid
+          nullable: true
+        fullName:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+          nullable: true
+        company:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [ACTIVE, INACTIVE, BLOCKED]
+        riskScore:
+          type: number
+          nullable: true
+        riskLabel:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+          nullable: true
+        externalId:
+          type: string
+          nullable: true
+        lastActivityAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, tenantId, fullName, email, status, createdAt, updatedAt]
+    CustomerResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/CustomerBase'
+    CustomerResponseWrapper:
+      $ref: '#/components/schemas/CustomerResponse'
+    ActivityLogBase:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        ticketId:
+          type: string
+          format: uuid
+          nullable: true
+        customerId:
+          type: string
+          format: uuid
+          nullable: true
+        actorId:
+          type: string
+          format: uuid
+          nullable: true
+        actorRole:
+          type: string
+          nullable: true
+        eventType:
+          type: string
+        description:
+          type: string
+        oldValue:
+          type: object
+          additionalProperties: true
+          nullable: true
+        newValue:
+          type: object
+          additionalProperties: true
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+        occurredAt:
+          type: string
+          format: date-time
+      required: [id, tenantId, eventType, description, metadata, occurredAt]
+    PaginatedActivityLogResponse:
+      allOf:
+        - $ref: '#/components/schemas/PaginatedResponseActivityLog'
+    PaginatedResponseActivityLog:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActivityLogBase'
+        meta:
+          type: object
+          properties:
+            page:
+              type: integer
+            limit:
+              type: integer
+            total:
+              type: integer
+            totalPages:
+              type: integer
+        timestamp:
+          type: string
+          format: date-time
+    PaginatedTicketResponse:
+      allOf:
+        - $ref: '#/components/schemas/PaginatedResponseTicket'
+    PaginatedResponseTicket:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/TicketBase'
+        meta:
+          type: object
+          properties:
+            page:
+              type: integer
+            limit:
+              type: integer
+            total:
+              type: integer
+            totalPages:
+              type: integer
+        timestamp:
+          type: string
+          format: date-time
+    PaginatedUserResponse:
+      allOf:
+        - $ref: '#/components/schemas/PaginatedResponseUser'
+    PaginatedResponseUser:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserBase'
+        meta:
+          type: object
+          properties:
+            page:
+              type: integer
+            limit:
+              type: integer
+            total:
+              type: integer
+            totalPages:
+              type: integer
+        timestamp:
+          type: string
+          format: date-time
+    PaginatedCustomerResponse:
+      allOf:
+        - $ref: '#/components/schemas/PaginatedResponseCustomer'
+    PaginatedResponseCustomer:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/CustomerBase'
+        meta:
+          type: object
+          properties:
+            page:
+              type: integer
+            limit:
+              type: integer
+            total:
+              type: integer
+            totalPages:
+              type: integer
+        timestamp:
+          type: string
+          format: date-time
+    PaginatedNotificationResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              channel:
+                type: string
+              subject:
+                type: string
+                nullable: true
+              content:
+                type: string
+              status:
+                type: string
+              readAt:
+                type: string
+                format: date-time
+                nullable: true
+              createdAt:
+                type: string
+                format: date-time
+        meta:
+          type: object
+          properties:
+            page:
+              type: integer
+            limit:
+              type: integer
+            total:
+              type: integer
+            totalPages:
+              type: integer
+        timestamp:
+          type: string
+          format: date-time
+    AnalyticsTrendsResponse:
+      type: object
+      additionalProperties: true
+    PlatformMetricsResponse:
+      type: object
+      additionalProperties: true
+    DashboardResponse:
+      type: object
+      additionalProperties: true
+    GenerateReportRequest:
+      type: object
+      required: [jobType]
+      properties:
+        jobType:
+          type: string
+          enum: [summary, export, snapshot]
+        format:
+          type: string
+          enum: [json, csv]
+        filters:
+          type: object
+          additionalProperties: true
+    SearchResultsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        meta:
+          type: object
+          properties:
+            total:
+              type: integer
+            page:
+              type: integer
+            limit:
+              type: integer
+            totalPages:
+              type: integer
+        timestamp:
+          type: string
+          format: date-time
+    MessageResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            message:
+              type: string
+        timestamp:
+          type: string
+          format: date-time
+    ApiResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          oneOf:
+            - type: object
+            - type: array
+        meta:
+          type: object
+          nullable: true
+          properties:
+            page:
+              type: integer
+            limit:
+              type: integer
+            total:
+              type: integer
+            totalPages:
+              type: integer
+        timestamp:
+          type: string
+          format: date-time
+    ErrorResponse:
+      type: object
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        correlationId:
+          type: string
+          nullable: true
+        timestamp:
+          type: string
+          format: date-time
+    ValidationErrorResponse:
+      allOf:
+        - $ref: '#/components/schemas/ErrorResponse'
+        - type: object
+          properties:
+            errors:
+              type: object
+              additionalProperties:
+                type: array
+                items:
+                  type: string
+  responses:
+    UnauthorizedError:
+      description: Authorization required or invalid credentials
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ForbiddenError:
+      description: Forbidden access
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFoundError:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ConflictError:
+      description: Conflict due to duplicate or invalid state
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ValidationError:
+      description: Request validation failure
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationErrorResponse'
+    BadRequestError:
+      description: Bad request payload or missing information
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalServerError:
+      description: Unexpected server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
