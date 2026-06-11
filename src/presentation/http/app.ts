@@ -9,7 +9,7 @@ import { createRateLimitMiddleware } from './middlewares/rate-limit.middleware';
 import { sanitizeMiddleware } from './middlewares/sanitize.middleware';
 import { createApplicationRouter } from './router';
 import { createSwaggerRouter } from './swagger';
-import { appConfig } from '../../config/app.config';
+import { getAppConfig } from '../../config/app.config';
 import type { Container } from '../../infrastructure/di';
 import { createMetricsMiddleware } from '../../infrastructure/observability/metrics/metrics.middleware';
 import type { MetricsService } from '../../infrastructure/observability/metrics/metrics.service';
@@ -28,7 +28,9 @@ export function createApp(container: Container): Application {
   app.use(createSecurityHeaders());
 
   // CORS
-  const allowedOrigins = appConfig.corsOrigins.split(',').map((o) => o.trim());
+  const allowedOrigins = getAppConfig()
+    .corsOrigins.split(',')
+    .map((o) => o.trim());
 
   app.use(
     cors({

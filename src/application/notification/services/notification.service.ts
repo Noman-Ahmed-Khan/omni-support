@@ -2,7 +2,7 @@ import crypto from 'crypto';
 
 import type { PrismaClient } from '@prisma/client';
 
-import { appConfig } from '../../../config/app.config';
+import { getAppConfig } from '../../../config/app.config';
 import {
   NotificationEntity,
   NotificationStatusEnum,
@@ -78,7 +78,7 @@ export class NotificationService {
 
       if (!customer || !tenant) return;
 
-      const ticketUrl = `${appConfig.frontendUrl}/tickets/${dto.ticketId}`;
+      const ticketUrl = `${getAppConfig().frontendUrl}/tickets/${dto.ticketId}`;
 
       // Email customer
       await this.emailQueue.add({
@@ -141,7 +141,7 @@ export class NotificationService {
 
       if (!agent || !tenant) return;
 
-      const ticketUrl = `${appConfig.frontendUrl}/tickets/${dto.ticketId}`;
+      const ticketUrl = `${getAppConfig().frontendUrl}/tickets/${dto.ticketId}`;
 
       // Email agent
       await this.emailQueue.add({
@@ -198,7 +198,7 @@ export class NotificationService {
         },
       });
 
-      const ticketUrl = `${appConfig.frontendUrl}/tickets/${dto.ticketId}`;
+      const ticketUrl = `${getAppConfig().frontendUrl}/tickets/${dto.ticketId}`;
 
       for (const manager of managers) {
         await this.emailQueue.add(
@@ -282,7 +282,7 @@ export class NotificationService {
 
       if (!ticket) return;
 
-      const ticketUrl = `${appConfig.frontendUrl}/tickets/${ticketId}`;
+      const ticketUrl = `${getAppConfig().frontendUrl}/tickets/${ticketId}`;
 
       // Email customer
       await this.emailQueue.add({
@@ -343,7 +343,7 @@ export class NotificationService {
             dto.ticketNumber,
             dto.title,
             dto.authorName,
-            `${appConfig.frontendUrl}/tickets/${dto.ticketId}`,
+            `${getAppConfig().frontendUrl}/tickets/${dto.ticketId}`,
             ticket.tenant.name,
           ),
         });

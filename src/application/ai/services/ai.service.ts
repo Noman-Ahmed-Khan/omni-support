@@ -2,7 +2,7 @@ import crypto from 'crypto';
 
 import type { AIResult, PrismaClient, Prisma } from '@prisma/client';
 
-import { aiConfig } from '../../../config/ai.config';
+import { getAIConfig } from '../../../config/ai.config';
 import { AiPolicy } from '../../../domain/policies/ai-policy';
 import type { ITicketRepository } from '../../../domain/ticket/repositories/ticket.repository.interface';
 import type { IAIProvider } from '../../../infrastructure/ai/ai-provider.interface';
@@ -237,7 +237,7 @@ export class AIService {
 
       // Auto-escalate if urgency exceeds threshold
       if (
-        result.score >= aiConfig.escalationUrgencyThreshold &&
+        result.score >= getAIConfig().escalationUrgencyThreshold &&
         !ticket.isEscalated &&
         ticket.isActive()
       ) {

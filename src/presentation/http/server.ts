@@ -2,7 +2,7 @@ import http from 'http';
 
 import type { Application } from 'express';
 
-import { appConfig } from '../../config/app.config';
+import { getAppConfig } from '../../config/app.config';
 import { disconnectRedis } from '../../infrastructure/cache/redis.client';
 import { disconnectDatabase } from '../../infrastructure/database/prisma.client';
 import { closeAllQueues } from '../../infrastructure/queue/queue.factory';
@@ -51,10 +51,10 @@ export class HttpServer {
 
   async start(): Promise<void> {
     return new Promise((resolve) => {
-      this.server.listen(appConfig.port, () => {
+      this.server.listen(getAppConfig().port, () => {
         logger.info(`OmniSupport API server started`, {
-          port: appConfig.port,
-          env: appConfig.env,
+          port: getAppConfig().port,
+          env: getAppConfig().env,
           pid: process.pid,
         });
         resolve();

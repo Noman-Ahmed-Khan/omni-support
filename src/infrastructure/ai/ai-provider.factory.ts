@@ -1,6 +1,6 @@
 import type { IAIProvider } from './ai-provider.interface';
 import { OpenAIProvider } from './openai.provider';
-import { aiConfig } from '../../config/ai.config';
+import { getAIConfig } from '../../config/ai.config';
 
 export class AIProviderFactory {
   private static instance: IAIProvider;
@@ -10,11 +10,12 @@ export class AIProviderFactory {
       return AIProviderFactory.instance;
     }
 
-    const provider: string = aiConfig.provider;
+    const config = getAIConfig();
+    const provider: string = config.provider;
 
     switch (provider) {
       case 'openai':
-        AIProviderFactory.instance = new OpenAIProvider(aiConfig.openaiApiKey);
+        AIProviderFactory.instance = new OpenAIProvider(config.openaiApiKey);
         break;
       default:
         throw new Error(`Unsupported AI provider: ${provider}`);

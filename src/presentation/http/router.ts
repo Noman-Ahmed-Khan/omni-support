@@ -3,7 +3,7 @@ import { Router } from 'express';
 import type { HealthController } from './controllers/health.controller';
 import { createHealthRouter } from './routes/health.routes';
 import { createV1Router } from './routes/v1';
-import { appConfig } from '../../config/app.config';
+import { getAppConfig } from '../../config/app.config';
 import type { Container } from '../../infrastructure/di';
 
 export function createApplicationRouter(container: Container): Router {
@@ -15,7 +15,7 @@ export function createApplicationRouter(container: Container): Router {
   router.get('/metrics', (req, res) => healthController.metrics(req, res));
 
   // API v1 Routes
-  router.use(appConfig.apiPrefix, createV1Router(container));
+  router.use(getAppConfig().apiPrefix, createV1Router(container));
 
   // 404 Handler
   router.use((_req, res) => {

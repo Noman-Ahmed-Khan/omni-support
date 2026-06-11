@@ -6,7 +6,7 @@ import type {
   EmailPayload,
   EmailResult,
 } from './email-provider.interface';
-import { messagingConfig } from '../../../config/messaging.config';
+import { getMessagingConfig } from '../../../config/messaging.config';
 import { InfrastructureError } from '../../../shared/errors/infrastructure.error';
 import { logger } from '../../../shared/utils/logger.util';
 
@@ -14,6 +14,7 @@ export class SMTPEmailProvider implements IEmailProvider {
   private readonly transporter: Transporter<SmtpSentMessageInfo>;
 
   constructor() {
+    const messagingConfig = getMessagingConfig();
     this.transporter = nodemailer.createTransport({
       host: messagingConfig.smtp.host,
       port: messagingConfig.smtp.port,
@@ -33,7 +34,7 @@ export class SMTPEmailProvider implements IEmailProvider {
   async send(payload: EmailPayload): Promise<EmailResult> {
     try {
       const result = await this.transporter.sendMail({
-        from: payload.from ?? messagingConfig.email.from,
+        from: payload.from ?? getMessagingConfig().email.from,
         to: Array.isArray(payload.to) ? payload.to.join(', ') : payload.to,
         subject: payload.subject,
         html: payload.html,

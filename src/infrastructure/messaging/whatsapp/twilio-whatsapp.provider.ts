@@ -9,7 +9,7 @@ import type {
   WhatsAppResult,
   WhatsAppWebhookPayload,
 } from './whatsapp-provider.interface';
-import { messagingConfig } from '../../../config/messaging.config';
+import { getMessagingConfig } from '../../../config/messaging.config';
 import { InfrastructureError } from '../../../shared/errors/infrastructure.error';
 import { logger } from '../../../shared/utils/logger.util';
 
@@ -23,7 +23,7 @@ interface TwilioWhatsAppConfig {
 const TWILIO_ACCOUNT_SID_PREFIX = 'AC';
 
 function resolveTwilioConfig(): TwilioWhatsAppConfig | null {
-  const whatsappConfig = messagingConfig.whatsapp;
+  const whatsappConfig = getMessagingConfig().whatsapp;
 
   if (!whatsappConfig.provider || whatsappConfig.provider !== 'twilio') {
     logger.warn('Twilio disabled - missing or invalid configuration');

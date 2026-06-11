@@ -1,7 +1,7 @@
 import type { QueueOptions, QueueEvents, Worker } from 'bullmq';
 import { Queue } from 'bullmq';
 
-import { redisConfig } from '../../config/redis.config';
+import { getRedisConfig } from '../../config/redis.config';
 import { logger } from '../../shared/utils/logger.util';
 
 export enum QueueName {
@@ -36,6 +36,7 @@ export function getBullMqConnectionOptions(): {
   password?: string;
   db?: number;
 } {
+  const redisConfig = getRedisConfig();
   const opts: {
     host?: string;
     port?: number;

@@ -11,14 +11,32 @@ const appConfigSchema = z.object({
   maxUploadSizeMb: z.coerce.number().default(10),
 });
 
-export const appConfig = appConfigSchema.parse({
-  name: process.env.APP_NAME,
-  env: process.env.NODE_ENV,
-  port: process.env.PORT,
-  frontendUrl: process.env.FRONTEND_URL,
-  corsOrigins: process.env.CORS_ORIGINS,
-  apiPrefix: process.env.API_PREFIX,
-  maxUploadSizeMb: process.env.MAX_UPLOAD_SIZE,
-});
+export type AppConfig = z.infer<typeof appConfigSchema>;
 
-export type AppConfig = typeof appConfig;
+let _appConfig: AppConfig | null = null;
+
+/**
+ * Returns the validated application configuration.
+ * Config is parsed lazily on first access so that importing this module
+ * does NOT trigger environment variable validation at module load time.
+ * This keeps unit tests free of infrastructure coupling.
+ */
+export function getAppConfig(): AppConfig {
+  if (!_appConfig) {
+    _appConfig = appConfigSchema.parse({
+      name: process.env.APP_NAME,
+      env: process.env.NODE_ENV,
+      port: process.env.PORT,
+      frontendUrl: process.env.FRONTEND_URL,
+      corsOrigins: process.env.CORS_ORIGINS,
+      apiPrefix: process.env.API_PREFIX,
+      maxUploadSizeMb: process.env.MAX_UPLOAD_SIZE,
+    });
+  }
+  return _appConfig;
+}
+
+/** @internal For testing — resets the singleton so tests can override env vars. */
+export function _resetAppConfig(): void {
+  _appConfig = null;
+}

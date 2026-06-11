@@ -4,7 +4,7 @@ import type { PrismaClient } from '@prisma/client';
 import argon2 from 'argon2';
 import jwt from 'jsonwebtoken';
 
-import { jwtConfig } from '../../../config/jwt.config';
+import { getJwtConfig } from '../../../config/jwt.config';
 import { SecretsService } from '../../../infrastructure/security/secrets.service';
 import { TokenSigningService } from '../../../infrastructure/security/token-signing.service';
 import { UnauthorizedError } from '../../../shared/errors/application.error';
@@ -40,28 +40,28 @@ export class TokenService {
 
   generateAccessToken(payload: Omit<AccessTokenPayload, 'type'>): string {
     const options: jwt.SignOptions = {
-      expiresIn: jwtConfig.accessExpiresIn as jwt.SignOptions['expiresIn'],
+      expiresIn: getJwtConfig().accessExpiresIn as jwt.SignOptions['expiresIn'],
       issuer: 'omnisupport',
       audience: 'omnisupport-api',
     };
 
     return this.tokenSigningService.sign(
       { ...payload, type: 'access' },
-      this.secretsService.getJwtAccessSecret() ?? jwtConfig.accessSecret,
+      this.secretsService.getJwtAccessSecret() ?? getJwtConfig().accessSecret,
       options,
     );
   }
 
   generateRefreshToken(userId: string, familyId: string): string {
     const options: jwt.SignOptions = {
-      expiresIn: jwtConfig.refreshExpiresIn as jwt.SignOptions['expiresIn'],
+      expiresIn: getJwtConfig().refreshExpiresIn as jwt.SignOptions['expiresIn'],
       issuer: 'omnisupport',
       audience: 'omnisupport-api',
     };
 
     return this.tokenSigningService.sign(
       { sub: userId, familyId, type: 'refresh' },
-      this.secretsService.getJwtRefreshSecret() ?? jwtConfig.refreshSecret,
+      this.secretsService.getJwtRefreshSecret() ?? getJwtConfig().refreshSecret,
       options,
     );
   }
@@ -70,7 +70,7 @@ export class TokenService {
     try {
       return this.tokenSigningService.verify<AccessTokenPayload>(
         token,
-        this.secretsService.getJwtAccessSecret() ?? jwtConfig.accessSecret,
+        this.secretsService.getJwtAccessSecret() ?? getJwtConfig().accessSecret,
         {
           issuer: 'omnisupport',
           audience: 'omnisupport-api',
@@ -88,7 +88,7 @@ export class TokenService {
     try {
       return this.tokenSigningService.verify<RefreshTokenPayload>(
         token,
-        this.secretsService.getJwtRefreshSecret() ?? jwtConfig.refreshSecret,
+        this.secretsService.getJwtRefreshSecret() ?? getJwtConfig().refreshSecret,
         {
           issuer: 'omnisupport',
           audience: 'omnisupport-api',
@@ -120,7 +120,7 @@ export class TokenService {
       parallelism: 1,
     });
 
-    const expiresAt = new Date(Date.now() + jwtConfig.refreshExpiresInMs);
+    const expiresAt = new Date(Date.now() + getJwtConfig().refreshExpiresInMs);
 
     await this.prisma.refreshToken.create({
       data: {

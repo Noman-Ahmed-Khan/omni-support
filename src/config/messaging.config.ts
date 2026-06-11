@@ -22,22 +22,42 @@ const messagingConfigSchema = z.object({
     .default({}),
 });
 
-export const messagingConfig = messagingConfigSchema.parse({
-  email: {
-    provider: process.env.EMAIL_PROVIDER,
-    from: process.env.EMAIL_FROM,
-  },
-  smtp: {
-    host: process.env.SMTP_HOST,
-    port: process.env.SMTP_PORT,
-    user: process.env.SMTP_USER,
-    password: process.env.SMTP_PASSWORD,
-  },
-  whatsapp: {
-    provider: process.env.WHATSAPP_PROVIDER,
-    accountSid: process.env.WHATSAPP_ACCOUNT_SID,
-    authToken: process.env.WHATSAPP_AUTH_TOKEN,
-    fromNumber: process.env.WHATSAPP_FROM_NUMBER,
-    webhookSecret: process.env.WHATSAPP_WEBHOOK_SECRET,
-  },
-});
+export type MessagingConfig = z.infer<typeof messagingConfigSchema>;
+
+let _messagingConfig: MessagingConfig | null = null;
+
+/**
+ * Returns the validated messaging configuration (SMTP, WhatsApp).
+ * Config is parsed lazily on first access so that importing this module
+ * does NOT trigger environment variable validation at module load time.
+ * This keeps unit tests free of infrastructure coupling.
+ */
+export function getMessagingConfig(): MessagingConfig {
+  if (!_messagingConfig) {
+    _messagingConfig = messagingConfigSchema.parse({
+      email: {
+        provider: process.env.EMAIL_PROVIDER,
+        from: process.env.EMAIL_FROM,
+      },
+      smtp: {
+        host: process.env.SMTP_HOST,
+        port: process.env.SMTP_PORT,
+        user: process.env.SMTP_USER,
+        password: process.env.SMTP_PASSWORD,
+      },
+      whatsapp: {
+        provider: process.env.WHATSAPP_PROVIDER,
+        accountSid: process.env.WHATSAPP_ACCOUNT_SID,
+        authToken: process.env.WHATSAPP_AUTH_TOKEN,
+        fromNumber: process.env.WHATSAPP_FROM_NUMBER,
+        webhookSecret: process.env.WHATSAPP_WEBHOOK_SECRET,
+      },
+    });
+  }
+  return _messagingConfig;
+}
+
+/** @internal For testing — resets the singleton so tests can override env vars. */
+export function _resetMessagingConfig(): void {
+  _messagingConfig = null;
+}

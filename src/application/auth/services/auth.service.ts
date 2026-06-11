@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import type { Prisma, PrismaClient, UserRole } from '@prisma/client';
 
 import type { TokenPair, TokenService } from './token.service';
-import { appConfig } from '../../../config/app.config';
+import { getAppConfig } from '../../../config/app.config';
 import { Password } from '../../../domain/user/value-objects/password.vo';
 import type { CacheService } from '../../../infrastructure/cache/cache.service';
 import type { AuditRepository } from '../../../infrastructure/database/repositories/audit.repository';
@@ -399,7 +399,7 @@ export class AuthService {
     token: string,
     userId: string,
   ): string {
-    const verifyUrl = `${appConfig.frontendUrl}/verify-email?token=${token}&userId=${userId}`;
+    const verifyUrl = `${getAppConfig().frontendUrl}/verify-email?token=${token}&userId=${userId}`;
     return `
       <h1>Welcome to OmniSupport, ${firstName}!</h1>
       <p>Please verify your email address to activate your account.</p>
@@ -411,7 +411,7 @@ export class AuthService {
   }
 
   private buildPasswordResetEmailHtml(firstName: string, token: string): string {
-    const resetUrl = `${appConfig.frontendUrl}/reset-password?token=${token}`;
+    const resetUrl = `${getAppConfig().frontendUrl}/reset-password?token=${token}`;
     return `
       <h1>Reset your password, ${firstName}</h1>
       <p>Click the button below to reset your password. This link expires in 1 hour.</p>

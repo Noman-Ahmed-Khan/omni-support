@@ -1,7 +1,7 @@
 import type { RedisClientType, RedisClientOptions } from 'redis';
 import { createClient } from 'redis';
 
-import { redisConfig } from '../../config/redis.config';
+import { getRedisConfig } from '../../config/redis.config';
 import { logger } from '../../shared/utils/logger.util';
 
 let redisClient: RedisClientType | null = null;
@@ -9,6 +9,8 @@ let redisClientPromise: Promise<RedisClientType> | null = null;
 let redisDisconnectPromise: Promise<void> | null = null;
 
 function getRedisClientOptions(): RedisClientOptions {
+  const redisConfig = getRedisConfig();
+
   if (redisConfig.url) {
     return {
       url: redisConfig.url,

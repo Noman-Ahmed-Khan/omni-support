@@ -3,7 +3,7 @@ import type { IncomingMessage } from 'http';
 import jwt from 'jsonwebtoken';
 
 import type { AccessTokenPayload } from '../../application/auth/services/token.service';
-import { jwtConfig } from '../../config/jwt.config';
+import { getJwtConfig } from '../../config/jwt.config';
 import { logger } from '../../shared/utils/logger.util';
 import { extractBearerTokenFromWebSocketRequest } from '../../shared/utils/token.util';
 
@@ -20,7 +20,10 @@ export class WebSocketAuth {
 
       if (!token) return Promise.resolve(null);
 
-      const payload = jwt.verify(token, jwtConfig.accessSecret) as AccessTokenPayload;
+      const payload = jwt.verify(
+        token,
+        getJwtConfig().accessSecret,
+      ) as AccessTokenPayload;
 
       return Promise.resolve({
         userId: payload.sub,
