@@ -1,21 +1,31 @@
+import { getAppConfig } from '../../config/app.config';
+import { getJwtConfig } from '../../config/jwt.config';
+
+const MIN_SECRET_LENGTH = 32;
+
+function requireSecret(name: string, value: string | undefined): string {
+  if (!value || value.length < MIN_SECRET_LENGTH) {
+    throw new Error(
+      `${name} must be set and at least ${MIN_SECRET_LENGTH} characters long`,
+    );
+  }
+  return value;
+}
+
+/**
+ * Single access point for secrets. There are intentionally no fallback values:
+ * a missing secret must fail loudly instead of silently using a public default.
+ */
 export class SecretsService {
   getJwtAccessSecret(): string {
-    return process.env.JWT_ACCESS_SECRET ?? 'development_access_secret_change_me';
+    return getJwtConfig().accessSecret;
   }
 
   getJwtRefreshSecret(): string {
-    return process.env.JWT_REFRESH_SECRET ?? 'development_refresh_secret_change_me';
+    return getJwtConfig().refreshSecret;
   }
 
   getEncryptionKey(): string {
-    return (
-      process.env.ENCRYPTION_KEY ??
-      process.env.LOCAL_STORAGE_SECRET ??
-      'development_encryption_secret_change_me'
-    );
-  }
-
-  getWebhookSecret(): string {
-    return process.env.WHATSAPP_WEBHOOK_SECRET ?? 'development_webhook_secret_change_me';
+    return requireSecret('ENCRYPTION_KEY', getAppConfig().encryptionKey);
   }
 }
