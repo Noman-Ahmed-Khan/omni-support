@@ -7,11 +7,7 @@ import { logger } from '../../shared/utils/logger.util';
 export enum QueueName {
   NOTIFICATIONS = 'notifications',
   EMAIL = 'email',
-  WHATSAPP = 'whatsapp',
   AI_PROCESSING = 'ai-processing',
-  ANALYTICS = 'analytics',
-  REPORTS = 'reports',
-  WEBHOOKS = 'webhooks',
 }
 
 const queues = new Map<string, Queue>();
@@ -30,19 +26,31 @@ const defaultQueueOptions: Omit<QueueOptions, 'connection'> = {
   },
 };
 
-export function getBullMqConnectionOptions(): {
+export interface BullMqConnectionOptions {
   host?: string;
   port?: number;
+  username?: string;
   password?: string;
   db?: number;
-} {
+  tls?: Record<string, never>;
+}
+
+export function getBullMqConnectionOptions(): BullMqConnectionOptions {
   const redisConfig = getRedisConfig();
-  const opts: {
-    host?: string;
-    port?: number;
-    password?: string;
-    db?: number;
-  } = {};
+  const opts: BullMqConnectionOptions = {};
+
+  // Keep queues on the same Redis as the cache when a URL is configured.
+  if (redisConfig.url) {
+    const url = new URL(redisConfig.url);
+    opts.host = url.hostname;
+    if (url.port) opts.port = Number(url.port);
+    if (url.username) opts.username = decodeURIComponent(url.username);
+    if (url.password) opts.password = decodeURIComponent(url.password);
+    const dbFromPath = url.pathname.replace('/', '');
+    if (dbFromPath) opts.db = Number(dbFromPath);
+    if (url.protocol === 'rediss:') opts.tls = {};
+    return opts;
+  }
 
   if (redisConfig.host) opts.host = redisConfig.host;
   if (typeof redisConfig.port === 'number') opts.port = redisConfig.port;
