@@ -9,11 +9,14 @@
     "start": "node dist/main.js",
     "worker:dev": "tsx watch src/worker.ts",
     "worker:start": "node dist/worker.js",
-    "lint": "eslint src --ext .ts --max-warnings 0",
-    "lint:fix": "eslint src --ext .ts --fix",
+    "lint": "eslint src tests scripts prisma --ext .ts --max-warnings 0",
+    "lint:fix": "eslint src tests scripts prisma --ext .ts --fix",
     "typecheck": "tsc --noEmit",
-    "format": "prettier --write src/**/*.ts",
-    "format:check": "prettier --check src/**/*.ts",
+    "typecheck:all": "tsc -p tsconfig.test.json",
+    "check:dead-code": "tsx scripts/check-unreachable.ts",
+    "check:env": "tsx scripts/check-env-example.ts",
+    "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\" \"scripts/**/*.ts\" \"prisma/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"tests/**/*.ts\" \"scripts/**/*.ts\" \"prisma/**/*.ts\"",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:migrate:prod": "prisma migrate deploy",
@@ -48,7 +51,7 @@
     "helmet": "^7.1.0",
     "js-yaml": "^4.2.0",
     "jsonwebtoken": "^9.0.2",
-    "nodemailer": "^8.0.11",
+    "nodemailer": "^10.0.10",
     "openai": "^4.52.0",
     "rate-limit-redis": "^4.2.0",
     "redis": "^6.0.0",
@@ -66,7 +69,7 @@
     "@types/jest": "^29.5.12",
     "@types/js-yaml": "^4.0.9",
     "@types/jsonwebtoken": "^9.0.6",
-    "@types/node": "^20.14.10",
+    "@types/node": "^22.20.4",
     "@types/nodemailer": "^6.4.15",
     "@types/supertest": "^6.0.2",
     "@types/swagger-ui-express": "^4.1.8",
@@ -88,7 +91,7 @@
     "typescript": "^5.5.3"
   },
   "engines": {
-    "node": ">=20.0.0",
+    "node": ">=22.0.0",
     "npm": ">=10.0.0"
   }
 }

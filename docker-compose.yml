@@ -1,5 +1,3 @@
-version: '3.9'
-
 services:
   # Application
   app:
@@ -32,10 +30,10 @@ services:
       WHATSAPP_ACCOUNT_SID: ${WHATSAPP_ACCOUNT_SID}
       WHATSAPP_AUTH_TOKEN: ${WHATSAPP_AUTH_TOKEN}
       WHATSAPP_FROM_NUMBER: ${WHATSAPP_FROM_NUMBER}
-      WHATSAPP_WEBHOOK_SECRET: ${WHATSAPP_WEBHOOK_SECRET}
+      WHATSAPP_WEBHOOK_URL: ${WHATSAPP_WEBHOOK_URL}
       STORAGE_PROVIDER: ${STORAGE_PROVIDER:-local}
       LOCAL_STORAGE_PATH: /app/uploads
-      LOCAL_STORAGE_URL: http://localhost:3000/uploads
+      LOCAL_STORAGE_URL: ${LOCAL_STORAGE_URL:-http://localhost:3000/api/v1/attachments/files}
       LOCAL_STORAGE_SECRET: ${LOCAL_STORAGE_SECRET}
       AWS_REGION: ${AWS_REGION:-us-east-1}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
@@ -51,6 +49,14 @@ services:
       GOOGLE_CALLBACK_URL: ${GOOGLE_CALLBACK_URL}
       AI_PROVIDER: ${AI_PROVIDER:-openai}
       AI_ESCALATION_THRESHOLD: ${AI_ESCALATION_THRESHOLD:-75}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      ALLOW_PUBLIC_REGISTRATION: ${ALLOW_PUBLIC_REGISTRATION:-false}
+      ENABLE_API_DOCS: ${ENABLE_API_DOCS:-false}
+      TRUST_PROXY: ${TRUST_PROXY:-false}
+      # Set RUN_WORKERS=false when the dedicated worker service (--profile workers) runs;
+      # realtime events from the worker reach clients through Redis pub/sub.
+      RUN_WORKERS: ${RUN_WORKERS:-true}
+      ENABLE_TENANT_PURGE: ${ENABLE_TENANT_PURGE:-false}
     volumes:
       - uploads_data:/app/uploads
     depends_on:
@@ -75,6 +81,9 @@ services:
       target: production
     container_name: omnisupport-worker
     restart: unless-stopped
+    # Opt-in: start with `--profile workers` and set RUN_WORKERS=false on the app service.
+    profiles:
+      - workers
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       DATABASE_URL: postgresql://${POSTGRES_USER:-omnisupport}:${POSTGRES_PASSWORD:-omnisupport_secret}@postgres:5432/${POSTGRES_DB:-omnisupport_db}?schema=public
@@ -94,6 +103,17 @@ services:
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       AI_ESCALATION_THRESHOLD: ${AI_ESCALATION_THRESHOLD:-75}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3001}
+      STORAGE_PROVIDER: ${STORAGE_PROVIDER:-local}
+      LOCAL_STORAGE_PATH: /app/uploads
+      LOCAL_STORAGE_SECRET: ${LOCAL_STORAGE_SECRET}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET}
+      ENABLE_TENANT_PURGE: ${ENABLE_TENANT_PURGE:-false}
+    volumes:
+      - uploads_data:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -114,9 +134,9 @@ services:
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
     ports:
-      - '${POSTGRES_PORT:-5432}:5432'
+      # Bound to localhost only; the database must not be reachable from other hosts.
+      - '127.0.0.1:${POSTGRES_PORT:-5432}:5432'
     networks:
       - omnisupport-network
     healthcheck:
@@ -154,7 +174,8 @@ services:
     volumes:
       - redis_data:/data
     ports:
-      - '${REDIS_PORT:-6379}:6379'
+      # Bound to localhost only; Redis has no password in this compose file.
+      - '127.0.0.1:${REDIS_PORT:-6379}:6379'
     networks:
       - omnisupport-network
     healthcheck:

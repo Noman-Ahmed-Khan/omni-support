@@ -12,7 +12,8 @@ uploads-test
 *.log
 .DS_Store
 tests
-docs
+docs/*
+!docs/api
 *.md
 docker-compose*.yml
 .github
