@@ -1,3 +1,4 @@
+import './load-test-env';
 import { setupTestDatabase } from './test-db';
 
 export default async function globalSetup(): Promise<void> {
