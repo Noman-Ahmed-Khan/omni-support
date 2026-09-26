@@ -2,14 +2,25 @@ import type { PrismaClient } from '@prisma/client';
 import type { Request, Response, NextFunction, RequestHandler } from 'express';
 
 import { TenantActiveSpecification } from '../../../domain/specifications/tenant-active.specification';
+import { mapPrismaTenantToEntity } from '../../../infrastructure/database/mappers/tenant.mapper';
 import {
   ForbiddenError,
   UnauthorizedError,
 } from '../../../shared/errors/application.error';
-import { mapPrismaTenantToEntity } from '../../../shared/mappers/tenant.mapper';
-import { asyncHandler } from '../../../shared/utils/express.util';
+import { asyncHandler } from '../utils/async-handler';
 
-export function createTenantMiddleware(prisma: PrismaClient): RequestHandler {
+export interface TenantMiddlewareOptions {
+  /**
+   * Allow authenticated users that do not belong to any organization to pass through
+   * (e.g. for "/me" endpoints). Tenant users are still checked for an active tenant.
+   */
+  allowTenantless?: boolean;
+}
+
+export function createTenantMiddleware(
+  prisma: PrismaClient,
+  options: TenantMiddlewareOptions = {},
+): RequestHandler {
   return asyncHandler(async (req: Request, _res: Response, next: NextFunction) => {
     if (!req.user) {
       throw new UnauthorizedError('Authentication required');
@@ -17,6 +28,7 @@ export function createTenantMiddleware(prisma: PrismaClient): RequestHandler {
 
     // Platform admins are not tenant-scoped
     if (req.user.role === 'PLATFORM_ADMIN') {
+      req.tenantId = undefined;
       next();
       return;
     }
@@ -24,6 +36,11 @@ export function createTenantMiddleware(prisma: PrismaClient): RequestHandler {
     const tenantId = req.user.tenantId;
 
     if (!tenantId) {
+      if (options.allowTenantless) {
+        req.tenantId = undefined;
+        next();
+        return;
+      }
       throw new ForbiddenError('User is not associated with any organization');
     }
 
@@ -57,4 +74,21 @@ export function createTenantMiddleware(prisma: PrismaClient): RequestHandler {
 
     next();
   });
+}
+
+/**
+ * Rejects requests that have no tenant context. Use on routes that must operate on a
+ * single organization's data, so a missing tenantId can never turn into an unscoped query
+ * (platform admins are not tenant members and cannot use these routes).
+ */
+export function requireTenantContext(
+  req: Request,
+  _res: Response,
+  next: NextFunction,
+): void {
+  if (!req.tenantId) {
+    next(new ForbiddenError('This action requires an organization context'));
+    return;
+  }
+  next();
 }

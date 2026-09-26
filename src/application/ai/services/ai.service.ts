@@ -1,19 +1,27 @@
 import crypto from 'crypto';
 
-import type { AIResult, PrismaClient, Prisma } from '@prisma/client';
+import type {
+  AIResult,
+  PrismaClient,
+  Prisma,
+  TicketCategory as PrismaTicketCategory,
+} from '@prisma/client';
 
 import { getAIConfig } from '../../../config/ai.config';
 import { AiPolicy } from '../../../domain/policies/ai-policy';
 import type { ITicketRepository } from '../../../domain/ticket/repositories/ticket.repository.interface';
 import type { IAIProvider } from '../../../infrastructure/ai/ai-provider.interface';
 import type { ActivityRepository } from '../../../infrastructure/database/repositories/activity.repository';
-import type { WebSocketGateway } from '../../../infrastructure/realtime/websocket.gateway';
+import type { RealtimePublisher } from '../../../infrastructure/realtime/realtime-publisher';
 import { logger } from '../../../shared/utils/logger.util';
 import type { CustomerService } from '../../customer/services/customer.service';
 import { FeatureFlagService } from '../../feature-flags/feature-flag.service';
 import { FeatureFlag } from '../../feature-flags/feature.enum';
 import type { FeatureFlagDefinition } from '../../feature-flags/feature.repository';
-import type { TicketService } from '../../ticket/services/ticket.service';
+import {
+  SYSTEM_ACTOR_ID,
+  type TicketService,
+} from '../../ticket/services/ticket.service';
 
 export interface AIJobData {
   jobType: string;
@@ -32,7 +40,7 @@ export class AIService {
     private readonly customerService: CustomerService,
     private readonly ticketService: TicketService,
     private readonly activityRepo: ActivityRepository,
-    private readonly wsGateway: WebSocketGateway,
+    private readonly wsGateway: RealtimePublisher,
     private readonly featureFlags: FeatureFlagService = new FeatureFlagService({
       getTenantFlags(_tenantId: string): Promise<Record<string, FeatureFlagDefinition>> {
         return Promise.resolve({});
@@ -95,10 +103,14 @@ export class AIService {
         },
       });
 
-      // Update ticket category if confidence is high
+      // Update ticket category if confidence is high. Only the category column is written:
+      // the ticket may have been changed by agents while the AI call was in flight.
       if (result.confidence >= 0.7) {
         ticket.updateCategory(result.category);
-        await this.ticketRepo.update(ticket);
+        await this.prisma.ticket.updateMany({
+          where: { id: data.ticketId, tenantId: data.tenantId },
+          data: { category: ticket.category as PrismaTicketCategory },
+        });
 
         await this.activityRepo.create({
           tenantId: data.tenantId,
@@ -133,6 +145,10 @@ export class AIService {
     if (!data.ticketId) return;
 
     try {
+      // The ticket must exist inside the requesting tenant before any AI work is done.
+      const owningTicket = await this.ticketRepo.findById(data.ticketId, data.tenantId);
+      if (!owningTicket) return;
+
       if (
         !(await this.featureFlags.isEnabled(FeatureFlag.AI_SENTIMENT, {
           tenantId: data.tenantId,
@@ -169,8 +185,13 @@ export class AIService {
         data: { ticketId: data.ticketId, sentiment: result },
       });
 
-      // Auto-escalate if sentiment is very negative / frustrated
-      if (result.label === 'FRUSTRATED' && result.confidence >= 0.8) {
+      // Auto-escalate if sentiment is very negative / frustrated (tenant opt-in only:
+      // the analysed text is customer-controlled and could be crafted to trigger this).
+      if (
+        result.label === 'FRUSTRATED' &&
+        result.confidence >= 0.8 &&
+        (await this.isAutoEscalationEnabled(data.tenantId))
+      ) {
         const ticket = await this.ticketRepo.findById(data.ticketId, data.tenantId);
 
         if (ticket && !ticket.isEscalated && ticket.isActive()) {
@@ -178,7 +199,7 @@ export class AIService {
             tenantId: data.tenantId,
             ticketId: data.ticketId,
             reason: `AI detected frustrated customer (sentiment score: ${result.score.toFixed(2)})`,
-            escalatedById: 'system',
+            escalatedById: SYSTEM_ACTOR_ID,
             escalatedByRole: 'SYSTEM',
           });
         }
@@ -239,13 +260,14 @@ export class AIService {
       if (
         result.score >= getAIConfig().escalationUrgencyThreshold &&
         !ticket.isEscalated &&
-        ticket.isActive()
+        ticket.isActive() &&
+        (await this.isAutoEscalationEnabled(data.tenantId))
       ) {
         await this.ticketService.escalateTicket({
           tenantId: data.tenantId,
           ticketId: data.ticketId,
           reason: `AI predicted high urgency score: ${result.score}/100. ${result.reasoning}`,
-          escalatedById: 'system',
+          escalatedById: SYSTEM_ACTOR_ID,
           escalatedByRole: 'SYSTEM',
         });
 
@@ -530,6 +552,22 @@ ${commentsText}
         error,
       });
     }
+  }
+
+  private isAutoEscalationEnabled(tenantId: string): Promise<boolean> {
+    return this.featureFlags.isEnabled(FeatureFlag.AI_AUTO_ESCALATION, {
+      tenantId,
+      fallbackEnabled: false,
+    });
+  }
+
+  /** Returns the ticket an AI result belongs to, or null when it does not exist in the tenant. */
+  async findResultTicketId(resultId: string, tenantId: string): Promise<string | null> {
+    const result = await this.prisma.aIResult.findFirst({
+      where: { id: resultId, tenantId },
+      select: { ticketId: true },
+    });
+    return result?.ticketId ?? null;
   }
 
   async acceptResponseSuggestion(

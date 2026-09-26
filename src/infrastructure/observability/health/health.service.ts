@@ -20,6 +20,7 @@ export class HealthService {
     private readonly prisma: PrismaClient,
     private readonly redis: RedisClientType,
     private readonly metrics: MetricsService,
+    private readonly gaugeCollectors: Array<() => Promise<void>> = [],
   ) {}
 
   liveness(): { status: 'ok'; timestamp: string; uptime: number } {
@@ -66,7 +67,15 @@ export class HealthService {
     };
   }
 
-  metricsText(): string {
+  /** Refreshes point-in-time gauges (outbox backlog, queue depth) and renders all metrics. */
+  async metricsText(): Promise<string> {
+    const results = await Promise.allSettled(
+      this.gaugeCollectors.map((collect) => collect()),
+    );
+    this.metrics.setGauge(
+      'metrics_collection_errors',
+      results.filter((result) => result.status === 'rejected').length,
+    );
     return this.metrics.render();
   }
 

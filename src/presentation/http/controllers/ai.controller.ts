@@ -1,13 +1,14 @@
 import type { Request, Response, NextFunction } from 'express';
 import type { ParamsDictionary } from 'express-serve-static-core';
 
-import type { AnalyzeSentimentHandler } from '../../../application/ai/handlers/analyze-sentiment.handler';
-import type { CalculateRiskScoreHandler } from '../../../application/ai/handlers/calculate-risk-score.handler';
-import type { CategorizeTicketHandler } from '../../../application/ai/handlers/categorize-ticket.handler';
-import type { GenerateSummaryHandler } from '../../../application/ai/handlers/generate-summary.handler';
-import type { PredictUrgencyHandler } from '../../../application/ai/handlers/predict-urgency.handler';
-import type { SuggestResponseHandler } from '../../../application/ai/handlers/suggest-response.handler';
 import type { AIService } from '../../../application/ai/services/ai.service';
+import type { CustomerService } from '../../../application/customer/services/customer.service';
+import type {
+  TicketAccessService,
+  TicketActor,
+} from '../../../application/ticket/services/ticket-access.service';
+import type { AIJobType, AIQueue } from '../../../infrastructure/queue/queues/ai.queue';
+import { NotFoundError } from '../../../shared/errors/domain.error';
 import { successResponse } from '../dtos/common/response.dto';
 
 export type AIRequestBody = {
@@ -16,92 +17,57 @@ export type AIRequestBody = {
 
 type AIRequest = Request<ParamsDictionary, unknown, AIRequestBody, unknown>;
 
+/** Upper bound on text sent to the AI provider per job. */
+const MAX_AI_CONTENT_LENGTH = 10_000;
+
+/**
+ * AI analysis is never run inside the request: jobs are queued and processed by the
+ * AI worker, so a slow or expensive provider call cannot tie up the API.
+ */
 export class AIController {
   constructor(
     private readonly aiService: AIService,
-    private readonly categorizeHandler: CategorizeTicketHandler,
-    private readonly sentimentHandler: AnalyzeSentimentHandler,
-    private readonly urgencyHandler: PredictUrgencyHandler,
-    private readonly suggestResponseHandler: SuggestResponseHandler,
-    private readonly summaryHandler: GenerateSummaryHandler,
-    private readonly riskScoreHandler: CalculateRiskScoreHandler,
+    private readonly aiQueue: AIQueue,
+    private readonly ticketAccess: TicketAccessService,
+    private readonly customerService: CustomerService,
   ) {}
 
-  async triggerCategorization(
-    req: AIRequest,
-    res: Response,
-    next: NextFunction,
-  ): Promise<void> {
-    try {
-      await this.categorizeHandler.execute({
-        tenantId: req.tenantId!,
-        ticketId: req.params.id,
-        content: req.body.content || '',
-      });
-      res.status(202).json(successResponse({ message: 'Categorization job queued' }));
-    } catch (error) {
-      next(error);
-    }
+  triggerCategorization(req: AIRequest, res: Response, next: NextFunction) {
+    return this.queueTicketJob('categorize', 'Categorization job queued', req, res, next);
   }
 
-  async triggerSentiment(
-    req: AIRequest,
-    res: Response,
-    next: NextFunction,
-  ): Promise<void> {
-    try {
-      await this.sentimentHandler.execute({
-        tenantId: req.tenantId!,
-        ticketId: req.params.id,
-        content: req.body.content || '',
-      });
-      res.status(202).json(successResponse({ message: 'Sentiment job queued' }));
-    } catch (error) {
-      next(error);
-    }
+  triggerSentiment(req: AIRequest, res: Response, next: NextFunction) {
+    return this.queueTicketJob('sentiment', 'Sentiment job queued', req, res, next);
   }
 
-  async triggerUrgency(req: AIRequest, res: Response, next: NextFunction): Promise<void> {
-    try {
-      await this.urgencyHandler.execute({
-        tenantId: req.tenantId!,
-        ticketId: req.params.id,
-        content: req.body.content || '',
-      });
-      res.status(202).json(successResponse({ message: 'Urgency prediction job queued' }));
-    } catch (error) {
-      next(error);
-    }
+  triggerUrgency(req: AIRequest, res: Response, next: NextFunction) {
+    return this.queueTicketJob(
+      'urgency',
+      'Urgency prediction job queued',
+      req,
+      res,
+      next,
+    );
   }
 
-  async triggerSuggestResponse(
-    req: AIRequest,
-    res: Response,
-    next: NextFunction,
-  ): Promise<void> {
-    try {
-      await this.suggestResponseHandler.execute({
-        tenantId: req.tenantId!,
-        ticketId: req.params.id,
-        content: req.body.content || '',
-      });
-      res.status(202).json(successResponse({ message: 'Suggest response job queued' }));
-    } catch (error) {
-      next(error);
-    }
+  triggerSuggestResponse(req: AIRequest, res: Response, next: NextFunction) {
+    return this.queueTicketJob(
+      'suggest-response',
+      'Suggest response job queued',
+      req,
+      res,
+      next,
+    );
   }
 
-  async triggerSummary(req: AIRequest, res: Response, next: NextFunction): Promise<void> {
-    try {
-      await this.summaryHandler.execute({
-        tenantId: req.tenantId!,
-        ticketId: req.params.id,
-        content: req.body.content || '',
-      });
-      res.status(202).json(successResponse({ message: 'Summary generation job queued' }));
-    } catch (error) {
-      next(error);
-    }
+  triggerSummary(req: AIRequest, res: Response, next: NextFunction) {
+    return this.queueTicketJob(
+      'summarize',
+      'Summary generation job queued',
+      req,
+      res,
+      next,
+    );
   }
 
   async triggerRiskScore(
@@ -110,11 +76,8 @@ export class AIController {
     next: NextFunction,
   ): Promise<void> {
     try {
-      await this.riskScoreHandler.execute({
-        tenantId: req.tenantId!,
-        customerId: req.params.id,
-        content: req.body.content || '',
-      });
+      // Queues the job only when the customer belongs to the caller's organization.
+      await this.customerService.triggerRiskScoreUpdate(req.params.id, req.tenantId!);
       res.status(202).json(successResponse({ message: 'Risk score job queued' }));
     } catch (error) {
       next(error);
@@ -127,6 +90,8 @@ export class AIController {
     next: NextFunction,
   ): Promise<void> {
     try {
+      await this.ticketAccess.assertCanAccess(toActor(req), req.params.id);
+
       const results = await this.aiService.getTicketAIResults(
         req.params.id,
         req.tenantId!,
@@ -143,6 +108,15 @@ export class AIController {
     next: NextFunction,
   ): Promise<void> {
     try {
+      const ticketId = await this.aiService.findResultTicketId(
+        req.params.id,
+        req.tenantId!,
+      );
+      if (!ticketId) {
+        throw new NotFoundError('AI result', req.params.id);
+      }
+      await this.ticketAccess.assertCanAccess(toActor(req), ticketId);
+
       await this.aiService.acceptResponseSuggestion(
         req.params.id,
         req.tenantId!,
@@ -153,4 +127,40 @@ export class AIController {
       next(error);
     }
   }
+
+  private async queueTicketJob(
+    jobType: AIJobType,
+    message: string,
+    req: AIRequest,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
+    try {
+      const ticket = await this.ticketAccess.assertCanAccess(toActor(req), req.params.id);
+
+      const content = (
+        req.body.content?.trim() || `${ticket.title}\n\n${ticket.description}`
+      ).slice(0, MAX_AI_CONTENT_LENGTH);
+
+      await this.aiQueue.add({
+        jobType,
+        tenantId: req.tenantId!,
+        ticketId: ticket.id,
+        content,
+      });
+
+      res.status(202).json(successResponse({ message }));
+    } catch (error) {
+      next(error);
+    }
+  }
+}
+
+function toActor(req: Pick<Request, 'user' | 'tenantId'>): TicketActor {
+  return {
+    id: req.user!.id,
+    role: req.user!.role,
+    email: req.user!.email,
+    tenantId: req.tenantId!,
+  };
 }

@@ -2,9 +2,6 @@ import type { Request, Response, NextFunction } from 'express';
 import type { ParamsDictionary } from 'express-serve-static-core';
 import { z } from 'zod';
 
-import type { ReportQueue } from '../../../infrastructure/queue/queues/report.queue';
-import { successResponse } from '../dtos/common/response.dto';
-
 export const generateReportSchema = z.object({
   jobType: z.enum(['summary', 'export', 'snapshot']),
   format: z.enum(['json', 'csv']).optional(),
@@ -14,29 +11,22 @@ export const generateReportSchema = z.object({
 export type GenerateReportDto = z.infer<typeof generateReportSchema>;
 
 export class ReportController {
-  constructor(private readonly reportQueue: ReportQueue) {}
-
-  async generateReport(
-    req: Request<ParamsDictionary, unknown, GenerateReportDto, unknown>,
+  /**
+   * Report generation has no processor yet. Previously jobs were queued and never
+   * consumed, so the endpoint reports that the feature is unavailable instead of
+   * returning a misleading 202.
+   */
+  generateReport(
+    _req: Request<ParamsDictionary, unknown, GenerateReportDto, unknown>,
     res: Response,
-    next: NextFunction,
+    _next: NextFunction,
   ): Promise<void> {
-    try {
-      const data = req.body;
-
-      await this.reportQueue.add({
-        tenantId: req.tenantId!,
-        jobType: data.jobType,
-        requestedById: req.user!.id,
-        format: data.format,
-        filters: data.filters,
-      });
-
-      res
-        .status(202)
-        .json(successResponse({ message: 'Report generation queued successfully' }));
-    } catch (error) {
-      next(error);
-    }
+    res.status(501).json({
+      type: 'https://omnisupport.io/errors/not-implemented',
+      title: 'Not Implemented',
+      status: 501,
+      detail: 'Report generation is not available yet',
+    });
+    return Promise.resolve();
   }
 }

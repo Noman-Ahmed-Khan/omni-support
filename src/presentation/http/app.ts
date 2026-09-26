@@ -1,4 +1,5 @@
 import compression from 'compression';
+import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import type { Application } from 'express';
 import express, { json, urlencoded } from 'express';
@@ -9,20 +10,24 @@ import { createRateLimitMiddleware } from './middlewares/rate-limit.middleware';
 import { sanitizeMiddleware } from './middlewares/sanitize.middleware';
 import { createApplicationRouter } from './router';
 import { createSwaggerRouter } from './swagger';
-import { getAppConfig } from '../../config/app.config';
-import type { Container } from '../../infrastructure/di';
+import { getAppConfig, resolveTrustProxy } from '../../config/app.config';
 import { createMetricsMiddleware } from '../../infrastructure/observability/metrics/metrics.middleware';
 import type { MetricsService } from '../../infrastructure/observability/metrics/metrics.service';
 import { createTracingMiddleware } from '../../infrastructure/observability/tracing/tracing.middleware';
 import type { TracingService } from '../../infrastructure/observability/tracing/tracing.service';
 import { createSecurityHeaders } from '../../infrastructure/security/security-headers';
+import type { Container } from '../../shared/di/container';
+import { ForbiddenError } from '../../shared/errors/application.error';
 import { logger } from '../../shared/utils/logger.util';
-// import { asyncHandler } from './utils/async-handler';
 
 export function createApp(container: Container): Application {
   const app = express();
   const metricsService: MetricsService = container.resolve('metricsService');
   const tracingService: TracingService = container.resolve('tracingService');
+
+  // Trust Proxy: must be set before anything reads req.ip (rate limiting, logging).
+  // Only trust forwarding headers when a known proxy sits in front of the app.
+  app.set('trust proxy', resolveTrustProxy(getAppConfig().trustProxy));
 
   // Security Headers
   app.use(createSecurityHeaders());
@@ -38,7 +43,7 @@ export function createApp(container: Container): Application {
         if (!origin || allowedOrigins.includes(origin)) {
           callback(null, true);
         } else {
-          callback(new Error(`CORS blocked: ${origin}`));
+          callback(new ForbiddenError('Cross-origin request not allowed'));
         }
       },
       credentials: true,
@@ -57,6 +62,7 @@ export function createApp(container: Container): Application {
   // Body Parsing
   app.use(json({ limit: '10mb' }));
   app.use(urlencoded({ extended: true, limit: '10mb' }));
+  app.use(cookieParser());
 
   // Compression
   app.use(compression());
@@ -72,9 +78,6 @@ export function createApp(container: Container): Application {
   // Rate Limiting (global)
   app.use(createRateLimitMiddleware());
 
-  // Trust Proxy (for AWS ALB/NLB)
-  app.set('trust proxy', 1);
-
   // Request Logging
   app.use((req, _res, next) => {
     logger.info('Incoming request', {
@@ -89,7 +92,7 @@ export function createApp(container: Container): Application {
   });
 
   // Application Routes
-  app.use('/', createSwaggerRouter());
+  app.use('/', createSwaggerRouter(getAppConfig().enableApiDocs));
   app.use('/', createApplicationRouter(container));
 
   // 404 Handler

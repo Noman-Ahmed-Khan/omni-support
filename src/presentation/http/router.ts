@@ -1,10 +1,12 @@
+import crypto from 'crypto';
+
 import { Router } from 'express';
 
 import type { HealthController } from './controllers/health.controller';
 import { createHealthRouter } from './routes/health.routes';
 import { createV1Router } from './routes/v1';
 import { getAppConfig } from '../../config/app.config';
-import type { Container } from '../../infrastructure/di';
+import type { Container } from '../../shared/di/container';
 
 export function createApplicationRouter(container: Container): Router {
   const router = Router();
@@ -12,20 +14,40 @@ export function createApplicationRouter(container: Container): Router {
 
   // Health Routes (no auth)
   router.use('/health', createHealthRouter(container));
-  router.get('/metrics', (req, res) => healthController.metrics(req, res));
+
+  // Prometheus metrics: bearer METRICS_TOKEN when configured; disabled in production
+  // without a token so internal figures are never public by accident.
+  router.get('/metrics', (req, res, next) => {
+    const { metricsToken, env } = getAppConfig();
+
+    if (!metricsToken) {
+      if (env === 'production') {
+        next();
+        return;
+      }
+    } else if (!hasBearerToken(req.headers.authorization, metricsToken)) {
+      res.status(401).json({
+        type: 'https://omnisupport.io/errors/unauthorized',
+        title: 'Unauthorized',
+        status: 401,
+        detail: 'A valid metrics token is required',
+      });
+      return;
+    }
+
+    healthController.metrics(req, res).catch(next);
+  });
 
   // API v1 Routes
   router.use(getAppConfig().apiPrefix, createV1Router(container));
 
-  // 404 Handler
-  router.use((_req, res) => {
-    res.status(404).json({
-      type: 'https://omnisupport.io/errors/not-found',
-      title: 'Not Found',
-      status: 404,
-      detail: 'The requested resource was not found',
-    });
-  });
+  // Unmatched routes fall through to the 404 handler in app.ts.
 
   return router;
+}
+
+function hasBearerToken(header: string | undefined, expected: string): boolean {
+  const supplied = Buffer.from(header?.replace(/^Bearer\s+/i, '') ?? '');
+  const wanted = Buffer.from(expected);
+  return supplied.length === wanted.length && crypto.timingSafeEqual(supplied, wanted);
 }

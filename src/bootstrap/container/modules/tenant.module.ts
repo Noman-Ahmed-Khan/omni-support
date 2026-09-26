@@ -1,5 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 
+import type { Container } from '..';
+import type { TokenService } from '../../../application/auth/services/token.service';
 import type { IEventBus } from '../../../application/event-bus/event-bus.interface';
 import { CreateTenantHandler } from '../../../application/tenant/handlers/create-tenant.handler';
 import { GetTenantHandler } from '../../../application/tenant/handlers/get-tenant.handler';
@@ -8,10 +10,9 @@ import { RestoreTenantHandler } from '../../../application/tenant/handlers/resto
 import { SuspendTenantHandler } from '../../../application/tenant/handlers/suspend-tenant.handler';
 import { UpdateTenantHandler } from '../../../application/tenant/handlers/update-tenant.handler';
 import { TenantService } from '../../../application/tenant/services/tenant.service';
+import type { AuditRepository } from '../../../infrastructure/database/repositories/audit.repository';
+import { TenantRepository } from '../../../infrastructure/database/repositories/tenant.repository';
 import { TenantController } from '../../../presentation/http/controllers/tenant.controller';
-import type { AuditRepository } from '../../database/repositories/audit.repository';
-import { TenantRepository } from '../../database/repositories/tenant.repository';
-import type { Container } from '../index';
 
 export function registerTenantModule(container: Container): void {
   const prisma = container.resolve<PrismaClient>('prisma');
@@ -21,7 +22,12 @@ export function registerTenantModule(container: Container): void {
   const tenantRepo = new TenantRepository(prisma);
   container.register('tenantRepo', tenantRepo);
 
-  const tenantService = new TenantService(tenantRepo, auditRepo, eventBus);
+  const tenantService = new TenantService(
+    tenantRepo,
+    auditRepo,
+    eventBus,
+    container.resolve<TokenService>('tokenService'),
+  );
   container.register('tenantService', tenantService);
 
   container.register('createTenantHandler', new CreateTenantHandler(tenantService));

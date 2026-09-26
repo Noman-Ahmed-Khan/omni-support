@@ -1,5 +1,10 @@
 import { z } from 'zod';
 
+import {
+  paginationLimitSchema,
+  paginationPageSchema,
+} from '../../../../shared/validators/common.schemas';
+
 export const createCustomerSchema = z.object({
   fullName: z.string().min(2, 'Full name must be at least 2 characters').max(200).trim(),
   email: z.string().email('Invalid email address').toLowerCase(),
@@ -26,8 +31,8 @@ export const updateCustomerSchema = z.object({
 });
 
 export const listCustomersQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(20),
+  page: paginationPageSchema,
+  limit: paginationLimitSchema,
   sortBy: z
     .enum(['createdAt', 'updatedAt', 'fullName', 'riskScore', 'lastActivityAt'])
     .optional(),

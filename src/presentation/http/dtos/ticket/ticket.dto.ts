@@ -1,5 +1,10 @@
 import { z } from 'zod';
 
+import {
+  paginationLimitSchema,
+  paginationPageSchema,
+} from '../../../../shared/validators/common.schemas';
+
 export const createTicketSchema = z.object({
   customerId: z.string().uuid('Invalid customer ID'),
   title: z.string().min(5, 'Title must be at least 5 characters').max(500).trim(),
@@ -52,8 +57,8 @@ export const addCommentSchema = z.object({
 });
 
 export const listTicketsQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(20),
+  page: paginationPageSchema,
+  limit: paginationLimitSchema,
   sortBy: z
     .enum(['createdAt', 'updatedAt', 'priority', 'status', 'ticketNumber'])
     .optional(),
@@ -89,3 +94,10 @@ export type ChangeStatusDto = z.infer<typeof changeStatusSchema>;
 export type EscalateTicketDto = z.infer<typeof escalateTicketSchema>;
 export type AddCommentDto = z.infer<typeof addCommentSchema>;
 export type ListTicketsQueryDto = z.infer<typeof listTicketsQuerySchema>;
+
+export const ticketHistoryQuerySchema = z.object({
+  page: paginationPageSchema,
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+});
+
+export type TicketHistoryQuery = z.infer<typeof ticketHistoryQuerySchema>;

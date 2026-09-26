@@ -1,13 +1,12 @@
+import type { Application } from 'express';
 import request from 'supertest';
-import { Application } from 'express';
+
 import { getTestApp, getAuthToken } from '../helpers/test-app';
-import { getTestPrisma, cleanupTestDatabase } from '../helpers/test-db';
+import { cleanupTestDatabase } from '../helpers/test-db';
 
 describe('Messaging E2E', () => {
   let app: Application;
   let managerToken: string;
-  let tenantId: string;
-  const prisma = getTestPrisma();
 
   beforeAll(async () => {
     const result = await getTestApp();
@@ -19,7 +18,6 @@ describe('Messaging E2E', () => {
 
     const auth = await getAuthToken(app, 'TENANT_MANAGER');
     managerToken = auth.token;
-    tenantId = auth.tenantId;
   });
 
   describe('Messaging Workflows', () => {
@@ -37,11 +35,22 @@ describe('Messaging E2E', () => {
     });
 
     it('should return 401 without authentication', async () => {
-      const response = await request(app)
-        .get('/api/v1/notifications');
+      const response = await request(app).get('/api/v1/notifications');
 
       expect(response.status).toBe(401);
     });
   });
 });
 
+describe('Metrics E2E', () => {
+  it('exposes outbox and queue gauges', async () => {
+    const { app } = await getTestApp();
+
+    const response = await request(app).get('/metrics');
+
+    expect(response.status).toBe(200);
+    expect(response.text).toContain('outbox_events{status="pending"}');
+    expect(response.text).toContain('outbox_oldest_pending_age_seconds');
+    expect(response.text).toContain('queue_jobs{');
+  });
+});

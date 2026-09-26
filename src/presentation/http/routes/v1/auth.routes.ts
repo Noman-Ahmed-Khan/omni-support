@@ -1,6 +1,6 @@
 import { Router } from 'express';
 
-import type { Container } from '../../../../infrastructure/di';
+import type { Container } from '../../../../shared/di/container';
 import type { AuthController } from '../../controllers/auth.controller';
 import {
   registerSchema,
@@ -11,7 +11,11 @@ import {
   refreshTokenSchema,
 } from '../../dtos/auth/auth.dto';
 import { createAuthMiddleware } from '../../middlewares/auth.middleware';
-import { createAuthRateLimitMiddleware } from '../../middlewares/rate-limit.middleware';
+import {
+  createAuthRateLimitMiddleware,
+  createLoginAccountRateLimitMiddleware,
+  createSessionRateLimitMiddleware,
+} from '../../middlewares/rate-limit.middleware';
 import { validate } from '../../middlewares/validate.middleware';
 import { asyncHandler } from '../../utils/async-handler';
 
@@ -20,6 +24,8 @@ export function createAuthRoutes(container: Container): Router {
   const controller: AuthController = container.resolve('authController');
   const authMiddleware = createAuthMiddleware(container.resolve('tokenService'));
   const authRateLimitMiddleware = createAuthRateLimitMiddleware();
+  const loginAccountRateLimitMiddleware = createLoginAccountRateLimitMiddleware();
+  const sessionRateLimitMiddleware = createSessionRateLimitMiddleware();
 
   // Public routes with strict rate limiting
   router.post(
@@ -33,11 +39,13 @@ export function createAuthRoutes(container: Container): Router {
     '/login',
     authRateLimitMiddleware,
     validate(loginSchema),
+    loginAccountRateLimitMiddleware,
     asyncHandler((req, res, next) => controller.login(req, res, next)),
   );
 
   router.post(
     '/refresh',
+    sessionRateLimitMiddleware,
     validate(refreshTokenSchema.partial()),
     asyncHandler((req, res, next) => controller.refresh(req, res, next)),
   );
@@ -58,14 +66,18 @@ export function createAuthRoutes(container: Container): Router {
 
   router.post(
     '/verify-email',
+    sessionRateLimitMiddleware,
     validate(verifyEmailSchema),
     asyncHandler((req, res, next) => controller.verifyEmail(req, res, next)),
   );
 
   // OAuth routes
-  router.get('/google', (req, res) => controller.googleRedirect(req, res));
+  router.get('/google', sessionRateLimitMiddleware, (req, res) =>
+    controller.googleRedirect(req, res),
+  );
   router.get(
     '/google/callback',
+    sessionRateLimitMiddleware,
     asyncHandler((req, res, next) => controller.googleCallback(req, res, next)),
   );
 

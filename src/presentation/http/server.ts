@@ -12,6 +12,25 @@ import { logger } from '../../shared/utils/logger.util';
 
 type ShutdownHook = () => Promise<void>;
 
+const SHUTDOWN_TIMEOUT_MS = 25_000;
+
+/**
+ * Runs one shutdown step, logging (not throwing) on failure so later steps still run.
+ */
+async function runShutdownStep(
+  name: string,
+  step: () => Promise<void>,
+): Promise<boolean> {
+  try {
+    await step();
+    logger.info(`${name} closed`);
+    return true;
+  } catch (error) {
+    logger.error(`Failed to close ${name}`, { error });
+    return false;
+  }
+}
+
 export class HttpServer {
   private server: http.Server;
   private wsGateway: WebSocketGateway;
@@ -62,62 +81,74 @@ export class HttpServer {
     });
   }
 
-  async shutdown(): Promise<void> {
+  /**
+   * Gracefully stops the process. Every step is attempted even if an earlier one fails,
+   * and the whole sequence is bounded by a timeout so the process can never hang.
+   */
+  async shutdown(exitCode: number = 0): Promise<void> {
     if (this.isShuttingDown) return;
     this.isShuttingDown = true;
 
-    logger.info('Graceful shutdown initiated...');
+    logger.info('Graceful shutdown initiated...', { exitCode });
 
-    // Stop accepting new connections
-    await new Promise<void>((resolve) => {
-      this.server.close(() => {
-        logger.info('HTTP server closed');
-        resolve();
-      });
-    });
+    const forceExit = setTimeout(() => {
+      logger.error('Graceful shutdown timed out; forcing exit');
+      process.exit(exitCode === 0 ? 1 : exitCode);
+    }, SHUTDOWN_TIMEOUT_MS);
+    forceExit.unref();
 
-    // Shutdown WebSocket
-    await this.wsGateway.shutdown();
-    logger.info('WebSocket gateway closed');
+    let clean = true;
+
+    // Close WebSocket connections first; upgraded sockets would otherwise keep the HTTP
+    // server from finishing its close callback.
+    clean =
+      (await runShutdownStep('WebSocket gateway', () => this.wsGateway.shutdown())) &&
+      clean;
+
+    clean =
+      (await runShutdownStep(
+        'HTTP server',
+        () =>
+          new Promise<void>((resolve, reject) => {
+            this.server.close((error) => (error ? reject(error) : resolve()));
+          }),
+      )) && clean;
 
     if (this.shutdownHook) {
-      await this.shutdownHook();
+      const hook = this.shutdownHook;
+      clean = (await runShutdownStep('Background workers', hook)) && clean;
     }
 
-    // Close queues and workers
-    await closeAllQueues();
-    logger.info('Job queues closed');
+    clean = (await runShutdownStep('Job queues', closeAllQueues)) && clean;
+    clean = (await runShutdownStep('Database', disconnectDatabase)) && clean;
+    clean = (await runShutdownStep('Redis', disconnectRedis)) && clean;
 
-    // Close database
-    await disconnectDatabase();
-    logger.info('Database disconnected');
+    clearTimeout(forceExit);
 
-    // Close Redis
-    await disconnectRedis();
-    logger.info('Redis disconnected');
-
-    logger.info('Graceful shutdown complete');
-    process.exit(0);
+    const finalExitCode = exitCode !== 0 ? exitCode : clean ? 0 : 1;
+    logger.info('Graceful shutdown complete', { exitCode: finalExitCode });
+    process.exit(finalExitCode);
   }
 
   setupSignalHandlers(): void {
-    const signals = ['SIGTERM', 'SIGINT', 'SIGUSR2'];
+    const signals: NodeJS.Signals[] = ['SIGTERM', 'SIGINT', 'SIGUSR2'];
 
     signals.forEach((signal) => {
       process.on(signal, () => {
         logger.info(`Received ${signal}`);
-        void this.shutdown();
+        void this.shutdown(0);
       });
     });
 
+    // A crash must be reported to the orchestrator with a non-zero exit code.
     process.on('uncaughtException', (error) => {
       logger.error('Uncaught exception', { error });
-      void this.shutdown();
+      void this.shutdown(1);
     });
 
     process.on('unhandledRejection', (reason) => {
       logger.error('Unhandled rejection', { reason });
-      void this.shutdown();
+      void this.shutdown(1);
     });
   }
 }

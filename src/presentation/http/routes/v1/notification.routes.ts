@@ -1,6 +1,6 @@
 import { Router } from 'express';
 
-import type { Container } from '../../../../infrastructure/di';
+import type { Container } from '../../../../shared/di/container';
 import type { NotificationController } from '../../controllers/notification.controller';
 import { createAuthMiddleware } from '../../middlewares/auth.middleware';
 import { createTenantMiddleware } from '../../middlewares/tenant.middleware';

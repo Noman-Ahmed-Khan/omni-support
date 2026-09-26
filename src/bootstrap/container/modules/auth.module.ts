@@ -1,5 +1,6 @@
 import type { PrismaClient } from '@prisma/client';
 
+import type { Container } from '..';
 import { ForgotPasswordHandler } from '../../../application/auth/handlers/forgot-password.handler';
 import { LoginHandler } from '../../../application/auth/handlers/login.handler';
 import { LogoutHandler } from '../../../application/auth/handlers/logout.handler';
@@ -10,12 +11,11 @@ import { VerifyEmailHandler } from '../../../application/auth/handlers/verify-em
 import { AuthService } from '../../../application/auth/services/auth.service';
 import { OAuthService } from '../../../application/auth/services/oauth.service';
 import type { TokenService } from '../../../application/auth/services/token.service';
+import type { CacheService } from '../../../infrastructure/cache/cache.service';
+import type { AuditRepository } from '../../../infrastructure/database/repositories/audit.repository';
+import type { EmailQueue } from '../../../infrastructure/queue/queues/email.queue';
+import { PasswordHasher } from '../../../infrastructure/security/password-hasher';
 import { AuthController } from '../../../presentation/http/controllers/auth.controller';
-import type { CacheService } from '../../cache/cache.service';
-import type { AuditRepository } from '../../database/repositories/audit.repository';
-import type { EmailQueue } from '../../queue/queues/email.queue';
-import { PasswordHasher } from '../../security/password-hasher';
-import type { Container } from '../index';
 
 export function registerAuthModule(container: Container): void {
   const prisma = container.resolve<PrismaClient>('prisma');
@@ -57,6 +57,7 @@ export function registerAuthModule(container: Container): void {
       container.resolve('forgotPasswordHandler'),
       container.resolve('resetPasswordHandler'),
       oauthService,
+      tokenService,
     ),
   );
 }

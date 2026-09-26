@@ -1,21 +1,33 @@
 import { Router } from 'express';
 import type { ParamsDictionary } from 'express-serve-static-core';
 
-import type { Container } from '../../../../infrastructure/di';
+import type { Container } from '../../../../shared/di/container';
 import type { AIController, AIRequestBody } from '../../controllers/ai.controller';
 import { createAuthMiddleware } from '../../middlewares/auth.middleware';
+import { createAIRateLimitMiddleware } from '../../middlewares/rate-limit.middleware';
 import { requireRole } from '../../middlewares/rbac.middleware';
+import {
+  createTenantMiddleware,
+  requireTenantContext,
+} from '../../middlewares/tenant.middleware';
 import { asyncHandler } from '../../utils/async-handler';
 
 export function createAIRoutes(container: Container): Router {
   const router = Router();
   const controller: AIController = container.resolve('aiController');
   const authMiddleware = createAuthMiddleware(container.resolve('tokenService'));
+  const tenantMiddleware = createTenantMiddleware(container.resolve('prisma'));
 
-  router.use(authMiddleware);
+  // AI data is always tenant data: platform admins without a tenant are rejected.
+  router.use(
+    authMiddleware,
+    tenantMiddleware,
+    requireTenantContext,
+    createAIRateLimitMiddleware(),
+  );
 
-  // Agent / Manager / Admin routes
-  const requireAgentOrAbove = requireRole('PLATFORM_ADMIN', 'TENANT_MANAGER', 'AGENT');
+  // Agent / Manager routes
+  const requireAgentOrAbove = requireRole('TENANT_MANAGER', 'AGENT');
 
   router.post(
     '/tickets/:id/categorize',

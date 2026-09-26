@@ -1,5 +1,6 @@
 import type { PrismaClient } from '@prisma/client';
 
+import type { Container } from '..';
 import type { IEventBus } from '../../../application/event-bus/event-bus.interface';
 import { AddCommentHandler } from '../../../application/ticket/handlers/add-comment.handler';
 import { AssignTicketHandler } from '../../../application/ticket/handlers/assign-ticket.handler';
@@ -10,17 +11,17 @@ import { GetTicketHandler } from '../../../application/ticket/handlers/get-ticke
 import { ListTicketsHandler } from '../../../application/ticket/handlers/list-tickets.handler';
 import { TicketHistoryHandler } from '../../../application/ticket/handlers/ticket-history.handler';
 import { UpdateTicketHandler } from '../../../application/ticket/handlers/update-ticket.handler';
+import { TicketAccessService } from '../../../application/ticket/services/ticket-access.service';
 import { TicketService } from '../../../application/ticket/services/ticket.service';
 import type { ICustomerRepository } from '../../../domain/customer/repositories/customer.repository.interface';
+import type { DashboardCacheStrategy } from '../../../infrastructure/cache/strategies/dashboard.cache';
+import type { ActivityRepository } from '../../../infrastructure/database/repositories/activity.repository';
+import type { AuditRepository } from '../../../infrastructure/database/repositories/audit.repository';
+import { CommentRepository } from '../../../infrastructure/database/repositories/comment.repository';
+import { TicketRepository } from '../../../infrastructure/database/repositories/ticket.repository';
+import type { AIQueue } from '../../../infrastructure/queue/queues/ai.queue';
 import { CommentController } from '../../../presentation/http/controllers/comment.controller';
 import { TicketController } from '../../../presentation/http/controllers/ticket.controller';
-import type { DashboardCacheStrategy } from '../../cache/strategies/dashboard.cache';
-import type { ActivityRepository } from '../../database/repositories/activity.repository';
-import type { AuditRepository } from '../../database/repositories/audit.repository';
-import { CommentRepository } from '../../database/repositories/comment.repository';
-import { TicketRepository } from '../../database/repositories/ticket.repository';
-import type { AIQueue } from '../../queue/queues/ai.queue';
-import type { Container } from '../index';
 
 export function registerTicketModule(container: Container): void {
   const prisma = container.resolve<PrismaClient>('prisma');
@@ -50,6 +51,9 @@ export function registerTicketModule(container: Container): void {
   );
   container.register('ticketService', ticketService);
 
+  const ticketAccessService = new TicketAccessService(ticketRepo, customerRepo);
+  container.register('ticketAccessService', ticketAccessService);
+
   // Handlers
   container.register('createTicketHandler', new CreateTicketHandler(ticketService));
   container.register('updateTicketHandler', new UpdateTicketHandler(ticketService));
@@ -77,6 +81,7 @@ export function registerTicketModule(container: Container): void {
       container.resolve('getTicketHandler'),
       container.resolve('listTicketsHandler'),
       container.resolve('ticketHistoryHandler'),
+      ticketAccessService,
     ),
   );
 

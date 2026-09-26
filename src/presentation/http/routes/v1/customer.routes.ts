@@ -1,6 +1,6 @@
 import { Router } from 'express';
 
-import type { Container } from '../../../../infrastructure/di';
+import type { Container } from '../../../../shared/di/container';
 import type { CustomerController } from '../../controllers/customer.controller';
 import {
   createCustomerSchema,
@@ -9,7 +9,10 @@ import {
 } from '../../dtos/customer/customer.dto';
 import { createAuthMiddleware } from '../../middlewares/auth.middleware';
 import { requireRole } from '../../middlewares/rbac.middleware';
-import { createTenantMiddleware } from '../../middlewares/tenant.middleware';
+import {
+  createTenantMiddleware,
+  requireTenantContext,
+} from '../../middlewares/tenant.middleware';
 import { validate } from '../../middlewares/validate.middleware';
 import { asyncHandler } from '../../utils/async-handler';
 
@@ -19,7 +22,13 @@ export function createCustomerRoutes(container: Container): Router {
   const authMiddleware = createAuthMiddleware(container.resolve('tokenService'));
   const tenantMiddleware = createTenantMiddleware(container.resolve('prisma'));
 
-  router.use(authMiddleware, tenantMiddleware);
+  // Customer records (PII, risk scores) are staff data; CUSTOMER users have no access.
+  router.use(
+    authMiddleware,
+    tenantMiddleware,
+    requireTenantContext,
+    requireRole('TENANT_MANAGER', 'AGENT'),
+  );
 
   router.get(
     '/',

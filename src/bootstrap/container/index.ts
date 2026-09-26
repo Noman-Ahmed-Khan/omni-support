@@ -21,80 +21,72 @@ import { TriggerRiskScoreHandler } from '../../application/customer/handlers/tri
 import { UpdateCustomerHandler } from '../../application/customer/handlers/update-customer.handler';
 import { CustomerService } from '../../application/customer/services/customer.service';
 import { InProcessEventBus } from '../../application/event-bus/event-bus';
-import type {
-  EventHandler,
-  IEventBus,
-} from '../../application/event-bus/event-bus.interface';
+import type { IEventBus } from '../../application/event-bus/event-bus.interface';
+import { registerNotificationHandlers } from '../../application/event-bus/handlers/notification.handlers';
 import { FeatureFlagService } from '../../application/feature-flags/feature-flag.service';
-import { NotificationService } from '../../application/notification/services/notification.service';
+import type { NotificationService } from '../../application/notification/services/notification.service';
 import { SearchService } from '../../application/search/services/search.service';
 import { UserService } from '../../application/user/services/user.service';
 import { getStorageConfig } from '../../config/storage.config';
-import type { INotificationRepository } from '../../domain/notification/repositories/notification.repository.interface';
 import type { ITenantRepository } from '../../domain/tenant/repositories/tenant.repository.interface';
-import type { CommentAddedEvent } from '../../domain/ticket/events/comment-added.event';
-import type { TicketAssignedEvent } from '../../domain/ticket/events/ticket-assigned.event';
-import type { TicketCreatedEvent } from '../../domain/ticket/events/ticket-created.event';
-import type { TicketEscalatedEvent } from '../../domain/ticket/events/ticket-escalated.event';
-import type { TicketResolvedEvent } from '../../domain/ticket/events/ticket-resolved.event';
 import type { ITicketRepository } from '../../domain/ticket/repositories/ticket.repository.interface';
+import { CacheService } from '../../infrastructure/cache/cache.service';
+import { DashboardCacheStrategy } from '../../infrastructure/cache/strategies/dashboard.cache';
+import { ActivityRepository } from '../../infrastructure/database/repositories/activity.repository';
+import { AuditRepository } from '../../infrastructure/database/repositories/audit.repository';
+import { CustomerRepository } from '../../infrastructure/database/repositories/customer.repository';
+import { PrismaFeatureFlagRepository } from '../../infrastructure/database/repositories/feature.repository';
+import { UserRepository } from '../../infrastructure/database/repositories/user.repository';
+import { TransactionManager } from '../../infrastructure/database/transaction-manager';
+import { HealthService } from '../../infrastructure/observability/health/health.service';
+import { MetricsService } from '../../infrastructure/observability/metrics/metrics.service';
+import {
+  createOutboxGaugeCollector,
+  createQueueGaugeCollector,
+} from '../../infrastructure/observability/metrics/operational-gauges';
+import { TracingService } from '../../infrastructure/observability/tracing/tracing.service';
+import { OutboxProcessor } from '../../infrastructure/outbox/outbox.processor';
+import { OutboxPublisher } from '../../infrastructure/outbox/outbox.publisher';
+import { OutboxRepository } from '../../infrastructure/outbox/outbox.repository';
+import { OutboxWorker } from '../../infrastructure/outbox/outbox.worker';
+import { RedisHandlerLedger } from '../../infrastructure/outbox/redis-handler-ledger';
+import { AIQueue } from '../../infrastructure/queue/queues/ai.queue';
+import type { RealtimePublisher } from '../../infrastructure/realtime/realtime-publisher';
+import type { WebSocketGateway } from '../../infrastructure/realtime/websocket.gateway';
+import { createAnalyticsRollupJob } from '../../infrastructure/scheduler/analytics-rollup.job';
+import { CronRegistry } from '../../infrastructure/scheduler/cron.registry';
+import { SchedulerService } from '../../infrastructure/scheduler/scheduler.service';
+import { createTenantCleanupJob } from '../../infrastructure/scheduler/tenant-cleanup.job';
+import { createTicketEscalationJob } from '../../infrastructure/scheduler/ticket-escalation.job';
+import { SecretsService } from '../../infrastructure/security/secrets.service';
+import { TokenSigningService } from '../../infrastructure/security/token-signing.service';
+import { LocalStorageProvider } from '../../infrastructure/storage/local.provider';
+import { MemoryStorageProvider } from '../../infrastructure/storage/memory.provider';
+import { S3StorageProvider } from '../../infrastructure/storage/s3.provider';
 import { AnalyticsController } from '../../presentation/http/controllers/analytics.controller';
 import { CustomerController } from '../../presentation/http/controllers/customer.controller';
 import { DashboardController } from '../../presentation/http/controllers/dashboard.controller';
 import { HealthController } from '../../presentation/http/controllers/health.controller';
 import { SearchController } from '../../presentation/http/controllers/search.controller';
 import { UserController } from '../../presentation/http/controllers/user.controller';
+import { Container } from '../../shared/di/container';
 import { logger } from '../../shared/utils/logger.util';
-import { CacheService } from '../cache/cache.service';
-import { DashboardCacheStrategy } from '../cache/strategies/dashboard.cache';
-import { PermissionCacheStrategy } from '../cache/strategies/permission.cache';
-import { ActivityRepository } from '../database/repositories/activity.repository';
-import { AuditRepository } from '../database/repositories/audit.repository';
-import { CustomerRepository } from '../database/repositories/customer.repository';
-import { PrismaFeatureFlagRepository } from '../database/repositories/feature.repository';
-import { UserRepository } from '../database/repositories/user.repository';
-import { HealthService } from '../observability/health/health.service';
-import { MetricsService } from '../observability/metrics/metrics.service';
-import { TracingService } from '../observability/tracing/tracing.service';
-import { OutboxProcessor } from '../outbox/outbox.processor';
-import { OutboxPublisher } from '../outbox/outbox.publisher';
-import { OutboxRepository } from '../outbox/outbox.repository';
-import { OutboxWorker } from '../outbox/outbox.worker';
-import { AIQueue } from '../queue/queues/ai.queue';
-import type { EmailQueue } from '../queue/queues/email.queue';
-import type { WebSocketGateway } from '../realtime/websocket.gateway';
-import { createAnalyticsRollupJob } from '../scheduler/analytics-rollup.job';
-import { CronRegistry } from '../scheduler/cron.registry';
-import { createOutboxRetryJob } from '../scheduler/outbox-retry.job';
-import { SchedulerService } from '../scheduler/scheduler.service';
-import { createTenantCleanupJob } from '../scheduler/tenant-cleanup.job';
-import { createTicketEscalationJob } from '../scheduler/ticket-escalation.job';
-import { SecretsService } from '../security/secrets.service';
-import { TokenSigningService } from '../security/token-signing.service';
-import { LocalStorageProvider } from '../storage/local.provider';
-import { MemoryStorageProvider } from '../storage/memory.provider';
-import { S3StorageProvider } from '../storage/s3.provider';
 
-export class Container {
-  private services = new Map<string, unknown>();
-
-  register<T>(name: string, instance: T): void {
-    this.services.set(name, instance);
-  }
-
-  resolve<T>(name: string): T {
-    const service = this.services.get(name);
-    if (!service) {
-      throw new Error(`Service '${name}' not registered in container`);
-    }
-    return service as T;
-  }
+export interface ContainerOptions {
+  /**
+   * How realtime events are delivered. Defaults to the local gateway; production
+   * processes pass a RedisRealtimePublisher so events reach every API replica.
+   */
+  realtimePublisher?: RealtimePublisher;
 }
+
+export { Container };
 
 export function buildContainer(
   prisma: PrismaClient,
   redis: RedisClientType,
   wsGateway: WebSocketGateway,
+  options: ContainerOptions = {},
 ): Promise<Container> {
   const container = new Container();
 
@@ -104,13 +96,14 @@ export function buildContainer(
   container.register('prisma', prisma);
   container.register('redis', redis);
   container.register('wsGateway', wsGateway);
+  container.register<RealtimePublisher>(
+    'realtimePublisher',
+    options.realtimePublisher ?? wsGateway,
+  );
 
   // Cache
   const cacheService = new CacheService(redis);
   container.register('cacheService', cacheService);
-
-  const permissionCache = new PermissionCacheStrategy(cacheService);
-  container.register('permissionCache', permissionCache);
 
   const dashboardCache = new DashboardCacheStrategy(cacheService);
   container.register('dashboardCache', dashboardCache);
@@ -132,7 +125,7 @@ export function buildContainer(
   const customerRepo = new CustomerRepository(prisma);
   container.register('customerRepo', customerRepo);
 
-  const auditRepo = new AuditRepository(prisma);
+  const auditRepo = new AuditRepository(prisma, metricsService);
   container.register('auditRepo', auditRepo);
 
   const auditService = new AuditService(auditRepo);
@@ -157,12 +150,12 @@ export function buildContainer(
     storageConfig.provider === 's3'
       ? new S3StorageProvider(storageConfig.aws!)
       : storageConfig.provider === 'local'
-        ? new LocalStorageProvider()
+        ? new LocalStorageProvider(storageConfig.local!)
         : new MemoryStorageProvider();
   container.register('storageProvider', storageProvider);
 
   // Event Bus
-  const eventDispatcher: IEventBus = new InProcessEventBus();
+  const eventDispatcher: IEventBus = new InProcessEventBus(new RedisHandlerLedger(redis));
   const eventBus = new OutboxPublisher(outboxRepository, eventDispatcher);
   container.register('eventBus', eventBus);
 
@@ -182,7 +175,6 @@ export function buildContainer(
   // Domain Modules
   registerTenantModule(container);
   registerMessagingModule(container); // Needs to be before auth for emailQueue
-  registerAttachmentModule(container);
   registerNotificationModule(container);
   registerReportModule(container);
 
@@ -198,6 +190,7 @@ export function buildContainer(
     userRepo,
     container.resolve('auditRepo'),
     container.resolve('eventBus'),
+    tokenService,
   );
   container.register('userService', userService);
 
@@ -207,11 +200,14 @@ export function buildContainer(
     activityRepo,
     auditRepo,
     container.resolve('aiQueue'), // Requires AIModule to be registered
+    userRepo,
+    new TransactionManager(prisma),
   );
   container.register('customerService', customerService);
 
   registerAuthModule(container);
   registerTicketModule(container);
+  registerAttachmentModule(container); // Needs ticketAccessService
   registerAIModule(container);
 
   // CQRS Handlers
@@ -236,7 +232,10 @@ export function buildContainer(
   const searchService = new SearchService(prisma);
   container.register('searchService', searchService);
 
-  const healthService = new HealthService(prisma, redis, metricsService);
+  const healthService = new HealthService(prisma, redis, metricsService, [
+    createOutboxGaugeCollector(metricsService, outboxRepository),
+    createQueueGaugeCollector(metricsService),
+  ]);
   container.register('healthService', healthService);
 
   const tenantRepo = container.resolve<ITenantRepository>('tenantRepo');
@@ -253,168 +252,12 @@ export function buildContainer(
   const tenantCleanupJob = createTenantCleanupJob(tenantRepo);
   container.register('tenantCleanupJob', tenantCleanupJob);
 
-  const outboxRetryJob = createOutboxRetryJob(outboxProcessor);
-  container.register('outboxRetryJob', outboxRetryJob);
-
   // Register Domain Event Handlers
-  const notificationRepository = container.resolve<INotificationRepository>(
-    'notificationRepository',
-  );
-  const emailQueue = container.resolve<EmailQueue>('emailQueue');
-  const notificationService = new NotificationService(
+  registerNotificationHandlers(
+    eventDispatcher,
+    container.resolve<NotificationService>('notificationService'),
     prisma,
-    emailQueue,
-    wsGateway,
-    notificationRepository,
   );
-  const ticketCreatedHandler: EventHandler = async (event) => {
-    const ticketCreatedEvent = event as TicketCreatedEvent;
-    logger.debug('Handling TicketCreatedEvent', {
-      ticketId: ticketCreatedEvent.ticketId,
-    });
-
-    try {
-      const ticket = await prisma.ticket.findUnique({
-        where: { id: ticketCreatedEvent.ticketId },
-      });
-
-      if (!ticket) return;
-
-      await notificationService.notifyTicketCreated({
-        tenantId: ticketCreatedEvent.tenantId,
-        ticketId: ticketCreatedEvent.ticketId,
-        ticketNumber: ticket.ticketNumber,
-        title: ticket.title,
-        customerId: ticketCreatedEvent.customerId,
-        assignedAgentId: ticket.assignedAgentId ?? undefined,
-      });
-    } catch (error) {
-      logger.error('TicketCreatedEvent handler failed', {
-        eventId: ticketCreatedEvent.eventId,
-        ticketId: ticketCreatedEvent.ticketId,
-        error,
-      });
-    }
-  };
-
-  const ticketAssignedHandler: EventHandler = async (event) => {
-    const ticketAssignedEvent = event as TicketAssignedEvent;
-    logger.debug('Handling TicketAssignedEvent', {
-      ticketId: ticketAssignedEvent.ticketId,
-    });
-
-    try {
-      const ticket = await prisma.ticket.findUnique({
-        where: { id: ticketAssignedEvent.ticketId },
-      });
-
-      if (!ticket) return;
-
-      await notificationService.notifyTicketAssigned({
-        tenantId: ticketAssignedEvent.tenantId,
-        ticketId: ticketAssignedEvent.ticketId,
-        ticketNumber: ticket.ticketNumber,
-        title: ticket.title,
-        agentId: ticketAssignedEvent.agentId,
-        assignedById: ticketAssignedEvent.assignedById,
-      });
-    } catch (error) {
-      logger.error('TicketAssignedEvent handler failed', {
-        eventId: ticketAssignedEvent.eventId,
-        error,
-      });
-    }
-  };
-
-  const ticketEscalatedHandler: EventHandler = async (event) => {
-    const ticketEscalatedEvent = event as TicketEscalatedEvent;
-    logger.debug('Handling TicketEscalatedEvent', {
-      ticketId: ticketEscalatedEvent.ticketId,
-    });
-
-    try {
-      const ticket = await prisma.ticket.findUnique({
-        where: { id: ticketEscalatedEvent.ticketId },
-      });
-
-      if (!ticket) return;
-
-      await notificationService.notifyTicketEscalated({
-        tenantId: ticketEscalatedEvent.tenantId,
-        ticketId: ticketEscalatedEvent.ticketId,
-        ticketNumber: ticket.ticketNumber,
-        title: ticket.title,
-        reason: ticketEscalatedEvent.reason,
-        assignedAgentId: ticketEscalatedEvent.assignedAgentId,
-      });
-    } catch (error) {
-      logger.error('TicketEscalatedEvent handler failed', {
-        eventId: ticketEscalatedEvent.eventId,
-        error,
-      });
-    }
-  };
-
-  const ticketResolvedHandler: EventHandler = async (event) => {
-    const ticketResolvedEvent = event as TicketResolvedEvent;
-    logger.debug('Handling TicketResolvedEvent', {
-      ticketId: ticketResolvedEvent.ticketId,
-    });
-
-    try {
-      await notificationService.notifyTicketResolved(
-        ticketResolvedEvent.ticketId,
-        ticketResolvedEvent.tenantId,
-      );
-    } catch (error) {
-      logger.error('TicketResolvedEvent handler failed', {
-        eventId: ticketResolvedEvent.eventId,
-        error,
-      });
-    }
-  };
-
-  const commentAddedHandler: EventHandler = async (event) => {
-    const commentAddedEvent = event as CommentAddedEvent;
-    logger.debug('Handling CommentAddedEvent', {
-      ticketId: commentAddedEvent.ticketId,
-    });
-
-    try {
-      const [ticket, author] = await Promise.all([
-        prisma.ticket.findUnique({ where: { id: commentAddedEvent.ticketId } }),
-        prisma.user.findUnique({ where: { id: commentAddedEvent.authorId } }),
-      ]);
-
-      if (!ticket || !author) return;
-
-      await notificationService.notifyCommentAdded({
-        tenantId: commentAddedEvent.tenantId,
-        ticketId: commentAddedEvent.ticketId,
-        ticketNumber: ticket.ticketNumber,
-        title: ticket.title,
-        authorId: commentAddedEvent.authorId,
-        authorName: `${author.firstName} ${author.lastName}`,
-        commentType: commentAddedEvent.commentType,
-        customerId: ticket.customerId,
-      });
-    } catch (error) {
-      logger.error('CommentAddedEvent handler failed', {
-        eventId: commentAddedEvent.eventId,
-        error,
-      });
-    }
-  };
-
-  eventDispatcher.subscribe('TICKET_CREATED', ticketCreatedHandler);
-
-  eventDispatcher.subscribe('TICKET_ASSIGNED', ticketAssignedHandler);
-
-  eventDispatcher.subscribe('TICKET_ESCALATED', ticketEscalatedHandler);
-
-  eventDispatcher.subscribe('TICKET_RESOLVED', ticketResolvedHandler);
-
-  eventDispatcher.subscribe('COMMENT_ADDED', commentAddedHandler);
 
   logger.info('Event handlers registered');
 

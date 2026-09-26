@@ -1,9 +1,9 @@
+import type { Container } from '..';
 import { MessagingService } from '../../../application/messaging/services/messaging.service';
-import { SMTPEmailProvider } from '../../messaging/email/smtp.provider';
-import { createWhatsAppProvider } from '../../messaging/whatsapp/twilio-whatsapp.provider';
-import { EmailQueue } from '../../queue/queues/email.queue';
-import { NotificationQueue } from '../../queue/queues/notification.queue';
-import type { Container } from '../index';
+import { SMTPEmailProvider } from '../../../infrastructure/messaging/email/smtp.provider';
+import { createWhatsAppProvider } from '../../../infrastructure/messaging/whatsapp/twilio-whatsapp.provider';
+import { EmailQueue } from '../../../infrastructure/queue/queues/email.queue';
+import { NotificationQueue } from '../../../infrastructure/queue/queues/notification.queue';
 
 export function registerMessagingModule(container: Container): void {
   const emailProvider = new SMTPEmailProvider();
