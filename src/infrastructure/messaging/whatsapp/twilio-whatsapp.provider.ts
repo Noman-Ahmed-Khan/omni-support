@@ -1,5 +1,3 @@
-import crypto from 'crypto';
-
 import type { Twilio } from 'twilio';
 import twilio from 'twilio';
 
@@ -17,7 +15,7 @@ interface TwilioWhatsAppConfig {
   accountSid: string;
   authToken: string;
   fromNumber: string;
-  webhookSecret: string;
+  webhookUrl: string;
 }
 
 const TWILIO_ACCOUNT_SID_PREFIX = 'AC';
@@ -35,7 +33,7 @@ function resolveTwilioConfig(): TwilioWhatsAppConfig | null {
     !whatsappConfig.accountSid.startsWith(TWILIO_ACCOUNT_SID_PREFIX) ||
     !whatsappConfig.authToken ||
     !whatsappConfig.fromNumber ||
-    !whatsappConfig.webhookSecret
+    !whatsappConfig.webhookUrl
   ) {
     logger.warn('Twilio disabled - missing or invalid configuration');
     return null;
@@ -45,19 +43,21 @@ function resolveTwilioConfig(): TwilioWhatsAppConfig | null {
     accountSid: whatsappConfig.accountSid,
     authToken: whatsappConfig.authToken,
     fromNumber: whatsappConfig.fromNumber,
-    webhookSecret: whatsappConfig.webhookSecret,
+    webhookUrl: whatsappConfig.webhookUrl.replace(/\/+$/, ''),
   };
 }
 
 export class TwilioWhatsAppProvider implements IWhatsAppProvider {
   private readonly client: Twilio;
   private readonly fromNumber: string;
-  private readonly webhookSecret: string;
+  private readonly authToken: string;
+  private readonly webhookUrl: string;
 
   constructor(config: TwilioWhatsAppConfig) {
     this.client = twilio(config.accountSid, config.authToken);
     this.fromNumber = config.fromNumber;
-    this.webhookSecret = config.webhookSecret;
+    this.authToken = config.authToken;
+    this.webhookUrl = config.webhookUrl;
 
     logger.info('Twilio WhatsApp provider initialized');
   }
@@ -87,16 +87,22 @@ export class TwilioWhatsAppProvider implements IWhatsAppProvider {
     }
   }
 
-  verifyWebhook(signature: string, payload: string): boolean {
+  /**
+   * Twilio signs the full public URL plus the sorted POST parameters with the account
+   * auth token (HMAC-SHA1). The URL comes from configuration, not from request headers,
+   * so it is correct behind proxies and cannot be influenced by the caller.
+   */
+  verifyWebhook(
+    signature: string,
+    path: string,
+    params: Record<string, unknown>,
+  ): boolean {
     try {
-      const expectedSignature = crypto
-        .createHmac('sha256', this.webhookSecret)
-        .update(payload)
-        .digest('hex');
-
-      return crypto.timingSafeEqual(
-        Buffer.from(signature),
-        Buffer.from(expectedSignature),
+      return twilio.validateRequest(
+        this.authToken,
+        signature,
+        `${this.webhookUrl}${path}`,
+        params,
       );
     } catch {
       return false;
@@ -107,10 +113,11 @@ export class TwilioWhatsAppProvider implements IWhatsAppProvider {
     try {
       const payload = rawPayload as Record<string, string>;
 
-      if (!payload.From || !payload.Body) return null;
+      if (!payload.From || !payload.Body || !payload.To) return null;
 
       return {
         from: payload.From.replace('whatsapp:', ''),
+        to: payload.To.replace('whatsapp:', ''),
         body: payload.Body,
         messageId: payload.MessageSid ?? '',
         timestamp: payload.Timestamp ?? new Date().toISOString(),
@@ -135,7 +142,11 @@ class DisabledWhatsAppProvider implements IWhatsAppProvider {
     });
   }
 
-  verifyWebhook(_signature: string, _payload: string): boolean {
+  verifyWebhook(
+    _signature: string,
+    _path: string,
+    _params: Record<string, unknown>,
+  ): boolean {
     return false;
   }
 
@@ -148,7 +159,8 @@ export function createWhatsAppProvider(): IWhatsAppProvider {
   const config = resolveTwilioConfig();
 
   if (!config) {
-    // TODO: Re-enable Twilio integration after production credentials are available.
+    // Without complete Twilio configuration (including WHATSAPP_WEBHOOK_URL) all webhook
+    // requests are rejected and outbound messages are skipped.
     return new DisabledWhatsAppProvider();
   }
 
