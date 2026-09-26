@@ -1,11 +1,14 @@
 import { Router } from 'express';
 
-import type { Container } from '../../../../infrastructure/di';
+import type { Container } from '../../../../shared/di/container';
 import type { ReportController } from '../../controllers/report.controller';
 import { generateReportSchema } from '../../controllers/report.controller';
 import { createAuthMiddleware } from '../../middlewares/auth.middleware';
 import { requireRole } from '../../middlewares/rbac.middleware';
-import { createTenantMiddleware } from '../../middlewares/tenant.middleware';
+import {
+  createTenantMiddleware,
+  requireTenantContext,
+} from '../../middlewares/tenant.middleware';
 import { validate } from '../../middlewares/validate.middleware';
 import { asyncHandler } from '../../utils/async-handler';
 
@@ -15,7 +18,8 @@ export function createReportRoutes(container: Container): Router {
   const authMiddleware = createAuthMiddleware(container.resolve('tokenService'));
   const tenantMiddleware = createTenantMiddleware(container.resolve('prisma'));
 
-  router.use(authMiddleware, tenantMiddleware);
+  // Tenant data only: requests without an organization context are rejected.
+  router.use(authMiddleware, tenantMiddleware, requireTenantContext);
 
   router.post(
     '/generate',

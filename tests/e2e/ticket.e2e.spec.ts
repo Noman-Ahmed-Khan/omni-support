@@ -1,13 +1,15 @@
+import type { Application } from 'express';
 import request from 'supertest';
-import { Application } from 'express';
+
+import { createTestCustomer } from '../fixtures/ticket.fixture';
 import { getTestApp, getAuthToken } from '../helpers/test-app';
 import { getTestPrisma, cleanupTestDatabase } from '../helpers/test-db';
-import { createTestCustomer } from '../fixtures/ticket.fixture';
 
 describe('Ticket E2E', () => {
   let app: Application;
   let managerToken: string;
   let agentToken: string;
+  let agentId: string;
   let tenantId: string;
   let customerId: string;
   const prisma = getTestPrisma();
@@ -26,6 +28,7 @@ describe('Ticket E2E', () => {
 
     const agentAuth = await getAuthToken(app, 'AGENT', tenantId);
     agentToken = agentAuth.token;
+    agentId = agentAuth.userId;
 
     const customer = await createTestCustomer(prisma, tenantId);
     customerId = customer.id;
@@ -85,13 +88,11 @@ describe('Ticket E2E', () => {
     });
 
     it('should return 401 without authentication', async () => {
-      const response = await request(app)
-        .post('/api/v1/tickets')
-        .send({
-          customerId,
-          title: 'Test Title',
-          description: 'Test description',
-        });
+      const response = await request(app).post('/api/v1/tickets').send({
+        customerId,
+        title: 'Test Title',
+        description: 'Test description',
+      });
 
       expect(response.status).toBe(401);
     });
@@ -246,9 +247,28 @@ describe('Ticket E2E', () => {
           customerId,
           title: 'Comment Test Ticket',
           description: 'This ticket will have comments added to it',
+          assignedAgentId: agentId,
         });
 
       ticketId = response.body.data.id;
+    });
+
+    it('should not let an agent comment on a ticket assigned to someone else', async () => {
+      const other = await request(app)
+        .post('/api/v1/tickets')
+        .set('Authorization', `Bearer ${managerToken}`)
+        .send({
+          customerId,
+          title: 'Unassigned Ticket',
+          description: 'Nobody has been assigned to this ticket yet',
+        });
+
+      const response = await request(app)
+        .post(`/api/v1/tickets/${other.body.data.id}/comments`)
+        .set('Authorization', `Bearer ${agentToken}`)
+        .send({ content: 'Sneaky reply', type: 'PUBLIC' });
+
+      expect(response.status).toBe(403);
     });
 
     it('should add public comment', async () => {

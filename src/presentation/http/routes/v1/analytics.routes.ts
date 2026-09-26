@@ -1,10 +1,13 @@
 import { Router } from 'express';
 
-import type { Container } from '../../../../infrastructure/di';
+import type { Container } from '../../../../shared/di/container';
 import type { AnalyticsController } from '../../controllers/analytics.controller';
 import { createAuthMiddleware } from '../../middlewares/auth.middleware';
 import { requireRole } from '../../middlewares/rbac.middleware';
-import { createTenantMiddleware } from '../../middlewares/tenant.middleware';
+import {
+  createTenantMiddleware,
+  requireTenantContext,
+} from '../../middlewares/tenant.middleware';
 import { asyncHandler } from '../../utils/async-handler';
 
 export function createAnalyticsRoutes(container: Container): Router {
@@ -17,6 +20,7 @@ export function createAnalyticsRoutes(container: Container): Router {
 
   router.get(
     '/trends',
+    requireTenantContext,
     requireRole('TENANT_MANAGER'),
     asyncHandler((req, res, next) => controller.getTrends(req, res, next)),
   );

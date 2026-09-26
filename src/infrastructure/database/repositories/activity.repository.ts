@@ -6,6 +6,8 @@ import type {
 } from '@prisma/client';
 
 import { InfrastructureError } from '../../../shared/errors/infrastructure.error';
+import { toSkip, toTotalPages } from '../../../shared/utils/pagination.util';
+import { resolveDatabaseClient, type DatabaseClient } from '../transaction-context';
 
 export interface ActivityLogEntry {
   tenantId: string;
@@ -13,7 +15,7 @@ export interface ActivityLogEntry {
   customerId?: string;
   actorId?: string;
   actorRole?: string;
-  eventType: string;
+  eventType: ActivityEventType;
   description: string;
   oldValue?: Record<string, unknown>;
   newValue?: Record<string, unknown>;
@@ -21,7 +23,12 @@ export interface ActivityLogEntry {
 }
 
 export class ActivityRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(private readonly prismaClient: PrismaClient) {}
+
+  /** Joins the caller's transaction when one is active (see TransactionManager). */
+  private get prisma(): DatabaseClient {
+    return resolveDatabaseClient(this.prismaClient);
+  }
 
   async create(entry: ActivityLogEntry): Promise<void> {
     try {
@@ -32,7 +39,7 @@ export class ActivityRepository {
           customerId: entry.customerId,
           actorId: entry.actorId,
           actorRole: entry.actorRole,
-          eventType: entry.eventType as ActivityEventType,
+          eventType: entry.eventType,
           description: entry.description,
           oldValue: toInputJson(entry.oldValue),
           newValue: toInputJson(entry.newValue),
@@ -57,7 +64,7 @@ export class ActivityRepository {
     totalPages: number;
   }> {
     try {
-      const skip = (page - 1) * limit;
+      const skip = toSkip(page, limit);
 
       const [records, total] = await Promise.all([
         this.prisma.activityLog.findMany({
@@ -74,7 +81,7 @@ export class ActivityRepository {
         total,
         page,
         limit,
-        totalPages: Math.ceil(total / limit),
+        totalPages: toTotalPages(total, limit),
       };
     } catch (error) {
       throw new InfrastructureError('Failed to find ticket activities', {
@@ -96,7 +103,7 @@ export class ActivityRepository {
     totalPages: number;
   }> {
     try {
-      const skip = (page - 1) * limit;
+      const skip = toSkip(page, limit);
 
       const [records, total] = await Promise.all([
         this.prisma.activityLog.findMany({
@@ -113,7 +120,7 @@ export class ActivityRepository {
         total,
         page,
         limit,
-        totalPages: Math.ceil(total / limit),
+        totalPages: toTotalPages(total, limit),
       };
     } catch (error) {
       throw new InfrastructureError('Failed to find customer activities', {

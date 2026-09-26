@@ -1,12 +1,17 @@
+import type { PrismaClient } from '@prisma/client';
+import type { MockProxy } from 'jest-mock-extended';
+import { mockDeep } from 'jest-mock-extended';
+
 import { AuthService } from '../../../../src/application/auth/services/auth.service';
-import { TokenService } from '../../../../src/application/auth/services/token.service';
-import { mockDeep, MockProxy } from 'jest-mock-extended';
-import { PrismaClient } from '@prisma/client';
-import { EmailQueue } from '../../../../src/infrastructure/queue/queues/email.queue';
-import { AuditRepository } from '../../../../src/infrastructure/database/repositories/audit.repository';
-import { CacheService } from '../../../../src/infrastructure/cache/cache.service';
-import { ConflictError, ValidationError } from '../../../../src/shared/errors/domain.error';
-import { UnauthorizedError, ForbiddenError } from '../../../../src/shared/errors/application.error';
+import type { TokenService } from '../../../../src/application/auth/services/token.service';
+import type { CacheService } from '../../../../src/infrastructure/cache/cache.service';
+import type { AuditRepository } from '../../../../src/infrastructure/database/repositories/audit.repository';
+import type { EmailQueue } from '../../../../src/infrastructure/queue/queues/email.queue';
+import {
+  UnauthorizedError,
+  ForbiddenError,
+} from '../../../../src/shared/errors/application.error';
+import { ValidationError } from '../../../../src/shared/errors/domain.error';
 
 describe('AuthService', () => {
   let authService: AuthService;
@@ -61,15 +66,17 @@ describe('AuthService', () => {
       expect(emailQueue.addUrgent).toHaveBeenCalledTimes(1);
     });
 
-    it('should throw ConflictError if email already exists', async () => {
+    it('does not reveal or modify an existing account (no enumeration)', async () => {
       (prisma.user.findUnique as jest.Mock).mockResolvedValue({
         id: 'existing-user',
         email: 'test@example.com',
       });
 
-      await expect(authService.register(validRegisterDto)).rejects.toThrow(
-        ConflictError,
-      );
+      await expect(authService.register(validRegisterDto)).resolves.toEqual({
+        userId: null,
+      });
+      expect(prisma.user.create).not.toHaveBeenCalled();
+      expect(emailQueue.addUrgent).not.toHaveBeenCalled();
     });
 
     it('should throw ValidationError for weak password', async () => {
@@ -173,6 +180,36 @@ describe('AuthService', () => {
           password: 'TestPass@123!',
         }),
       ).rejects.toThrow(ForbiddenError);
+    });
+
+    it('locks the account progressively from the fifth failed attempt', async () => {
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+        ...validUser,
+        failedLoginAttempts: 5,
+      });
+
+      await expect(
+        authService.login({ email: 'test@example.com', password: 'WrongPass@123!' }),
+      ).rejects.toThrow('Invalid email or password');
+
+      const update = (prisma.user.update as jest.Mock).mock.calls[0][0] as {
+        data: { failedLoginAttempts: number; lockedUntil: Date };
+      };
+      expect(update.data.failedLoginAttempts).toBe(6);
+      const lockMinutes = (update.data.lockedUntil.getTime() - Date.now()) / 60000;
+      expect(lockMinutes).toBeGreaterThan(1.5);
+      expect(lockMinutes).toBeLessThanOrEqual(2);
+    });
+
+    it('gives a locked account the same error as a wrong password', async () => {
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+        ...validUser,
+        lockedUntil: new Date(Date.now() + 10 * 60 * 1000),
+      });
+
+      await expect(
+        authService.login({ email: 'test@example.com', password: 'TestPass@123!' }),
+      ).rejects.toThrow('Invalid email or password');
     });
 
     it('should throw UnauthorizedError for locked account', async () => {

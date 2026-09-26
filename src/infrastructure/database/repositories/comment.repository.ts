@@ -11,9 +11,16 @@ import type {
   PaginationOptions,
   PaginatedResult,
 } from '../../../domain/ticket/repositories/comment.repository.interface';
+import { toSkip, toTotalPages } from '../../../shared/utils/pagination.util';
+import { resolveDatabaseClient, type DatabaseClient } from '../transaction-context';
 
 export class CommentRepository implements ICommentRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(private readonly prismaClient: PrismaClient) {}
+
+  /** Joins the caller's transaction when one is active (see TransactionManager). */
+  private get prisma(): DatabaseClient {
+    return resolveDatabaseClient(this.prismaClient);
+  }
 
   async findById(id: string, tenantId: string): Promise<TicketCommentEntity | null> {
     const comment = await this.prisma.ticketComment.findFirst({
@@ -32,7 +39,7 @@ export class CommentRepository implements ICommentRepository {
     const where: Prisma.TicketCommentWhereInput = { ticketId, tenantId };
     const orderBy = buildOrderBy(pagination.sortBy, pagination.sortOrder);
 
-    const skip = (pagination.page - 1) * pagination.limit;
+    const skip = toSkip(pagination.page, pagination.limit);
 
     const [comments, total] = await Promise.all([
       this.prisma.ticketComment.findMany({
@@ -49,7 +56,7 @@ export class CommentRepository implements ICommentRepository {
       total,
       page: pagination.page,
       limit: pagination.limit,
-      totalPages: Math.ceil(total / pagination.limit),
+      totalPages: toTotalPages(total, pagination.limit),
     };
   }
 

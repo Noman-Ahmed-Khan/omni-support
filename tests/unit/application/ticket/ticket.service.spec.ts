@@ -1,19 +1,22 @@
+import type { PrismaClient } from '@prisma/client';
+import { mockDeep } from 'jest-mock-extended';
+import type { MockProxy } from 'jest-mock-extended';
+
+import type { IEventBus } from '../../../../src/application/event-bus/event-bus.interface';
 import { TicketService } from '../../../../src/application/ticket/services/ticket.service';
-import { mockDeep, MockProxy } from 'jest-mock-extended';
-import { ITicketRepository } from '../../../../src/domain/ticket/repositories/ticket.repository.interface';
-import { ICustomerRepository } from '../../../../src/domain/customer/repositories/customer.repository.interface';
-import { PrismaClient } from '@prisma/client';
-import { IEventBus } from '../../../../src/application/event-bus/event-bus.interface';
-import { AIQueue } from '../../../../src/infrastructure/queue/queues/ai.queue';
-import { ActivityRepository } from '../../../../src/infrastructure/database/repositories/activity.repository';
-import { AuditRepository } from '../../../../src/infrastructure/database/repositories/audit.repository';
-import { DashboardCacheStrategy } from '../../../../src/infrastructure/cache/strategies/dashboard.cache';
 import { CustomerEntity } from '../../../../src/domain/customer/entities/customer.entity';
+import type { ICustomerRepository } from '../../../../src/domain/customer/repositories/customer.repository.interface';
 import { TicketEntity } from '../../../../src/domain/ticket/entities/ticket.entity';
-import { TicketStatus } from '../../../../src/domain/ticket/value-objects/ticket-status.vo';
+import type { ICommentRepository } from '../../../../src/domain/ticket/repositories/comment.repository.interface';
+import type { ITicketRepository } from '../../../../src/domain/ticket/repositories/ticket.repository.interface';
 import { TicketPriority } from '../../../../src/domain/ticket/value-objects/ticket-priority.vo';
-import { NotFoundError } from '../../../../src/shared/errors/domain.error';
+import { TicketStatus } from '../../../../src/domain/ticket/value-objects/ticket-status.vo';
 import { Email } from '../../../../src/domain/user/value-objects/email.vo';
+import type { DashboardCacheStrategy } from '../../../../src/infrastructure/cache/strategies/dashboard.cache';
+import type { ActivityRepository } from '../../../../src/infrastructure/database/repositories/activity.repository';
+import type { AuditRepository } from '../../../../src/infrastructure/database/repositories/audit.repository';
+import type { AIQueue } from '../../../../src/infrastructure/queue/queues/ai.queue';
+import { NotFoundError } from '../../../../src/shared/errors/domain.error';
 
 describe('TicketService', () => {
   let ticketService: TicketService;
@@ -25,6 +28,7 @@ describe('TicketService', () => {
   let activityRepo: MockProxy<ActivityRepository>;
   let auditRepo: MockProxy<AuditRepository>;
   let dashboardCache: MockProxy<DashboardCacheStrategy>;
+  let commentRepo: MockProxy<ICommentRepository>;
 
   const mockCustomer = CustomerEntity.reconstitute('customer-id', {
     tenantId: 'tenant-id',
@@ -61,6 +65,7 @@ describe('TicketService', () => {
     activityRepo = mockDeep<ActivityRepository>();
     auditRepo = mockDeep<AuditRepository>();
     dashboardCache = mockDeep<DashboardCacheStrategy>();
+    commentRepo = mockDeep<ICommentRepository>();
 
     ticketService = new TicketService(
       ticketRepo,
@@ -71,6 +76,9 @@ describe('TicketService', () => {
       activityRepo,
       auditRepo,
       dashboardCache,
+      commentRepo,
+      // Runs the work inline; transaction semantics are covered by integration tests.
+      { run: <T>(work: (client: never) => Promise<T>) => work(undefined as never) },
     );
   });
 
@@ -105,7 +113,7 @@ describe('TicketService', () => {
         suspendedAt: null,
         suspendedReason: null,
       });
-      (prisma.ticket.count as jest.Mock).mockResolvedValue(0);
+      ticketRepo.countCreatedSince.mockResolvedValue(0);
       ticketRepo.getNextTicketNumber.mockResolvedValue(1);
       ticketRepo.save.mockResolvedValue(mockTicket);
       customerRepo.update.mockResolvedValue(mockCustomer);
@@ -127,12 +135,64 @@ describe('TicketService', () => {
       expect(eventBus.publishAll).toHaveBeenCalledTimes(1);
     });
 
+    it('does not queue AI analysis when the transactional write fails', async () => {
+      customerRepo.findById.mockResolvedValue(mockCustomer);
+      (prisma.tenant.findUnique as jest.Mock).mockResolvedValue({
+        id: 'tenant-id',
+        name: 'Tenant',
+        slug: 'tenant',
+        status: 'ACTIVE',
+        plan: 'starter',
+        maxAgents: 10,
+        maxCustomers: 1000,
+        maxTicketsPerDay: 500,
+        settings: {},
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      ticketRepo.countCreatedSince.mockResolvedValue(0);
+      ticketRepo.getNextTicketNumber.mockResolvedValue(1);
+      ticketRepo.save.mockResolvedValue(mockTicket);
+      customerRepo.update.mockResolvedValue(mockCustomer);
+      activityRepo.create.mockResolvedValue(undefined);
+      auditRepo.create.mockResolvedValue(undefined);
+      eventBus.publishAll.mockRejectedValue(new Error('outbox insert failed'));
+
+      await expect(ticketService.createTicket(createDto)).rejects.toThrow(
+        'outbox insert failed',
+      );
+      expect(aiQueue.addTicketAnalysis).not.toHaveBeenCalled();
+      expect(dashboardCache.invalidate).not.toHaveBeenCalled();
+    });
+
+    it('rejects creation once the daily ticket limit is reached', async () => {
+      customerRepo.findById.mockResolvedValue(mockCustomer);
+      (prisma.tenant.findUnique as jest.Mock).mockResolvedValue({
+        id: 'tenant-id',
+        name: 'Tenant',
+        slug: 'tenant',
+        status: 'ACTIVE',
+        plan: 'starter',
+        maxAgents: 10,
+        maxCustomers: 1000,
+        maxTicketsPerDay: 5,
+        settings: {},
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      ticketRepo.getNextTicketNumber.mockResolvedValue(6);
+      ticketRepo.countCreatedSince.mockResolvedValue(5);
+
+      await expect(ticketService.createTicket(createDto)).rejects.toThrow(
+        'Tenant ticket limit has been reached',
+      );
+      expect(ticketRepo.save).not.toHaveBeenCalled();
+    });
+
     it('should throw NotFoundError when customer does not exist', async () => {
       customerRepo.findById.mockResolvedValue(null);
 
-      await expect(ticketService.createTicket(createDto)).rejects.toThrow(
-        NotFoundError,
-      );
+      await expect(ticketService.createTicket(createDto)).rejects.toThrow(NotFoundError);
     });
 
     it('should throw ForbiddenError for blocked customer', async () => {
@@ -147,13 +207,10 @@ describe('TicketService', () => {
 
       customerRepo.findById.mockResolvedValue(blockedCustomer);
 
-      const { ForbiddenError } = await import(
-        '../../../../src/shared/errors/application.error'
-      );
+      const { ForbiddenError } =
+        await import('../../../../src/shared/errors/application.error');
 
-      await expect(ticketService.createTicket(createDto)).rejects.toThrow(
-        ForbiddenError,
-      );
+      await expect(ticketService.createTicket(createDto)).rejects.toThrow(ForbiddenError);
     });
   });
 

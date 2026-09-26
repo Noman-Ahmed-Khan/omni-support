@@ -14,6 +14,7 @@ import type {
   PaginatedResult,
 } from '../../../domain/notification/repositories/notification.repository.interface';
 import { NotificationChannel } from '../../../domain/notification/value-objects/notification-channel.vo';
+import { toSkip, toTotalPages } from '../../../shared/utils/pagination.util';
 
 export class NotificationRepository implements INotificationRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -68,7 +69,7 @@ export class NotificationRepository implements INotificationRepository {
       }
     }
 
-    const skip = (pagination.page - 1) * pagination.limit;
+    const skip = toSkip(pagination.page, pagination.limit);
     const orderBy = buildOrderBy(pagination.sortBy, pagination.sortOrder);
 
     const [data, total] = await Promise.all([
@@ -86,7 +87,7 @@ export class NotificationRepository implements INotificationRepository {
       total,
       page: pagination.page,
       limit: pagination.limit,
-      totalPages: Math.ceil(total / pagination.limit),
+      totalPages: toTotalPages(total, pagination.limit),
     };
   }
 

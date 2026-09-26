@@ -1,9 +1,13 @@
 import { Router } from 'express';
 
-import type { Container } from '../../../../infrastructure/di';
+import type { Container } from '../../../../shared/di/container';
 import type { SearchController } from '../../controllers/search.controller';
 import { createAuthMiddleware } from '../../middlewares/auth.middleware';
-import { createTenantMiddleware } from '../../middlewares/tenant.middleware';
+import { requireRole } from '../../middlewares/rbac.middleware';
+import {
+  createTenantMiddleware,
+  requireTenantContext,
+} from '../../middlewares/tenant.middleware';
 import { asyncHandler } from '../../utils/async-handler';
 
 export function createSearchRoutes(container: Container): Router {
@@ -12,7 +16,14 @@ export function createSearchRoutes(container: Container): Router {
   const authMiddleware = createAuthMiddleware(container.resolve('tokenService'));
   const tenantMiddleware = createTenantMiddleware(container.resolve('prisma'));
 
-  router.use(authMiddleware, tenantMiddleware);
+  // Tenant data only: requests without an organization context are rejected.
+  router.use(
+    authMiddleware,
+    tenantMiddleware,
+    requireTenantContext,
+    // Search spans tickets, customers and comments: staff only.
+    requireRole('TENANT_MANAGER', 'AGENT'),
+  );
 
   router.get(
     '/',

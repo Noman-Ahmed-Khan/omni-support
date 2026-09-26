@@ -2,6 +2,7 @@ import type { PrismaClient, Prisma } from '@prisma/client';
 
 import type { CacheService } from '../../../infrastructure/cache/cache.service';
 import { AnalyticsCacheStrategy } from '../../../infrastructure/cache/strategies/analytics.cache';
+import { addDays, startOfUtcDay } from '../../../shared/utils/date.util';
 import { logger } from '../../../shared/utils/logger.util';
 
 export interface DashboardMetrics {
@@ -57,9 +58,8 @@ export class AnalyticsService {
   }
 
   private async computeDashboardMetrics(tenantId: string): Promise<DashboardMetrics> {
-    const now = new Date();
-    const todayStart = new Date(now);
-    todayStart.setHours(0, 0, 0, 0);
+    // Day boundaries are UTC so results do not depend on the server's timezone.
+    const todayStart = startOfUtcDay(new Date());
 
     const [
       totalTickets,
@@ -133,36 +133,42 @@ export class AnalyticsService {
           ) / resolvedWithTime.length
         : 0;
 
-    // Agent workload
-    const agentWorkload: AgentWorkload[] = await Promise.all(
-      agents.map(async (agent) => {
-        const [openCount, resolvedCount] = await Promise.all([
-          this.prisma.ticket.count({
-            where: {
-              tenantId,
-              assignedAgentId: agent.id,
-              status: { notIn: ['RESOLVED', 'CLOSED'] },
-            },
-          }),
-          this.prisma.ticket.count({
-            where: {
-              tenantId,
-              assignedAgentId: agent.id,
-              status: 'RESOLVED',
-              resolvedAt: { gte: todayStart },
-            },
-          }),
-        ]);
-
-        return {
-          agentId: agent.id,
-          agentName: `${agent.firstName} ${agent.lastName}`,
-          openTickets: openCount,
-          resolvedToday: resolvedCount,
-          avgResponseTimeHours: 0, // Can be computed from firstResponseAt
-        };
+    // Agent workload: two grouped queries instead of two queries per agent.
+    const agentIds = agents.map((agent) => agent.id);
+    const [openByAgent, resolvedTodayByAgent] = await Promise.all([
+      this.prisma.ticket.groupBy({
+        by: ['assignedAgentId'],
+        where: {
+          tenantId,
+          assignedAgentId: { in: agentIds },
+          status: { notIn: ['RESOLVED', 'CLOSED'] },
+        },
+        _count: { _all: true },
       }),
-    );
+      this.prisma.ticket.groupBy({
+        by: ['assignedAgentId'],
+        where: {
+          tenantId,
+          assignedAgentId: { in: agentIds },
+          status: 'RESOLVED',
+          resolvedAt: { gte: todayStart },
+        },
+        _count: { _all: true },
+      }),
+    ]);
+
+    const countFor = (
+      rows: Array<{ assignedAgentId: string | null; _count: { _all: number } }>,
+      agentId: string,
+    ): number => rows.find((row) => row.assignedAgentId === agentId)?._count._all ?? 0;
+
+    const agentWorkload: AgentWorkload[] = agents.map((agent) => ({
+      agentId: agent.id,
+      agentName: `${agent.firstName} ${agent.lastName}`,
+      openTickets: countFor(openByAgent, agent.id),
+      resolvedToday: countFor(resolvedTodayByAgent, agent.id),
+      avgResponseTimeHours: 0, // Can be computed from firstResponseAt
+    }));
 
     const statusMap = ticketsByStatus.reduce(
       (acc, r) => ({ ...acc, [r.status]: r._count.status }),
@@ -208,8 +214,8 @@ export class AnalyticsService {
     tenantId: string,
     days: number,
   ): Promise<TrendData[]> {
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - days);
+    const today = startOfUtcDay(new Date());
+    const startDate = addDays(today, -days);
 
     const tickets = await this.prisma.ticket.findMany({
       where: {
@@ -230,50 +236,115 @@ export class AnalyticsService {
     // Fill missing dates
     const result: TrendData[] = [];
     for (let i = days; i >= 0; i--) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      const dateKey = date.toISOString().split('T')[0];
+      const dateKey = addDays(today, -i).toISOString().split('T')[0];
       result.push({ date: dateKey, value: grouped[dateKey] ?? 0 });
     }
 
     return result;
   }
 
-  async generateDailySnapshot(tenantId: string): Promise<void> {
+  /**
+   * Stores the activity of one UTC day (default: yesterday) for a tenant.
+   *
+   * Counts of created, resolved, closed and escalated tickets are for that day only;
+   * open/critical/active-agent figures are the state at the time the snapshot is taken.
+   */
+  async generateDailySnapshot(
+    tenantId: string,
+    day: Date = addDays(startOfUtcDay(new Date()), -1),
+  ): Promise<void> {
     try {
-      const metrics = await this.computeDashboardMetrics(tenantId);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      const dayStart = startOfUtcDay(day);
+      const dayEnd = addDays(dayStart, 1);
+      const during = { gte: dayStart, lt: dayEnd };
+
+      const [
+        createdTickets,
+        resolvedTickets,
+        closedTickets,
+        escalatedTickets,
+        slaBreachedCount,
+        openTickets,
+        byPriority,
+        byCategory,
+        totalCustomers,
+        activeAgents,
+        resolvedDuring,
+      ] = await Promise.all([
+        this.prisma.ticket.count({ where: { tenantId, createdAt: during } }),
+        this.prisma.ticket.count({ where: { tenantId, resolvedAt: during } }),
+        this.prisma.ticket.count({ where: { tenantId, closedAt: during } }),
+        this.prisma.ticket.count({ where: { tenantId, escalatedAt: during } }),
+        this.prisma.ticket.count({
+          where: { tenantId, slaBreached: true, dueAt: during },
+        }),
+        this.prisma.ticket.count({
+          where: { tenantId, status: { notIn: ['RESOLVED', 'CLOSED'] } },
+        }),
+        this.prisma.ticket.groupBy({
+          by: ['priority'],
+          where: { tenantId, createdAt: during },
+          _count: { _all: true },
+        }),
+        this.prisma.ticket.groupBy({
+          by: ['category'],
+          where: { tenantId, createdAt: during },
+          _count: { _all: true },
+        }),
+        this.prisma.customer.count({ where: { tenantId } }),
+        this.prisma.user.count({ where: { tenantId, role: 'AGENT', status: 'ACTIVE' } }),
+        this.prisma.ticket.findMany({
+          where: { tenantId, resolvedAt: during },
+          select: { createdAt: true, resolvedAt: true },
+        }),
+      ]);
+
+      const priorityCount = (priority: string): number =>
+        byPriority.find((row) => row.priority === priority)?._count._all ?? 0;
+
+      const avgResolutionTimeMs =
+        resolvedDuring.length > 0
+          ? BigInt(
+              Math.round(
+                resolvedDuring.reduce(
+                  (sum, t) => sum + (t.resolvedAt!.getTime() - t.createdAt.getTime()),
+                  0,
+                ) / resolvedDuring.length,
+              ),
+            )
+          : null;
+
+      const data = {
+        totalTickets: createdTickets,
+        openTickets,
+        resolvedTickets,
+        closedTickets,
+        escalatedTickets,
+        slaBreachedCount,
+        avgResolutionTimeMs,
+        criticalTickets: priorityCount('CRITICAL'),
+        highTickets: priorityCount('HIGH'),
+        mediumTickets: priorityCount('MEDIUM'),
+        lowTickets: priorityCount('LOW'),
+        totalCustomers,
+        activeAgents,
+        categoryDistribution: toInputJson(
+          Object.fromEntries(byCategory.map((row) => [row.category, row._count._all])),
+        ),
+      };
 
       await this.prisma.analyticsSnapshot.upsert({
         where: {
-          tenantId_snapshotDate: { tenantId, snapshotDate: today },
+          tenantId_snapshotDate: { tenantId, snapshotDate: dayStart },
         },
-        update: {
-          totalTickets: metrics.totalTickets,
-          openTickets: metrics.openTickets,
-          resolvedTickets: metrics.ticketsByStatus['RESOLVED'] ?? 0,
-          closedTickets: metrics.ticketsByStatus['CLOSED'] ?? 0,
-          escalatedTickets: metrics.escalatedTickets,
-          criticalTickets: metrics.criticalTickets,
-          categoryDistribution: toInputJson(metrics.ticketsByCategory),
-          agentPerformance: toInputJson(metrics.agentWorkload),
-        },
-        create: {
-          tenantId,
-          snapshotDate: today,
-          totalTickets: metrics.totalTickets,
-          openTickets: metrics.openTickets,
-          resolvedTickets: metrics.ticketsByStatus['RESOLVED'] ?? 0,
-          closedTickets: metrics.ticketsByStatus['CLOSED'] ?? 0,
-          escalatedTickets: metrics.escalatedTickets,
-          criticalTickets: metrics.criticalTickets,
-          categoryDistribution: toInputJson(metrics.ticketsByCategory),
-          agentPerformance: toInputJson(metrics.agentWorkload),
-        },
+        update: data,
+        create: { tenantId, snapshotDate: dayStart, ...data },
       });
 
-      logger.info('Analytics snapshot generated', { tenantId });
+      logger.info('Analytics snapshot generated', {
+        tenantId,
+        snapshotDate: dayStart.toISOString().slice(0, 10),
+      });
     } catch (error) {
       logger.error('Failed to generate analytics snapshot', { tenantId, error });
     }

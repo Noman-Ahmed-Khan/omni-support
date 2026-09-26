@@ -1,5 +1,13 @@
 import { z } from 'zod';
 
+const localConfigSchema = z.object({
+  path: z.string().default('./uploads'),
+  /** Public base URL of the signed download route. */
+  baseUrl: z.string().default('http://localhost:3000/api/v1/attachments/files'),
+  /** HMAC key for signed download URLs. */
+  secret: z.string().min(16, 'LOCAL_STORAGE_SECRET must be at least 16 characters'),
+});
+
 const awsConfigSchema = z.object({
   region: z.string().default('us-east-1'),
   accessKeyId: z.string(),
@@ -12,6 +20,9 @@ export const storageConfigSchema = z
   .object({
     provider: z.enum(['memory', 'local', 's3']).default('local'),
     aws: awsConfigSchema.optional(),
+    local: localConfigSchema.optional(),
+    /** Reject uploads when no antivirus scanner is configured (REQUIRE_AV_SCAN=true). */
+    requireAntivirusScan: z.boolean().default(false),
     allowedMimeTypes: z
       .array(z.string())
       .default([
@@ -30,6 +41,13 @@ export const storageConfigSchema = z
     maxFileSizeBytes: z.coerce.number().default(10 * 1024 * 1024), // 10MB
   })
   .superRefine((value, ctx) => {
+    if (value.provider === 'local' && !value.local) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'LOCAL_STORAGE_SECRET is required when STORAGE_PROVIDER is local',
+        path: ['local'],
+      });
+    }
     if (value.provider === 's3' && !value.aws) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -40,6 +58,7 @@ export const storageConfigSchema = z
   });
 
 export type AwsStorageConfig = z.infer<typeof awsConfigSchema>;
+export type LocalStorageConfig = z.infer<typeof localConfigSchema>;
 export type StorageConfig = z.infer<typeof storageConfigSchema>;
 
 export function getStorageConfig(env: NodeJS.ProcessEnv = process.env): StorageConfig {
@@ -55,9 +74,20 @@ export function getStorageConfig(env: NodeJS.ProcessEnv = process.env): StorageC
         }
       : undefined;
 
+  const local =
+    provider === 'local'
+      ? {
+          path: env.LOCAL_STORAGE_PATH,
+          baseUrl: env.LOCAL_STORAGE_URL,
+          secret: env.LOCAL_STORAGE_SECRET,
+        }
+      : undefined;
+
   return storageConfigSchema.parse({
     provider,
     aws,
+    local,
+    requireAntivirusScan: env.REQUIRE_AV_SCAN === 'true',
     allowedMimeTypes: env.STORAGE_ALLOWED_MIME_TYPES
       ? env.STORAGE_ALLOWED_MIME_TYPES.split(',').map((item) => item.trim())
       : undefined,

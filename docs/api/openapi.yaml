@@ -111,17 +111,21 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/AuthRegisterRequest'
+      description: >-
+        Creates a customer account without organization and sends a verification email.
+        The response is identical when the email is already registered, so the endpoint
+        cannot be used to discover accounts. Disabled when ALLOW_PUBLIC_REGISTRATION=false.
       responses:
-        '201':
-          description: User registered successfully
+        '202':
+          description: Accepted; a verification email is sent if the address can be registered
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UserResponseWrapper'
+                $ref: '#/components/schemas/MessageResponse'
         '400':
           $ref: '#/components/responses/ValidationError'
-        '409':
-          $ref: '#/components/responses/ConflictError'
+        '403':
+          description: Public registration is disabled
   /api/v1/auth/login:
     post:
       tags:
@@ -474,6 +478,7 @@ paths:
           $ref: '#/components/responses/TenantResponse'
         '400':
           $ref: '#/components/responses/ValidationError'
+  /api/v1/tenants/{id}/suspend:
     post:
       tags:
         - Tenants
@@ -1176,7 +1181,8 @@ paths:
     post:
       tags:
         - Reports
-      summary: Queue a report generation job
+      summary: Generate a report (not available yet)
+      description: Report generation has no processor yet; the endpoint returns 501.
       security:
         - bearerAuth: []
       requestBody:
@@ -1186,8 +1192,8 @@ paths:
             schema:
               $ref: '#/components/schemas/GenerateReportRequest'
       responses:
-        '202':
-          $ref: '#/components/responses/MessageResponse'
+        '501':
+          description: Report generation is not implemented
   /api/v1/search:
     get:
       tags:
@@ -1810,9 +1816,10 @@ components:
           type: string
         sizeBytes:
           type: integer
-        publicUrl:
+        status:
           type: string
-          format: uri
+          enum: [PENDING, SCANNED, CLEAN, INFECTED, REJECTED]
+          description: PENDING until an antivirus scanner has checked the file
     AttachmentResponseWrapper:
       type: object
       properties:

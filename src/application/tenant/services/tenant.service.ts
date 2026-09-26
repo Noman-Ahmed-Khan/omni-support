@@ -9,6 +9,7 @@ import { TenantSlug } from '../../../domain/tenant/value-objects/tenant-slug.vo'
 import { TenantStatus } from '../../../domain/tenant/value-objects/tenant-status.vo';
 import type { AuditRepository } from '../../../infrastructure/database/repositories/audit.repository';
 import { ConflictError, NotFoundError } from '../../../shared/errors/domain.error';
+import { toActorUserId } from '../../../shared/utils/system-actor.util';
 import type { IEventBus } from '../../event-bus/event-bus.interface';
 import type { CreateTenantCommand } from '../commands/create-tenant.command';
 import type { SuspendTenantCommand } from '../commands/suspend-tenant.command';
@@ -17,11 +18,16 @@ import type { RestoreTenantCommand } from '../handlers/restore-tenant.handler';
 import type { GetTenantQuery } from '../queries/get-tenant.query';
 import type { ListTenantsQuery } from '../queries/list-tenants.query';
 
+export interface TenantSessionRevoker {
+  revokeAllTenantTokens(tenantId: string, reason: string): Promise<void>;
+}
+
 export class TenantService {
   constructor(
     private readonly tenantRepo: ITenantRepository,
     private readonly auditRepo: AuditRepository,
     private readonly eventBus: IEventBus,
+    private readonly sessionRevoker?: TenantSessionRevoker,
   ) {}
 
   async createTenant(command: CreateTenantCommand): Promise<TenantEntity> {
@@ -50,7 +56,7 @@ export class TenantService {
     const saved = await this.tenantRepo.save(tenant);
 
     await this.auditRepo.create({
-      actorId: command.actorId,
+      actorId: toActorUserId(command.actorId),
       actorRole: command.actorRole,
       action: 'CREATE',
       resource: 'tenants',
@@ -58,7 +64,8 @@ export class TenantService {
       newValue: { name: command.name, slug: tenantSlug.toString() },
     });
 
-    await this.eventBus.publishAll(saved.pullDomainEvents());
+    // Events live on the aggregate that raised them; the repository returns a fresh copy.
+    await this.eventBus.publishAll(tenant.pullDomainEvents());
 
     return saved;
   }
@@ -72,7 +79,7 @@ export class TenantService {
 
     await this.auditRepo.create({
       tenantId: command.tenantId,
-      actorId: command.actorId,
+      actorId: toActorUserId(command.actorId),
       actorRole: command.actorRole,
       action: 'UPDATE',
       resource: 'tenants',
@@ -90,9 +97,15 @@ export class TenantService {
     tenant.suspend(command.reason);
     const updated = await this.tenantRepo.update(tenant);
 
+    // Members of a suspended organization must not keep refreshing their sessions.
+    await this.sessionRevoker?.revokeAllTenantTokens(
+      command.tenantId,
+      'TENANT_SUSPENDED',
+    );
+
     await this.auditRepo.create({
       tenantId: command.tenantId,
-      actorId: command.actorId,
+      actorId: toActorUserId(command.actorId),
       actorRole: command.actorRole,
       action: 'SUSPEND',
       resource: 'tenants',
@@ -100,7 +113,7 @@ export class TenantService {
       newValue: { reason: command.reason },
     });
 
-    await this.eventBus.publishAll(updated.pullDomainEvents());
+    await this.eventBus.publishAll(tenant.pullDomainEvents());
 
     return updated;
   }
@@ -114,7 +127,7 @@ export class TenantService {
 
     await this.auditRepo.create({
       tenantId: command.tenantId,
-      actorId: command.actorId,
+      actorId: toActorUserId(command.actorId),
       actorRole: command.actorRole,
       action: 'RESTORE',
       resource: 'tenants',

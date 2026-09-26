@@ -1,9 +1,15 @@
 import crypto from 'crypto';
 
 import type { PrismaClient, User } from '@prisma/client';
-import { OAuth2Client, type Credentials } from 'google-auth-library';
+import { OAuth2Client } from 'google-auth-library';
 
 import type { TokenService } from './token.service';
+import { getAppConfig } from '../../../config/app.config';
+import { getOAuthConfig } from '../../../config/oauth.config';
+import {
+  ForbiddenError,
+  UnauthorizedError,
+} from '../../../shared/errors/application.error';
 import { logger } from '../../../shared/utils/logger.util';
 
 export interface GoogleUserInfo {
@@ -15,8 +21,6 @@ export interface GoogleUserInfo {
   emailVerified: boolean;
 }
 
-export type GoogleTokens = Credentials;
-
 export class OAuthService {
   private readonly googleClient: OAuth2Client;
 
@@ -24,16 +28,22 @@ export class OAuthService {
     private readonly prisma: PrismaClient,
     private readonly tokenService: TokenService,
   ) {
+    const { google } = getOAuthConfig();
     this.googleClient = new OAuth2Client(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
-      process.env.GOOGLE_CALLBACK_URL,
+      google.clientId,
+      google.clientSecret,
+      google.callbackUrl,
     );
   }
 
-  getGoogleAuthUrl(state?: string): string {
+  /** Creates an unguessable value used to bind the OAuth callback to the browser that started it. */
+  createState(): string {
+    return crypto.randomBytes(32).toString('base64url');
+  }
+
+  getGoogleAuthUrl(state: string): string {
     return this.googleClient.generateAuthUrl({
-      access_type: 'offline',
+      access_type: 'online',
       scope: ['profile', 'email'],
       state,
     });
@@ -52,28 +62,35 @@ export class OAuthService {
   }> {
     // Exchange code for tokens
     const { tokens } = await this.googleClient.getToken(code);
-    this.googleClient.setCredentials(tokens);
 
-    // Get user info
+    if (!tokens.id_token) {
+      throw new UnauthorizedError('Google did not return an identity token');
+    }
+
     const ticket = await this.googleClient.verifyIdToken({
-      idToken: tokens.id_token!,
-      audience: process.env.GOOGLE_CLIENT_ID,
+      idToken: tokens.id_token,
+      audience: getOAuthConfig().google.clientId,
     });
 
     const payload = ticket.getPayload();
-    if (!payload) throw new Error('Invalid Google token payload');
+    if (!payload?.email) throw new UnauthorizedError('Invalid Google token payload');
 
     const googleUser: GoogleUserInfo = {
       googleId: payload.sub,
-      email: payload.email!,
+      email: payload.email,
       firstName: payload.given_name ?? '',
       lastName: payload.family_name ?? '',
       avatarUrl: payload.picture,
       emailVerified: payload.email_verified ?? false,
     };
 
-    // Find or create user
-    const { user, isNewUser } = await this.findOrCreateGoogleUser(googleUser, tokens);
+    if (!googleUser.emailVerified) {
+      throw new ForbiddenError('Your Google email address is not verified');
+    }
+
+    const { user, isNewUser } = await this.findOrCreateGoogleUser(googleUser);
+
+    await this.tokenService.assertAccountUsable(user);
 
     const tokenPair = await this.tokenService.createTokenPair(
       user.id,
@@ -88,7 +105,6 @@ export class OAuthService {
 
     logger.info('Google OAuth login', {
       userId: user.id,
-      email: user.email,
       isNewUser,
     });
 
@@ -97,9 +113,8 @@ export class OAuthService {
 
   private async findOrCreateGoogleUser(
     googleUser: GoogleUserInfo,
-    tokens: GoogleTokens,
   ): Promise<{ user: User; isNewUser: boolean }> {
-    // Check existing OAuth account
+    // Google API tokens are not needed after sign-in, so they are never persisted.
     const existingOAuth = await this.prisma.oAuthAccount.findUnique({
       where: {
         provider_providerUid: {
@@ -111,41 +126,31 @@ export class OAuthService {
     });
 
     if (existingOAuth) {
-      // Update tokens
-      await this.prisma.oAuthAccount.update({
-        where: { id: existingOAuth.id },
-        data: {
-          accessToken: tokens.access_token,
-          refreshToken: tokens.refresh_token ?? existingOAuth.refreshToken,
-          expiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : undefined,
-        },
-      });
-
       return { user: existingOAuth.user, isNewUser: false };
     }
 
-    // Check if email already exists
     const existingUser = await this.prisma.user.findUnique({
       where: { email: googleUser.email.toLowerCase() },
     });
 
     if (existingUser) {
-      // Link OAuth to existing account
+      // Only link when Google has verified ownership of the email (checked by the caller).
       await this.prisma.oAuthAccount.create({
         data: {
           userId: existingUser.id,
           provider: 'google',
           providerUid: googleUser.googleId,
-          accessToken: tokens.access_token,
-          refreshToken: tokens.refresh_token,
-          expiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : undefined,
         },
       });
 
       return { user: existingUser, isNewUser: false };
     }
 
-    // Create new user
+    if (!getAppConfig().allowPublicRegistration) {
+      throw new ForbiddenError('No account exists for this Google identity');
+    }
+
+    // Self sign-up creates a tenant-less customer without staff privileges.
     const newUser = await this.prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
@@ -153,9 +158,9 @@ export class OAuthService {
           email: googleUser.email.toLowerCase(),
           firstName: googleUser.firstName,
           lastName: googleUser.lastName,
-          role: 'AGENT',
-          status: googleUser.emailVerified ? 'ACTIVE' : 'PENDING_VERIFICATION',
-          emailVerifiedAt: googleUser.emailVerified ? new Date() : undefined,
+          role: 'CUSTOMER',
+          status: 'ACTIVE',
+          emailVerifiedAt: new Date(),
           avatarUrl: googleUser.avatarUrl,
         },
       });
@@ -165,9 +170,6 @@ export class OAuthService {
           userId: user.id,
           provider: 'google',
           providerUid: googleUser.googleId,
-          accessToken: tokens.access_token,
-          refreshToken: tokens.refresh_token,
-          expiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : undefined,
         },
       });
 

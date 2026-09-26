@@ -15,7 +15,11 @@ export class DashboardCacheStrategy {
     });
   }
 
+  /** Clears dashboard and analytics caches, which are both derived from ticket data. */
   async invalidate(tenantId: string): Promise<void> {
-    await this.cache.delPattern(`dashboard:${tenantId}:*`);
+    await Promise.all([
+      this.cache.delPattern(`dashboard:${tenantId}:*`),
+      this.cache.delPattern(`analytics:${tenantId}:*`),
+    ]);
   }
 }

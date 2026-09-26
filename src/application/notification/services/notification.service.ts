@@ -13,7 +13,8 @@ import {
   NotificationChannel,
 } from '../../../domain/notification/value-objects/notification-channel.vo';
 import type { EmailQueue } from '../../../infrastructure/queue/queues/email.queue';
-import type { WebSocketGateway } from '../../../infrastructure/realtime/websocket.gateway';
+import type { RealtimePublisher } from '../../../infrastructure/realtime/realtime-publisher';
+import { escapeHtml } from '../../../shared/utils/html.util';
 import { logger } from '../../../shared/utils/logger.util';
 
 export type NotificationEvent =
@@ -65,7 +66,7 @@ export class NotificationService {
   constructor(
     private readonly prisma: PrismaClient,
     private readonly emailQueue: EmailQueue,
-    private readonly wsGateway: WebSocketGateway,
+    private readonly wsGateway: RealtimePublisher,
     private readonly notificationRepository: INotificationRepository,
   ) {}
 
@@ -421,18 +422,18 @@ export class NotificationService {
   ): string {
     return `
       <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
-        <h2 style="color:#4F46E5;">${tenantName} Support</h2>
-        <p>Hi ${customerName},</p>
+        <h2 style="color:#4F46E5;">${escapeHtml(tenantName)} Support</h2>
+        <p>Hi ${escapeHtml(customerName)},</p>
         <p>Your support ticket has been created successfully.</p>
         <div style="background:#F3F4F6;padding:16px;border-radius:8px;margin:16px 0;">
-          <p><strong>Ticket #${ticketNumber}</strong></p>
-          <p>${title}</p>
+          <p><strong>Ticket #${escapeHtml(ticketNumber)}</strong></p>
+          <p>${escapeHtml(title)}</p>
         </div>
-        <a href="${ticketUrl}" style="background:#4F46E5;color:white;padding:12px 24px;text-decoration:none;border-radius:4px;display:inline-block;">
+        <a href="${escapeHtml(ticketUrl)}" style="background:#4F46E5;color:white;padding:12px 24px;text-decoration:none;border-radius:4px;display:inline-block;">
           View Ticket
         </a>
         <p style="color:#6B7280;font-size:12px;margin-top:32px;">
-          This is an automated message from ${tenantName} Support.
+          This is an automated message from ${escapeHtml(tenantName)} Support.
         </p>
       </div>
     `;
@@ -447,13 +448,13 @@ export class NotificationService {
   ): string {
     return `
       <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
-        <h2 style="color:#4F46E5;">${tenantName} Support</h2>
-        <p>Hi ${agentName},</p>
-        <p>Ticket #${ticketNumber} has been assigned to you.</p>
+        <h2 style="color:#4F46E5;">${escapeHtml(tenantName)} Support</h2>
+        <p>Hi ${escapeHtml(agentName)},</p>
+        <p>Ticket #${escapeHtml(ticketNumber)} has been assigned to you.</p>
         <div style="background:#F3F4F6;padding:16px;border-radius:8px;margin:16px 0;">
-          <p><strong>${title}</strong></p>
+          <p><strong>${escapeHtml(title)}</strong></p>
         </div>
-        <a href="${ticketUrl}" style="background:#4F46E5;color:white;padding:12px 24px;text-decoration:none;border-radius:4px;display:inline-block;">
+        <a href="${escapeHtml(ticketUrl)}" style="background:#4F46E5;color:white;padding:12px 24px;text-decoration:none;border-radius:4px;display:inline-block;">
           View Ticket
         </a>
       </div>
@@ -470,14 +471,14 @@ export class NotificationService {
   ): string {
     return `
       <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
-        <h2 style="color:#DC2626;">🚨 Escalation Alert - ${tenantName}</h2>
-        <p>Hi ${recipientName},</p>
-        <p>Ticket #${ticketNumber} requires immediate attention.</p>
+        <h2 style="color:#DC2626;">🚨 Escalation Alert - ${escapeHtml(tenantName)}</h2>
+        <p>Hi ${escapeHtml(recipientName)},</p>
+        <p>Ticket #${escapeHtml(ticketNumber)} requires immediate attention.</p>
         <div style="background:#FEF2F2;border:1px solid #DC2626;padding:16px;border-radius:8px;margin:16px 0;">
-          <p><strong>${title}</strong></p>
-          <p><strong>Reason:</strong> ${reason}</p>
+          <p><strong>${escapeHtml(title)}</strong></p>
+          <p><strong>Reason:</strong> ${escapeHtml(reason)}</p>
         </div>
-        <a href="${ticketUrl}" style="background:#DC2626;color:white;padding:12px 24px;text-decoration:none;border-radius:4px;display:inline-block;">
+        <a href="${escapeHtml(ticketUrl)}" style="background:#DC2626;color:white;padding:12px 24px;text-decoration:none;border-radius:4px;display:inline-block;">
           View Escalated Ticket
         </a>
       </div>
@@ -493,14 +494,14 @@ export class NotificationService {
   ): string {
     return `
       <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
-        <h2 style="color:#059669;">${tenantName} Support</h2>
-        <p>Hi ${customerName},</p>
+        <h2 style="color:#059669;">${escapeHtml(tenantName)} Support</h2>
+        <p>Hi ${escapeHtml(customerName)},</p>
         <p>Your support ticket has been resolved.</p>
         <div style="background:#ECFDF5;padding:16px;border-radius:8px;margin:16px 0;">
-          <p><strong>Ticket #${ticketNumber}</strong></p>
-          <p>${title}</p>
+          <p><strong>Ticket #${escapeHtml(ticketNumber)}</strong></p>
+          <p>${escapeHtml(title)}</p>
         </div>
-        <a href="${ticketUrl}" style="background:#059669;color:white;padding:12px 24px;text-decoration:none;border-radius:4px;display:inline-block;">
+        <a href="${escapeHtml(ticketUrl)}" style="background:#059669;color:white;padding:12px 24px;text-decoration:none;border-radius:4px;display:inline-block;">
           View Resolution
         </a>
         <p>If you're not satisfied, you can reopen your ticket from the link above.</p>
@@ -518,13 +519,13 @@ export class NotificationService {
   ): string {
     return `
       <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
-        <h2 style="color:#4F46E5;">${tenantName} Support</h2>
-        <p>Hi ${recipientName},</p>
-        <p><strong>${authorName}</strong> replied to Ticket #${ticketNumber}.</p>
+        <h2 style="color:#4F46E5;">${escapeHtml(tenantName)} Support</h2>
+        <p>Hi ${escapeHtml(recipientName)},</p>
+        <p><strong>${escapeHtml(authorName)}</strong> replied to Ticket #${escapeHtml(ticketNumber)}.</p>
         <div style="background:#F3F4F6;padding:16px;border-radius:8px;margin:16px 0;">
-          <p>${title}</p>
+          <p>${escapeHtml(title)}</p>
         </div>
-        <a href="${ticketUrl}" style="background:#4F46E5;color:white;padding:12px 24px;text-decoration:none;border-radius:4px;display:inline-block;">
+        <a href="${escapeHtml(ticketUrl)}" style="background:#4F46E5;color:white;padding:12px 24px;text-decoration:none;border-radius:4px;display:inline-block;">
           View Reply
         </a>
       </div>

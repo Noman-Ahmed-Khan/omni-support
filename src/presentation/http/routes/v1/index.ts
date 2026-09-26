@@ -13,7 +13,8 @@ import { createSearchRoutes } from './search.routes';
 import { createTenantRoutes } from './tenant.routes';
 import { createTicketRoutes } from './ticket.routes';
 import { createUserRoutes } from './user.routes';
-import type { Container } from '../../../../infrastructure/di';
+import { ProcessInboundWhatsAppHandler } from '../../../../application/messaging/handlers/process-inbound-whatsapp.handler';
+import type { Container } from '../../../../shared/di/container';
 import { createWhatsAppWebhook } from '../../../webhooks/whatsapp.webhook';
 
 export function createV1Router(container: Container): Router {
@@ -35,7 +36,10 @@ export function createV1Router(container: Container): Router {
     '/webhooks/whatsapp',
     createWhatsAppWebhook(
       container.resolve('whatsAppProvider'),
-      container.resolve('ticketService'),
+      new ProcessInboundWhatsAppHandler(
+        container.resolve('prisma'),
+        container.resolve('ticketService'),
+      ),
       container.resolve('prisma'),
     ),
   );

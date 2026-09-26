@@ -1,4 +1,6 @@
-import type { Request, Response, NextFunction } from 'express';
+import crypto from 'crypto';
+
+import type { CookieOptions, Request, Response, NextFunction } from 'express';
 import type { ParamsDictionary } from 'express-serve-static-core';
 import type { ParsedQs } from 'qs';
 
@@ -10,6 +12,10 @@ import type { RegisterHandler } from '../../../application/auth/handlers/registe
 import type { ResetPasswordHandler } from '../../../application/auth/handlers/reset-password.handler';
 import type { VerifyEmailHandler } from '../../../application/auth/handlers/verify-email.handler';
 import type { OAuthService } from '../../../application/auth/services/oauth.service';
+import type { TokenService } from '../../../application/auth/services/token.service';
+import { getAppConfig } from '../../../config/app.config';
+import { getJwtConfig } from '../../../config/jwt.config';
+import { UnauthorizedError } from '../../../shared/errors/application.error';
 import type {
   RegisterDto,
   LoginDto,
@@ -19,6 +25,24 @@ import type {
   VerifyEmailDto,
 } from '../dtos/auth/auth.dto';
 import { successResponse } from '../dtos/common/response.dto';
+
+const REFRESH_COOKIE = 'refresh_token';
+const OAUTH_STATE_COOKIE = 'oauth_state';
+const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
+
+function isProduction(): boolean {
+  return getAppConfig().env === 'production';
+}
+
+function refreshCookieOptions(): CookieOptions {
+  return {
+    httpOnly: true,
+    secure: isProduction(),
+    sameSite: 'strict',
+    maxAge: getJwtConfig().refreshExpiresInMs,
+    path: `${getAppConfig().apiPrefix}/auth`,
+  };
+}
 
 export class AuthController {
   constructor(
@@ -30,6 +54,7 @@ export class AuthController {
     private readonly forgotPasswordHandler: ForgotPasswordHandler,
     private readonly resetPasswordHandler: ResetPasswordHandler,
     private readonly oauthService: OAuthService,
+    private readonly tokenService?: TokenService,
   ) {}
 
   async register(
@@ -38,14 +63,19 @@ export class AuthController {
     next: NextFunction,
   ): Promise<void> {
     try {
-      const result = await this.registerHandler.execute({
+      await this.registerHandler.execute({
         email: req.body.email,
         password: req.body.password,
         firstName: req.body.firstName,
         lastName: req.body.lastName,
       });
 
-      res.status(201).json(successResponse(result, undefined));
+      // Same response whether or not the email was already registered (no enumeration).
+      res.status(202).json(
+        successResponse({
+          message: 'If this email can be registered, a verification link has been sent.',
+        }),
+      );
     } catch (error) {
       next(error);
     }
@@ -64,14 +94,7 @@ export class AuthController {
         userAgent: req.headers['user-agent'],
       });
 
-      // Set refresh token as HTTP-only cookie
-      res.cookie('refresh_token', result.refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-        path: '/api/v1/auth/refresh',
-      });
+      res.cookie(REFRESH_COOKIE, result.refreshToken, refreshCookieOptions());
 
       res.status(200).json(
         successResponse({
@@ -92,7 +115,7 @@ export class AuthController {
   ): Promise<void> {
     try {
       // Try cookie first, then body
-      const refreshToken = getCookie(req, 'refresh_token') ?? req.body.refreshToken;
+      const refreshToken = getCookie(req, REFRESH_COOKIE) ?? req.body.refreshToken;
 
       if (!refreshToken) {
         res.status(401).json({
@@ -110,14 +133,7 @@ export class AuthController {
         userAgent: req.headers['user-agent'],
       });
 
-      // Rotate cookie
-      res.cookie('refresh_token', result.refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        maxAge: 30 * 24 * 60 * 60 * 1000,
-        path: '/api/v1/auth/refresh',
-      });
+      res.cookie(REFRESH_COOKIE, result.refreshToken, refreshCookieOptions());
 
       res.status(200).json(
         successResponse({
@@ -132,14 +148,19 @@ export class AuthController {
 
   async logout(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const body = req.body as Partial<RefreshTokenDto>;
-      const refreshToken = getCookie(req, 'refresh_token') ?? body.refreshToken;
+      const body = (req.body ?? {}) as Partial<RefreshTokenDto>;
+      const refreshToken = getCookie(req, REFRESH_COOKIE) ?? body.refreshToken;
 
-      if (refreshToken && req.user) {
-        await this.logoutHandler.execute({ refreshToken, userId: req.user.id });
+      if (req.user) {
+        if (refreshToken) {
+          await this.logoutHandler.execute({ refreshToken, userId: req.user.id });
+        } else if (this.tokenService) {
+          // No session token supplied: revoke every session so logout is never a no-op.
+          await this.tokenService.revokeAllUserTokens(req.user.id, 'LOGOUT');
+        }
       }
 
-      res.clearCookie('refresh_token', { path: '/api/v1/auth/refresh' });
+      res.clearCookie(REFRESH_COOKIE, { path: refreshCookieOptions().path });
 
       res.status(200).json(successResponse({ message: 'Logged out successfully' }));
     } catch (error) {
@@ -203,8 +224,18 @@ export class AuthController {
   }
 
   googleRedirect(_req: Request, res: Response): void {
-    const url = this.oauthService.getGoogleAuthUrl();
-    res.redirect(url);
+    const state = this.oauthService.createState();
+
+    res.cookie(OAUTH_STATE_COOKIE, state, {
+      httpOnly: true,
+      secure: isProduction(),
+      // "lax" so the cookie is sent on the top-level redirect back from Google.
+      sameSite: 'lax',
+      maxAge: OAUTH_STATE_TTL_MS,
+      path: `${getAppConfig().apiPrefix}/auth/google`,
+    });
+
+    res.redirect(this.oauthService.getGoogleAuthUrl(state));
   }
 
   async googleCallback(
@@ -213,26 +244,30 @@ export class AuthController {
     next: NextFunction,
   ): Promise<void> {
     try {
-      const rawCode = req.query.code;
-      const code = Array.isArray(rawCode) ? rawCode[0] : rawCode;
+      const code = firstQueryValue(req.query.code);
+      const state = firstQueryValue(req.query.state);
+      const expectedState = getCookie(req, OAUTH_STATE_COOKIE);
+
+      res.clearCookie(OAUTH_STATE_COOKIE, {
+        path: `${getAppConfig().apiPrefix}/auth/google`,
+      });
+
+      if (!code || !state || !expectedState || !safeEqual(state, expectedState)) {
+        throw new UnauthorizedError('Invalid OAuth state');
+      }
 
       const result = await this.oauthService.handleGoogleCallback(
-        String(code),
+        code,
         req.ip,
         req.headers['user-agent'],
       );
 
-      res.cookie('refresh_token', result.refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        maxAge: 30 * 24 * 60 * 60 * 1000,
-        path: '/api/v1/auth/refresh',
-      });
+      // The session is carried by the httpOnly refresh cookie; the frontend exchanges it
+      // for an access token via POST /auth/refresh, so no token appears in the URL.
+      res.cookie(REFRESH_COOKIE, result.refreshToken, refreshCookieOptions());
 
-      // Redirect to frontend with access token
       res.redirect(
-        `${process.env.FRONTEND_URL}/auth/callback?token=${result.accessToken}&isNew=${result.isNewUser}`,
+        `${getAppConfig().frontendUrl}/auth/callback?isNew=${result.isNewUser ? 'true' : 'false'}`,
       );
     } catch (error) {
       next(error);
@@ -242,6 +277,17 @@ export class AuthController {
   me(req: Request, res: Response, _next: NextFunction): void {
     res.status(200).json(successResponse(req.user));
   }
+}
+
+function firstQueryValue(value: unknown): string | undefined {
+  const first: unknown = Array.isArray(value) ? value[0] : value;
+  return typeof first === 'string' && first.length > 0 ? first : undefined;
+}
+
+function safeEqual(a: string, b: string): boolean {
+  const left = Buffer.from(a);
+  const right = Buffer.from(b);
+  return left.length === right.length && crypto.timingSafeEqual(left, right);
 }
 
 function getCookie(req: unknown, name: string): string | undefined {

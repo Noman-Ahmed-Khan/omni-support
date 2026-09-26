@@ -1,146 +1,118 @@
-import type { PrismaClient } from '@prisma/client';
+import type { Prisma, PrismaClient } from '@prisma/client';
 
 import type { OutboxPayload, OutboxRecord } from './outbox.entity';
 import { OutboxStatus } from './outbox.entity';
 import type { BaseDomainEvent } from '../../domain/shared/base.event';
 import { createId } from '../../shared/utils/id.util';
+import {
+  resolveDatabaseClient,
+  type DatabaseClient,
+} from '../database/transaction-context';
 
-const DEFAULT_MAX_ATTEMPTS = 5;
+export const DEFAULT_MAX_ATTEMPTS = 5;
 const DEFAULT_BATCH_SIZE = 100;
+const BASE_RETRY_DELAY_MS = 5_000;
+const MAX_RETRY_DELAY_MS = 60 * 60 * 1000;
+
+type OutboxRow = {
+  id: string;
+  tenant_id: string | null;
+  aggregate_type: string | null;
+  aggregate_id: string | null;
+  event_type: string;
+  event_id: string;
+  occurred_at: Date;
+  payload: Record<string, unknown>;
+  status: OutboxStatus;
+  attempts: number;
+  max_attempts: number;
+  available_at: Date;
+  processed_at: Date | null;
+  failed_at: Date | null;
+  dead_letter_reason: string | null;
+  created_at: Date;
+  updated_at: Date;
+};
+
+/** Exponential backoff for the given (1-based) attempt number. */
+export function computeRetryDelayMs(attempts: number): number {
+  return Math.min(
+    BASE_RETRY_DELAY_MS * 2 ** Math.max(attempts - 1, 0),
+    MAX_RETRY_DELAY_MS,
+  );
+}
 
 export class OutboxRepository {
-  private schemaEnsured = false;
-
   constructor(private readonly prisma: PrismaClient) {}
 
-  async ensureSchema(): Promise<void> {
-    if (this.schemaEnsured) {
-      return;
-    }
-
-    await this.prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS outbox_events (
-        id uuid PRIMARY KEY,
-        tenant_id text NULL,
-        aggregate_type text NULL,
-        aggregate_id text NULL,
-        event_type text NOT NULL,
-        event_id text NOT NULL UNIQUE,
-        occurred_at timestamptz NOT NULL,
-        payload jsonb NOT NULL,
-        status text NOT NULL DEFAULT 'PENDING',
-        attempts integer NOT NULL DEFAULT 0,
-        max_attempts integer NOT NULL DEFAULT ${DEFAULT_MAX_ATTEMPTS},
-        available_at timestamptz NOT NULL DEFAULT now(),
-        processed_at timestamptz NULL,
-        failed_at timestamptz NULL,
-        dead_letter_reason text NULL,
-        created_at timestamptz NOT NULL DEFAULT now(),
-        updated_at timestamptz NOT NULL DEFAULT now()
-      );
-    `);
-
-    await this.prisma.$executeRawUnsafe(`
-      CREATE INDEX IF NOT EXISTS outbox_events_status_available_at_idx
-      ON outbox_events (status, available_at);
-    `);
-
-    await this.prisma.$executeRawUnsafe(`
-      CREATE INDEX IF NOT EXISTS outbox_events_tenant_status_idx
-      ON outbox_events (tenant_id, status);
-    `);
-
-    this.schemaEnsured = true;
+  /** Joins the caller's transaction when one is active, so events commit with the aggregate. */
+  private get db(): DatabaseClient {
+    return resolveDatabaseClient(this.prisma);
   }
 
-  async enqueue(event: BaseDomainEvent): Promise<OutboxRecord> {
-    await this.ensureSchema();
-
-    const payload = this.toPayload(event);
-    const id = createId();
-
-    await this.prisma.$executeRaw`
-      INSERT INTO outbox_events (
-        id,
-        tenant_id,
-        aggregate_type,
-        aggregate_id,
-        event_type,
-        event_id,
-        occurred_at,
-        payload,
-        status,
-        attempts,
-        max_attempts,
-        available_at,
-        created_at,
-        updated_at
-      ) VALUES (
-        ${id},
-        ${payload.tenantId ?? null},
-        ${payload.aggregateType ?? null},
-        ${payload.aggregateId ?? null},
-        ${payload.eventType},
-        ${payload.eventId},
-        ${payload.occurredAt},
-        ${JSON.stringify(payload.payload)}::jsonb,
-        ${OutboxStatus.PENDING},
-        0,
-        ${DEFAULT_MAX_ATTEMPTS},
-        NOW(),
-        NOW(),
-        NOW()
-      )
-      ON CONFLICT (event_id) DO NOTHING;
-    `;
-
-    return {
-      id,
-      ...payload,
-      status: OutboxStatus.PENDING,
-      attempts: 0,
-      maxAttempts: DEFAULT_MAX_ATTEMPTS,
-      availableAt: new Date(),
-      processedAt: null,
-      failedAt: null,
-      deadLetterReason: null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+  async enqueue(event: BaseDomainEvent): Promise<void> {
+    await this.enqueueMany([event]);
   }
 
   async enqueueMany(events: BaseDomainEvent[]): Promise<void> {
-    for (const event of events) {
-      await this.enqueue(event);
-    }
+    if (events.length === 0) return;
+
+    await this.db.outboxEvent.createMany({
+      data: events.map((event) => this.toCreateInput(event)),
+      // event_id is unique: re-publishing the same domain event is a no-op.
+      skipDuplicates: true,
+    });
   }
 
-  async fetchPending(batchSize = DEFAULT_BATCH_SIZE): Promise<OutboxRecord[]> {
-    await this.ensureSchema();
+  /**
+   * Atomically claims up to `batchSize` deliverable events for `workerId`.
+   *
+   * `FOR UPDATE SKIP LOCKED` guarantees concurrent workers never claim the same row.
+   * Rows left in PROCESSING by a crashed worker become claimable again after `leaseMs`.
+   */
+  async claimBatch(
+    workerId: string,
+    batchSize = DEFAULT_BATCH_SIZE,
+    leaseMs = 5 * 60 * 1000,
+  ): Promise<OutboxRecord[]> {
+    // Rows whose lease expired too many times are dead-lettered instead of retried forever.
+    await this.prisma.$executeRaw`
+      UPDATE outbox_events
+      SET status = ${OutboxStatus.DEAD_LETTER},
+          dead_letter_reason = 'Processing lease expired after maximum attempts',
+          locked_at = NULL,
+          locked_by = NULL,
+          failed_at = NOW(),
+          updated_at = NOW()
+      WHERE status = ${OutboxStatus.PROCESSING}
+        AND locked_at < NOW() - (${leaseMs}::int * INTERVAL '1 millisecond')
+        AND attempts >= max_attempts;
+    `;
 
-    const rows = await this.prisma.$queryRaw<
-      Array<{
-        id: string;
-        tenant_id: string | null;
-        aggregate_type: string | null;
-        aggregate_id: string | null;
-        event_type: string;
-        event_id: string;
-        occurred_at: Date;
-        payload: Record<string, unknown>;
-        status: OutboxStatus;
-        attempts: number;
-        max_attempts: number;
-        available_at: Date;
-        processed_at: Date | null;
-        failed_at: Date | null;
-        dead_letter_reason: string | null;
-        created_at: Date;
-        updated_at: Date;
-      }>
-    >`
-      SELECT
-        id,
+    const rows = await this.prisma.$queryRaw<OutboxRow[]>`
+      UPDATE outbox_events
+      SET status = ${OutboxStatus.PROCESSING},
+          attempts = attempts + 1,
+          locked_at = NOW(),
+          locked_by = ${workerId},
+          updated_at = NOW()
+      WHERE id IN (
+        SELECT id
+        FROM outbox_events
+        WHERE (
+            status IN (${OutboxStatus.PENDING}, ${OutboxStatus.FAILED})
+            AND available_at <= NOW()
+          )
+          OR (
+            status = ${OutboxStatus.PROCESSING}
+            AND locked_at < NOW() - (${leaseMs}::int * INTERVAL '1 millisecond')
+          )
+        ORDER BY occurred_at ASC
+        LIMIT ${batchSize}::int
+        FOR UPDATE SKIP LOCKED
+      )
+      RETURNING
+        id::text AS id,
         tenant_id,
         aggregate_type,
         aggregate_id,
@@ -156,66 +128,75 @@ export class OutboxRepository {
         failed_at,
         dead_letter_reason,
         created_at,
-        updated_at
-      FROM outbox_events
-      WHERE status IN ('PENDING', 'FAILED')
-        AND available_at <= NOW()
-      ORDER BY occurred_at ASC
-      LIMIT ${batchSize};
+        updated_at;
     `;
 
-    return rows.map((row) => this.toRecord(row));
+    return rows
+      .map((row) => this.toRecord(row))
+      .sort((a, b) => a.occurredAt.getTime() - b.occurredAt.getTime());
   }
 
-  async markProcessing(id: string): Promise<void> {
-    await this.ensureSchema();
-
-    await this.prisma.$executeRaw`
-      UPDATE outbox_events
-      SET status = ${OutboxStatus.PROCESSING}, updated_at = NOW()
-      WHERE id = ${id};
-    `;
+  async markProcessed(id: string, workerId: string): Promise<void> {
+    await this.prisma.outboxEvent.updateMany({
+      // Only the worker holding the lease may complete the event.
+      where: { id, lockedBy: workerId, status: OutboxStatus.PROCESSING },
+      data: {
+        status: OutboxStatus.PROCESSED,
+        processedAt: new Date(),
+        lockedAt: null,
+        lockedBy: null,
+      },
+    });
   }
 
-  async markProcessed(id: string): Promise<void> {
-    await this.ensureSchema();
+  async markFailed(record: OutboxRecord, workerId: string, error: string): Promise<void> {
+    const isDeadLetter = record.attempts >= record.maxAttempts;
 
-    await this.prisma.$executeRaw`
-      UPDATE outbox_events
-      SET status = ${OutboxStatus.PROCESSED},
-          processed_at = NOW(),
-          updated_at = NOW()
-      WHERE id = ${id};
-    `;
+    await this.prisma.outboxEvent.updateMany({
+      where: { id: record.id, lockedBy: workerId, status: OutboxStatus.PROCESSING },
+      data: {
+        status: isDeadLetter ? OutboxStatus.DEAD_LETTER : OutboxStatus.FAILED,
+        deadLetterReason: isDeadLetter ? error.slice(0, 2000) : null,
+        failedAt: new Date(),
+        availableAt: new Date(Date.now() + computeRetryDelayMs(record.attempts)),
+        lockedAt: null,
+        lockedBy: null,
+      },
+    });
   }
 
-  async markFailed(
-    id: string,
-    error: string,
-    attempts: number,
-    retryDelayMs = 1000,
-    maxAttempts = DEFAULT_MAX_ATTEMPTS,
-  ): Promise<void> {
-    await this.ensureSchema();
+  /** Backlog figures for monitoring (outbox lag and dead letters). */
+  async getStats(): Promise<{
+    pending: number;
+    processing: number;
+    failed: number;
+    deadLetter: number;
+    oldestPendingAgeSeconds: number;
+  }> {
+    const [counts, oldest] = await Promise.all([
+      this.prisma.outboxEvent.groupBy({ by: ['status'], _count: { _all: true } }),
+      this.prisma.outboxEvent.findFirst({
+        where: { status: { in: [OutboxStatus.PENDING, OutboxStatus.FAILED] } },
+        orderBy: { occurredAt: 'asc' },
+        select: { occurredAt: true },
+      }),
+    ]);
 
-    const isDeadLetter = attempts >= maxAttempts;
+    const count = (status: OutboxStatus): number =>
+      counts.find((row) => row.status === String(status))?._count._all ?? 0;
 
-    await this.prisma.$executeRaw`
-      UPDATE outbox_events
-      SET
-        status = ${isDeadLetter ? OutboxStatus.DEAD_LETTER : OutboxStatus.FAILED},
-        attempts = ${attempts},
-        dead_letter_reason = ${isDeadLetter ? error : null},
-        failed_at = NOW(),
-        available_at = ${isDeadLetter ? new Date() : new Date(Date.now() + retryDelayMs)},
-        updated_at = NOW()
-      WHERE id = ${id};
-    `;
+    return {
+      pending: count(OutboxStatus.PENDING),
+      processing: count(OutboxStatus.PROCESSING),
+      failed: count(OutboxStatus.FAILED),
+      deadLetter: count(OutboxStatus.DEAD_LETTER),
+      oldestPendingAgeSeconds: oldest
+        ? Math.max(0, Math.round((Date.now() - oldest.occurredAt.getTime()) / 1000))
+        : 0,
+    };
   }
 
   async deleteProcessed(batchSize = DEFAULT_BATCH_SIZE): Promise<number> {
-    await this.ensureSchema();
-
     const result = await this.prisma.$executeRaw`
       DELETE FROM outbox_events
       WHERE id IN (
@@ -223,46 +204,46 @@ export class OutboxRepository {
         FROM outbox_events
         WHERE status = ${OutboxStatus.PROCESSED}
         ORDER BY processed_at ASC
-        LIMIT ${batchSize}
+        LIMIT ${batchSize}::int
       );
     `;
 
     return Number(result);
   }
 
+  private toCreateInput(event: BaseDomainEvent): Prisma.OutboxEventCreateManyInput {
+    const payload = this.toPayload(event);
+
+    return {
+      id: createId(),
+      tenantId: payload.tenantId ?? null,
+      aggregateType: payload.aggregateType ?? null,
+      aggregateId: payload.aggregateId ?? null,
+      eventType: payload.eventType,
+      eventId: payload.eventId,
+      occurredAt: payload.occurredAt,
+      payload: payload.payload as Prisma.InputJsonValue,
+      status: OutboxStatus.PENDING,
+      maxAttempts: DEFAULT_MAX_ATTEMPTS,
+    };
+  }
+
   private toPayload(event: BaseDomainEvent): OutboxPayload {
     const payload = JSON.parse(JSON.stringify(event)) as Record<string, unknown>;
+    const aggregate = inferAggregate(payload);
 
     return {
       eventId: event.eventId,
       eventType: event.eventType,
       occurredAt: event.occurredAt,
       tenantId: getString(payload.tenantId),
-      aggregateId: getString(payload.aggregateId),
-      aggregateType: getString(payload.aggregateType),
+      aggregateId: getString(payload.aggregateId) ?? aggregate?.id,
+      aggregateType: getString(payload.aggregateType) ?? aggregate?.type,
       payload,
     };
   }
 
-  private toRecord(row: {
-    id: string;
-    tenant_id: string | null;
-    aggregate_type: string | null;
-    aggregate_id: string | null;
-    event_type: string;
-    event_id: string;
-    occurred_at: Date;
-    payload: Record<string, unknown>;
-    status: OutboxStatus;
-    attempts: number;
-    max_attempts: number;
-    available_at: Date;
-    processed_at: Date | null;
-    failed_at: Date | null;
-    dead_letter_reason: string | null;
-    created_at: Date;
-    updated_at: Date;
-  }): OutboxRecord {
+  private toRecord(row: OutboxRow): OutboxRecord {
     return {
       id: row.id,
       tenantId: row.tenant_id ?? undefined,
@@ -287,4 +268,23 @@ export class OutboxRepository {
 
 function getString(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+/** Domain events carry their aggregate's id under a type-specific name. */
+const AGGREGATE_ID_FIELDS: Array<[field: string, type: string]> = [
+  ['ticketId', 'Ticket'],
+  ['customerId', 'Customer'],
+  ['userId', 'User'],
+];
+
+function inferAggregate(
+  payload: Record<string, unknown>,
+): { id: string; type: string } | undefined {
+  for (const [field, type] of AGGREGATE_ID_FIELDS) {
+    const id = payload[field];
+    if (typeof id === 'string' && id.length > 0) {
+      return { id, type };
+    }
+  }
+  return undefined;
 }

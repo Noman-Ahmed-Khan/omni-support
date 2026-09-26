@@ -20,6 +20,8 @@ export interface SearchOptions {
   types?: ('ticket' | 'customer' | 'comment')[];
   limit?: number;
   page?: number;
+  /** Restricts ticket and comment results to tickets assigned to this agent. */
+  assignedAgentId?: string;
 }
 
 export class SearchService {
@@ -39,20 +41,23 @@ export class SearchService {
       types = ['ticket', 'customer', 'comment'],
       limit = 20,
       page = 1,
+      assignedAgentId,
     } = options;
 
     if (!query || query.trim().length < 2) {
       return { results: [], total: 0 };
     }
 
-    const sanitizedQuery = query.trim().split(/\s+/).join(' & ');
+    // Parsed by websearch_to_tsquery, which accepts arbitrary user text.
+    const searchText = query.trim().slice(0, 200);
+    const scope = { assignedAgentId };
     const results: SearchResult[] = [];
     const searchPromises: Promise<SearchResult[]>[] = [];
 
     if (types.includes('ticket')) {
       searchPromises.push(
         this.searchProvider
-          .searchTickets(tenantId, sanitizedQuery, 10)
+          .searchTickets(tenantId, searchText, 10, scope)
           .then((rows) => rows.map((row) => this.toSearchResult('ticket', row))),
       );
     }
@@ -60,7 +65,7 @@ export class SearchService {
     if (types.includes('customer')) {
       searchPromises.push(
         this.searchProvider
-          .searchCustomers(tenantId, sanitizedQuery, 10)
+          .searchCustomers(tenantId, searchText, 10)
           .then((rows) => rows.map((row) => this.toSearchResult('customer', row))),
       );
     }
@@ -68,7 +73,7 @@ export class SearchService {
     if (types.includes('comment')) {
       searchPromises.push(
         this.searchProvider
-          .searchComments(tenantId, sanitizedQuery, 10)
+          .searchComments(tenantId, searchText, 10, scope)
           .then((rows) => rows.map((row) => this.toSearchResult('comment', row))),
       );
     }

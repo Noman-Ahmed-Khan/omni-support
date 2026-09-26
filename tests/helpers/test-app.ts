@@ -1,9 +1,12 @@
-import express from 'express';
-import { createApp } from '../../src/presentation/http/app';
-import { buildContainer } from '../../src/infrastructure/di';
-import { createRedisClient, getRedisClient } from '../../src/infrastructure/cache/redis.client';
+import type { Application } from 'express';
+
 import { getTestPrisma } from './test-db';
-import { Application } from 'express';
+import { buildContainer } from '../../src/bootstrap/container';
+import {
+  createRedisClient,
+  getRedisClient,
+} from '../../src/infrastructure/cache/redis.client';
+import { createApp } from '../../src/presentation/http/app';
 
 let testApp: Application | null = null;
 let testContainer: any = null;
@@ -42,7 +45,7 @@ export async function resetTestApp(): Promise<void> {
 }
 
 export async function getAuthToken(
-  app: Application,
+  _app: Application,
   role: string = 'TENANT_MANAGER',
   tenantId?: string,
 ): Promise<{ token: string; userId: string; tenantId: string }> {

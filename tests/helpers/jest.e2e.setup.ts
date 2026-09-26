@@ -1,5 +1,4 @@
-import dotenv from 'dotenv';
-dotenv.config({ path: '.env.test' });
+import './load-test-env';
 
 // Mock logger
 jest.mock('../../src/shared/utils/logger.util', () => ({
@@ -18,12 +17,14 @@ jest.mock('../../src/shared/utils/logger.util', () => ({
   }),
 }));
 
-import { createRedisClient, disconnectRedis } from '../../src/infrastructure/cache/redis.client';
-import { closeAllQueues } from '../../src/infrastructure/queue/queue.factory';
 import { resetTestApp } from './test-app';
+import {
+  createRedisClient,
+  disconnectRedis,
+} from '../../src/infrastructure/cache/redis.client';
+import { closeAllQueues } from '../../src/infrastructure/queue/queue.factory';
 
 process.env.NODE_ENV = 'test';
-process.env.SKIP_TWILIO = 'true';
 
 beforeAll(async () => {
   await createRedisClient();

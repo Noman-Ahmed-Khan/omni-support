@@ -13,6 +13,8 @@ export interface WhatsAppResult {
 
 export interface WhatsAppWebhookPayload {
   from: string;
+  /** The business number the customer wrote to; identifies the organization. */
+  to: string;
   body: string;
   messageId: string;
   timestamp: string;
@@ -21,6 +23,14 @@ export interface WhatsAppWebhookPayload {
 
 export interface IWhatsAppProvider {
   send(message: WhatsAppMessage): Promise<WhatsAppResult>;
-  verifyWebhook(signature: string, payload: string): boolean;
+  /**
+   * Verifies a Twilio request signature. `path` is the webhook route ("/inbound",
+   * "/status") and `params` the form-encoded POST parameters.
+   */
+  verifyWebhook(
+    signature: string,
+    path: string,
+    params: Record<string, unknown>,
+  ): boolean;
   parseInboundMessage(rawPayload: unknown): WhatsAppWebhookPayload | null;
 }

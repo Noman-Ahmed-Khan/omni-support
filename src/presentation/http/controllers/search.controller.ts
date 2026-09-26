@@ -28,24 +28,39 @@ export class SearchController {
             .filter(Boolean) as ('ticket' | 'customer' | 'comment')[])
         : undefined;
 
+      const pageNumber = clampInt(page, 1, 1, 1000);
+      const pageSize = clampInt(limit, 20, 1, 100);
+
       const result = await this.searchService.search({
         tenantId: req.tenantId!,
         query: q ?? '',
         types: parsedTypes,
-        page: Number(page ?? 1),
-        limit: Number(limit ?? 20),
+        page: pageNumber,
+        limit: pageSize,
+        // Agents only see tickets assigned to them (same rule as the ticket list).
+        assignedAgentId: req.user!.role === 'AGENT' ? req.user!.id : undefined,
       });
 
       res.status(200).json(
         successResponse(result.results, {
           total: result.total,
-          page: Number(page ?? 1),
-          limit: Number(limit ?? 20),
-          totalPages: Math.ceil(result.total / Number(limit ?? 20)),
+          page: pageNumber,
+          limit: pageSize,
+          totalPages: Math.ceil(result.total / pageSize),
         }),
       );
     } catch (error) {
       next(error);
     }
   }
+}
+
+function clampInt(
+  value: string | undefined,
+  fallback: number,
+  min: number,
+  max: number,
+): number {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) ? Math.min(Math.max(parsed, min), max) : fallback;
 }

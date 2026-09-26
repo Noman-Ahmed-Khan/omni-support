@@ -1,6 +1,6 @@
 import { Router } from 'express';
 
-import type { Container } from '../../../infrastructure/di';
+import type { Container } from '../../../shared/di/container';
 import type { HealthController } from '../controllers/health.controller';
 import { asyncHandler } from '../utils/async-handler';
 
@@ -17,7 +17,6 @@ export function createHealthRouter(container: Container): Router {
     '/ready',
     asyncHandler((req, res) => controller.readiness(req, res)),
   );
-  router.get('/metrics', (req, res) => controller.metrics(req, res));
 
   return router;
 }

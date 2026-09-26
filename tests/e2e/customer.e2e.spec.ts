@@ -1,5 +1,6 @@
+import type { Application } from 'express';
 import request from 'supertest';
-import { Application } from 'express';
+
 import { getTestApp, getAuthToken } from '../helpers/test-app';
 import { cleanupTestDatabase } from '../helpers/test-db';
 

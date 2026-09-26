@@ -18,6 +18,7 @@ export class CommentController {
         tenantId: req.tenantId!,
         commentId: req.params.id,
         authorId: req.user!.id,
+        authorRole: req.user!.role,
         content: req.body.content,
       });
 

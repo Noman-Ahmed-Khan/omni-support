@@ -28,10 +28,11 @@ export class HealthController {
     });
   }
 
-  metrics(_req: Request, res: Response): void {
+  async metrics(_req: Request, res: Response): Promise<void> {
+    const body = await this.healthService.metricsText();
     res
       .status(200)
       .setHeader('Content-Type', 'text/plain; version=0.0.4; charset=utf-8')
-      .send(this.healthService.metricsText());
+      .send(body);
   }
 }

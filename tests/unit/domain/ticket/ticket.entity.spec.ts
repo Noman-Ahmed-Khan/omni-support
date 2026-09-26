@@ -1,9 +1,9 @@
 import { TicketEntity } from '../../../../src/domain/ticket/entities/ticket.entity';
-import { TicketStatus } from '../../../../src/domain/ticket/value-objects/ticket-status.vo';
-import { TicketPriority } from '../../../../src/domain/ticket/value-objects/ticket-priority.vo';
-import { TicketCreatedEvent } from '../../../../src/domain/ticket/events/ticket-created.event';
 import { TicketAssignedEvent } from '../../../../src/domain/ticket/events/ticket-assigned.event';
+import { TicketCreatedEvent } from '../../../../src/domain/ticket/events/ticket-created.event';
 import { TicketEscalatedEvent } from '../../../../src/domain/ticket/events/ticket-escalated.event';
+import { TicketPriority } from '../../../../src/domain/ticket/value-objects/ticket-priority.vo';
+import { TicketStatus } from '../../../../src/domain/ticket/value-objects/ticket-status.vo';
 import { DomainError } from '../../../../src/shared/errors/domain.error';
 
 describe('TicketEntity', () => {
@@ -91,9 +91,7 @@ describe('TicketEntity', () => {
         status: TicketStatus.create('CLOSED'),
       });
 
-      expect(() =>
-        ticket.changeStatus(TicketStatus.create('OPEN'), 'agent-1'),
-      ).toThrow();
+      expect(() => ticket.changeStatus(TicketStatus.create('OPEN'), 'agent-1')).toThrow();
     });
   });
 
@@ -156,9 +154,7 @@ describe('TicketEntity', () => {
         isEscalated: true,
       });
 
-      expect(() =>
-        ticket.escalate('Another reason', 'manager-1'),
-      ).toThrow('Ticket is already escalated');
+      expect(() => ticket.escalate('Another reason', 'manager-1')).toThrow(DomainError);
     });
   });
 });

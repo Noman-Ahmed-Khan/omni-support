@@ -23,7 +23,8 @@ export class NotificationQueue {
   async add(data: NotificationJobData, priority?: number): Promise<void> {
     await this.queue.add('send-notification', data, {
       priority: priority ?? 5,
-      jobId: `notification:${data.notificationId}`,
+      // BullMQ rejects custom job ids containing ':'
+      jobId: `notification-${data.notificationId}`,
     });
   }
 

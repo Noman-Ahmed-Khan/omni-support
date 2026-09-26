@@ -2,7 +2,10 @@ import type { PrismaClient } from '@prisma/client';
 
 import type { ISearchProvider } from './search-provider.interface';
 import { CustomerProjection } from '../../application/projections/customer.projection';
-import { TicketProjection } from '../../application/projections/ticket.projection';
+import {
+  TicketProjection,
+  type TicketSearchScope,
+} from '../../application/projections/ticket.projection';
 
 export class PostgresSearchProvider implements ISearchProvider {
   private readonly ticketProjection: TicketProjection;
@@ -13,15 +16,25 @@ export class PostgresSearchProvider implements ISearchProvider {
     this.customerProjection = new CustomerProjection(prisma);
   }
 
-  async searchTickets(tenantId: string, query: string, limit = 10) {
-    return this.ticketProjection.searchTickets(tenantId, query, limit);
+  async searchTickets(
+    tenantId: string,
+    query: string,
+    limit = 10,
+    scope?: TicketSearchScope,
+  ) {
+    return this.ticketProjection.searchTickets(tenantId, query, limit, scope);
   }
 
   async searchCustomers(tenantId: string, query: string, limit = 10) {
     return this.customerProjection.searchCustomers(tenantId, query, limit);
   }
 
-  async searchComments(tenantId: string, query: string, limit = 10) {
-    return this.ticketProjection.searchComments(tenantId, query, limit);
+  async searchComments(
+    tenantId: string,
+    query: string,
+    limit = 10,
+    scope?: TicketSearchScope,
+  ) {
+    return this.ticketProjection.searchComments(tenantId, query, limit, scope);
   }
 }

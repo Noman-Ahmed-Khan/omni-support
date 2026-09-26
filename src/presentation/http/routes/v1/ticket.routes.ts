@@ -1,6 +1,6 @@
 import { Router } from 'express';
 
-import type { Container } from '../../../../infrastructure/di';
+import type { Container } from '../../../../shared/di/container';
 import type { TicketController } from '../../controllers/ticket.controller';
 import {
   createTicketSchema,
@@ -10,10 +10,14 @@ import {
   escalateTicketSchema,
   addCommentSchema,
   listTicketsQuerySchema,
+  ticketHistoryQuerySchema,
 } from '../../dtos/ticket/ticket.dto';
 import { createAuthMiddleware } from '../../middlewares/auth.middleware';
 import { requireRole } from '../../middlewares/rbac.middleware';
-import { createTenantMiddleware } from '../../middlewares/tenant.middleware';
+import {
+  createTenantMiddleware,
+  requireTenantContext,
+} from '../../middlewares/tenant.middleware';
 import { validate } from '../../middlewares/validate.middleware';
 import { asyncHandler } from '../../utils/async-handler';
 
@@ -23,8 +27,13 @@ export function createTicketRoutes(container: Container): Router {
   const authMiddleware = createAuthMiddleware(container.resolve('tokenService'));
   const tenantMiddleware = createTenantMiddleware(container.resolve('prisma'));
 
-  // All ticket routes require auth + tenant
-  router.use(authMiddleware, tenantMiddleware);
+  // All ticket routes require auth + an organization context
+  router.use(authMiddleware, tenantMiddleware, requireTenantContext);
+
+  // Every /:id route first checks that the caller may see that ticket.
+  router.param('id', (req, res, next, id: string) => {
+    void controller.authorizeTicket(req, res, next, id);
+  });
 
   // List tickets - all roles
   router.get(
@@ -89,6 +98,7 @@ export function createTicketRoutes(container: Container): Router {
   // Get ticket history
   router.get(
     '/:id/history',
+    validate(ticketHistoryQuerySchema, 'query'),
     asyncHandler((req, res, next) => controller.getHistory(req, res, next)),
   );
 

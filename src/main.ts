@@ -1,21 +1,17 @@
 import 'dotenv/config';
 import http from 'http';
 
-import type { AnalyzeSentimentHandler } from './application/ai/handlers/analyze-sentiment.handler';
-import type { CalculateRiskScoreHandler } from './application/ai/handlers/calculate-risk-score.handler';
-import type { CategorizeTicketHandler } from './application/ai/handlers/categorize-ticket.handler';
-import type { GenerateSummaryHandler } from './application/ai/handlers/generate-summary.handler';
-import type { PredictUrgencyHandler } from './application/ai/handlers/predict-urgency.handler';
-import type { SuggestResponseHandler } from './application/ai/handlers/suggest-response.handler';
+import type { TicketAccessService } from './application/ticket/services/ticket-access.service';
+import { buildContainer } from './bootstrap/container';
+import { startBackgroundProcessing } from './bootstrap/workers';
+import { getAppConfig } from './config/app.config';
+import { validateStartupConfig } from './config/startup';
 import { createRedisClient } from './infrastructure/cache/redis.client';
 import { connectDatabase, prisma } from './infrastructure/database/prisma.client';
-import { buildContainer } from './infrastructure/di';
-import type { Container } from './infrastructure/di';
-import type { SMTPEmailProvider } from './infrastructure/messaging/email/smtp.provider';
-import type { OutboxWorker } from './infrastructure/outbox/outbox.worker';
-import { createAIWorker } from './infrastructure/queue/workers/ai.worker';
-import { createEmailWorker } from './infrastructure/queue/workers/email.worker';
-import { createNotificationWorker } from './infrastructure/queue/workers/notification.worker';
+import {
+  bridgeRealtimeToGateway,
+  RedisRealtimePublisher,
+} from './infrastructure/realtime/realtime-publisher';
 import { WebSocketAuth } from './infrastructure/realtime/websocket.auth';
 import { WebSocketGateway } from './infrastructure/realtime/websocket.gateway';
 import { createApp } from './presentation/http/app';
@@ -26,6 +22,9 @@ async function bootstrap(): Promise<void> {
   logger.info('Starting OmniSupport Platform...');
 
   try {
+    validateStartupConfig();
+    const appConfig = getAppConfig();
+
     // Connect to database
     await connectDatabase();
 
@@ -33,20 +32,59 @@ async function bootstrap(): Promise<void> {
     const redis = await createRedisClient();
 
     // Prepare a shared HTTP server and WebSocket gateway before building the app container.
+    // Ticket rooms follow the same visibility rules as the ticket API.
+    let ticketAccess: TicketAccessService | null = null;
     const rawServer = http.createServer();
-    const wsGateway = new WebSocketGateway(rawServer, new WebSocketAuth());
+    const wsGateway = new WebSocketGateway(rawServer, new WebSocketAuth(), {
+      allowedOrigins: appConfig.corsOrigins
+        .split(',')
+        .map((origin) => origin.trim())
+        .filter(Boolean),
+      canAccessTicket: async (user, ticketId) => {
+        if (!ticketAccess) return false;
+        try {
+          await ticketAccess.assertCanAccess(
+            {
+              id: user.userId,
+              email: user.email,
+              role: user.role,
+              tenantId: user.tenantId,
+            },
+            ticketId,
+          );
+          return true;
+        } catch {
+          return false;
+        }
+      },
+    });
 
-    // Build DI container
-    const container = await buildContainer(prisma, redis, wsGateway);
+    // Realtime events go through Redis so that every API replica, and events raised by
+    // the worker process, reach the right clients.
+    const container = await buildContainer(prisma, redis, wsGateway, {
+      realtimePublisher: new RedisRealtimePublisher(redis),
+    });
+    ticketAccess = container.resolve<TicketAccessService>('ticketAccessService');
+    const stopRealtimeBridge = await bridgeRealtimeToGateway(redis, wsGateway);
 
     // Create real HTTP server with full app
     const app = createApp(container);
-    const workerLifecycle = startWorkers(container);
+
+    // Background processing runs in-process unless RUN_WORKERS=false, in which case a
+    // dedicated worker process (`node dist/worker.js`) does it.
+    const background =
+      appConfig.runWorkers && appConfig.env !== 'test'
+        ? startBackgroundProcessing(container, {
+            enableTenantPurge: appConfig.enableTenantPurge,
+          })
+        : null;
+
     const server = new HttpServer(app, {
       server: rawServer,
       wsGateway,
       shutdownHook: async () => {
-        await workerLifecycle.stop();
+        await background?.stop();
+        await stopRealtimeBridge();
       },
     });
     server.setupSignalHandlers();
@@ -55,8 +93,9 @@ async function bootstrap(): Promise<void> {
     await server.start();
 
     logger.info('OmniSupport Platform started successfully', {
-      port: process.env.PORT ?? 3000,
-      env: process.env.NODE_ENV,
+      port: appConfig.port,
+      env: appConfig.env,
+      backgroundProcessing: background !== null,
     });
   } catch (error) {
     logger.error('Failed to start platform', {
@@ -72,140 +111,6 @@ async function bootstrap(): Promise<void> {
 
     process.exit(1);
   }
-}
-
-type WorkerLifecycle = {
-  stop(): Promise<void>;
-};
-
-function startWorkers(container: Container): WorkerLifecycle {
-  const categorizeTicketHandler: CategorizeTicketHandler = container.resolve(
-    'categorizeTicketHandler',
-  );
-  const analyzeSentimentHandler: AnalyzeSentimentHandler = container.resolve(
-    'analyzeSentimentHandler',
-  );
-  const predictUrgencyHandler: PredictUrgencyHandler = container.resolve(
-    'predictUrgencyHandler',
-  );
-  const suggestResponseHandler: SuggestResponseHandler = container.resolve(
-    'suggestResponseHandler',
-  );
-  const generateSummaryHandler: GenerateSummaryHandler = container.resolve(
-    'generateSummaryHandler',
-  );
-  const calculateRiskScoreHandler: CalculateRiskScoreHandler = container.resolve(
-    'calculateRiskScoreHandler',
-  );
-  const emailProvider: SMTPEmailProvider = container.resolve('emailProvider');
-  const outboxWorker = container.resolve<OutboxWorker>('outboxWorker');
-  const schedulerService = container.resolve<{
-    register(job: {
-      name: string;
-      cronExpression: string;
-      handler: () => Promise<void>;
-    }): void;
-    start(): void;
-    stop(): void;
-  }>('schedulerService');
-  const analyticsRollupJob = container.resolve<() => Promise<void>>('analyticsRollupJob');
-  const ticketEscalationJob =
-    container.resolve<() => Promise<void>>('ticketEscalationJob');
-  const tenantCleanupJob = container.resolve<() => Promise<void>>('tenantCleanupJob');
-  const outboxRetryJob = container.resolve<() => Promise<void>>('outboxRetryJob');
-
-  if (process.env.NODE_ENV !== 'test') {
-    schedulerService.register({
-      name: 'analytics-rollup',
-      cronExpression: '0 1 * * *',
-      handler: analyticsRollupJob,
-    });
-    schedulerService.register({
-      name: 'ticket-escalation',
-      cronExpression: '*/15 * * * *',
-      handler: ticketEscalationJob,
-    });
-    schedulerService.register({
-      name: 'tenant-cleanup',
-      cronExpression: '30 2 * * *',
-      handler: tenantCleanupJob,
-    });
-    schedulerService.register({
-      name: 'outbox-retry',
-      cronExpression: '*/5 * * * *',
-      handler: outboxRetryJob,
-    });
-
-    // AI Worker
-    createAIWorker({
-      categorize: (data) =>
-        categorizeTicketHandler.execute({
-          tenantId: data.tenantId,
-          ticketId: data.ticketId!,
-          content: data.content,
-          metadata: data.metadata,
-        }),
-      sentiment: (data) =>
-        analyzeSentimentHandler.execute({
-          tenantId: data.tenantId,
-          ticketId: data.ticketId!,
-          content: data.content,
-          metadata: data.metadata,
-        }),
-      urgency: (data) =>
-        predictUrgencyHandler.execute({
-          tenantId: data.tenantId,
-          ticketId: data.ticketId!,
-          content: data.content,
-          metadata: data.metadata,
-        }),
-      'suggest-response': (data) =>
-        suggestResponseHandler.execute({
-          tenantId: data.tenantId,
-          ticketId: data.ticketId!,
-          content: data.content,
-          metadata: data.metadata,
-        }),
-      summarize: (data) =>
-        generateSummaryHandler.execute({
-          tenantId: data.tenantId,
-          ticketId: data.ticketId!,
-          content: data.content,
-          metadata: data.metadata,
-        }),
-      'risk-score': (data) =>
-        calculateRiskScoreHandler.execute({
-          tenantId: data.tenantId,
-          customerId: data.customerId!,
-          content: data.content,
-          metadata: data.metadata,
-        }),
-    });
-
-    // Email Worker
-    createEmailWorker(async (data) => {
-      await emailProvider.send(data);
-    });
-
-    // Notification Worker
-    createNotificationWorker((data) => {
-      logger.debug('Processing notification', { channel: data.channel });
-      return Promise.resolve();
-    });
-
-    outboxWorker.start();
-    schedulerService.start();
-
-    logger.info('Background workers started');
-  }
-
-  return {
-    stop(): Promise<void> {
-      outboxWorker.stop();
-      schedulerService.stop();
-      return Promise.resolve();
-    },
-  };
 }
 
 void bootstrap();

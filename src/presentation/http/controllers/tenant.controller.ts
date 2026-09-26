@@ -8,6 +8,7 @@ import type { RestoreTenantHandler } from '../../../application/tenant/handlers/
 import type { SuspendTenantHandler } from '../../../application/tenant/handlers/suspend-tenant.handler';
 import type { UpdateTenantHandler } from '../../../application/tenant/handlers/update-tenant.handler';
 import type { TenantEntity } from '../../../domain/tenant/entities/tenant.entity';
+import { ForbiddenError } from '../../../shared/errors/application.error';
 import { successResponse, paginatedResponse } from '../dtos/common/response.dto';
 import type {
   CreateTenantDto,
@@ -88,6 +89,11 @@ export class TenantController {
 
   async findOne(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
+      // Only platform admins may read other organizations.
+      if (req.user!.role !== 'PLATFORM_ADMIN' && req.params.id !== req.user!.tenantId) {
+        throw new ForbiddenError('You can only view your own organization');
+      }
+
       const tenant = await this.getTenantHandler.execute({
         tenantId: req.params.id,
       });

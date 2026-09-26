@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 const messagingConfigSchema = z.object({
   email: z.object({
-    provider: z.enum(['smtp', 'ses']).default('smtp'),
+    provider: z.enum(['smtp']).default('smtp'),
     from: z.string().email(),
   }),
   smtp: z.object({
@@ -17,7 +17,8 @@ const messagingConfigSchema = z.object({
       accountSid: z.string().optional(),
       authToken: z.string().optional(),
       fromNumber: z.string().optional(),
-      webhookSecret: z.string().optional(),
+      /** Public URL of the webhook router, e.g. https://api.example.com/api/v1/webhooks/whatsapp */
+      webhookUrl: z.string().url().optional(),
     })
     .default({}),
 });
@@ -50,7 +51,7 @@ export function getMessagingConfig(): MessagingConfig {
         accountSid: process.env.WHATSAPP_ACCOUNT_SID,
         authToken: process.env.WHATSAPP_AUTH_TOKEN,
         fromNumber: process.env.WHATSAPP_FROM_NUMBER,
-        webhookSecret: process.env.WHATSAPP_WEBHOOK_SECRET,
+        webhookUrl: process.env.WHATSAPP_WEBHOOK_URL,
       },
     });
   }

@@ -1,13 +1,19 @@
 import type { PrismaClient } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+
+import { logger } from '../../shared/utils/logger.util';
 
 type CustomerSearchRow = {
   id: string;
-  full_name: string;
+  fullName: string;
   email: string;
   company?: string | null;
   status: string;
-  rank: string;
+  rank: number;
 };
+
+// Maintained by a database trigger (migration 20260915000300_search_vectors).
+const CUSTOMER_DOCUMENT = Prisma.sql`c."searchVector"`;
 
 export interface CustomerSearchResult {
   id: string;
@@ -29,29 +35,29 @@ export class CustomerProjection {
     try {
       const results = await this.prisma.$queryRaw<CustomerSearchRow[]>`
         SELECT
-          id,
-          full_name,
-          email,
-          company,
-          status,
-          ts_rank(search_vector, to_tsquery('english', ${query})) as rank
-        FROM customers
-        WHERE
-          tenant_id = ${tenantId}
-          AND search_vector @@ to_tsquery('english', ${query})
-        ORDER BY rank DESC
+          c."id",
+          c."fullName",
+          c."email",
+          c."company",
+          c."status"::text AS "status",
+          ts_rank(${CUSTOMER_DOCUMENT}, websearch_to_tsquery('simple', ${query}))::float8 AS "rank"
+        FROM "customers" c
+        WHERE c."tenantId" = ${tenantId}
+          AND ${CUSTOMER_DOCUMENT} @@ websearch_to_tsquery('simple', ${query})
+        ORDER BY "rank" DESC
         LIMIT ${limit}
       `;
 
       return results.map((row) => ({
         id: row.id,
-        title: row.full_name,
+        title: row.fullName,
         excerpt: `${row.email}${row.company ? ` • ${row.company}` : ''}`,
         url: `/customers/${row.id}`,
         metadata: { email: row.email, status: row.status },
-        rank: parseFloat(row.rank),
+        rank: Number(row.rank),
       }));
-    } catch {
+    } catch (error) {
+      logger.error('Customer search failed', { tenantId, error });
       return [];
     }
   }

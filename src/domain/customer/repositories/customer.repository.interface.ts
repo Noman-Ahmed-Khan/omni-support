@@ -35,6 +35,7 @@ export interface ICustomerRepository {
   save(customer: CustomerEntity): Promise<CustomerEntity>;
   update(customer: CustomerEntity): Promise<CustomerEntity>;
   delete(id: string, tenantId: string): Promise<void>;
+  hasTickets(id: string, tenantId: string): Promise<boolean>;
   existsByEmail(email: string, tenantId: string): Promise<boolean>;
   countByTenantId(tenantId: string): Promise<number>;
   findHighRiskCustomers(tenantId: string): Promise<CustomerEntity[]>;

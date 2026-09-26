@@ -2,12 +2,19 @@ import type { AuditAction, AuditLog, Prisma, PrismaClient } from '@prisma/client
 
 import { InfrastructureError } from '../../../shared/errors/infrastructure.error';
 import { logger } from '../../../shared/utils/logger.util';
+import { toSkip, toTotalPages } from '../../../shared/utils/pagination.util';
+import type { MetricsService } from '../../observability/metrics/metrics.service';
+import {
+  resolveDatabaseClient,
+  transactionContext,
+  type DatabaseClient,
+} from '../transaction-context';
 
 export interface AuditLogEntry {
   tenantId?: string;
   actorId?: string;
   actorRole?: string;
-  action: string;
+  action: AuditAction;
   resource: string;
   resourceId?: string;
   oldValue?: Record<string, unknown>;
@@ -19,7 +26,15 @@ export interface AuditLogEntry {
 }
 
 export class AuditRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prismaClient: PrismaClient,
+    private readonly metrics?: Pick<MetricsService, 'increment'>,
+  ) {}
+
+  /** Joins the caller's transaction when one is active (see TransactionManager). */
+  private get prisma(): DatabaseClient {
+    return resolveDatabaseClient(this.prismaClient);
+  }
 
   async create(entry: AuditLogEntry): Promise<void> {
     try {
@@ -28,7 +43,7 @@ export class AuditRepository {
           tenantId: entry.tenantId,
           actorId: entry.actorId,
           actorRole: entry.actorRole,
-          action: entry.action as AuditAction,
+          action: entry.action,
           resource: entry.resource,
           resourceId: entry.resourceId,
           oldValue: toInputJson(entry.oldValue),
@@ -40,9 +55,13 @@ export class AuditRepository {
         },
       });
     } catch (error) {
-      // Audit log failures should not crash the application
-      // but must be logged
-      logger.error('AUDIT LOG FAILURE', { error });
+      logger.error('AUDIT LOG FAILURE', { error, action: entry.action });
+      this.metrics?.increment('audit_log_failures_total', { action: entry.action });
+      // Inside a transaction the failed statement has aborted the transaction anyway, and a
+      // security-relevant change must not commit without its audit record.
+      if (transactionContext.hasTransaction()) {
+        throw error;
+      }
     }
   }
 
@@ -58,7 +77,7 @@ export class AuditRepository {
     totalPages: number;
   }> {
     try {
-      const skip = (page - 1) * limit;
+      const skip = toSkip(page, limit);
 
       const [records, total] = await Promise.all([
         this.prisma.auditLog.findMany({
@@ -75,7 +94,7 @@ export class AuditRepository {
         total,
         page,
         limit,
-        totalPages: Math.ceil(total / limit),
+        totalPages: toTotalPages(total, limit),
       };
     } catch (error) {
       throw new InfrastructureError('Failed to find audit logs', { error });

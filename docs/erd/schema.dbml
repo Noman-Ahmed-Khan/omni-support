@@ -1,5 +1,6 @@
 //// ------------------------------------------------------
-//// THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+//// Reference diagram. prisma/schema.prisma is the source of truth;
+//// this file is maintained by hand and may lag behind it.
 //// ------------------------------------------------------
 
 Table tenants {

@@ -12,7 +12,8 @@ import type {
   PaginatedResult,
 } from '../../../domain/tenant/repositories/tenant.repository.interface';
 import { InfrastructureError } from '../../../shared/errors/infrastructure.error';
-import { mapPrismaTenantToEntity } from '../../../shared/mappers/tenant.mapper';
+import { toSkip, toTotalPages } from '../../../shared/utils/pagination.util';
+import { mapPrismaTenantToEntity } from '../mappers/tenant.mapper';
 
 export class TenantRepository implements ITenantRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -79,7 +80,7 @@ export class TenantRepository implements ITenantRepository {
         ];
       }
 
-      const skip = (page - 1) * limit;
+      const skip = toSkip(page, limit);
 
       const [records, total] = await Promise.all([
         this.prisma.tenant.findMany({
@@ -96,7 +97,7 @@ export class TenantRepository implements ITenantRepository {
         total,
         page,
         limit,
-        totalPages: Math.ceil(total / limit),
+        totalPages: toTotalPages(total, limit),
       };
     } catch (error) {
       throw new InfrastructureError('Failed to list tenants', { error });
@@ -139,22 +140,36 @@ export class TenantRepository implements ITenantRepository {
 
   async update(tenant: TenantEntity): Promise<TenantEntity> {
     try {
-      const record = await this.prisma.tenant.update({
-        where: { id: tenant.id },
-        data: {
-          name: tenant.name,
-          status: tenant.status as PrismaTenantStatus,
-          plan: tenant.plan,
-          domain: tenant.domain,
-          logoUrl: tenant.logoUrl,
-          maxAgents: tenant.maxAgents,
-          maxCustomers: tenant.maxCustomers,
-          maxTicketsPerDay: tenant.maxTicketsPerDay,
-          settings: toInputJson(tenant.settings),
-          suspendedAt: tenant.suspendedAt,
-          suspendedReason: tenant.suspendedReason,
-          updatedAt: new Date(),
-        },
+      const record = await this.prisma.$transaction(async (tx) => {
+        // Feature flags are written independently (see PrismaFeatureFlagRepository);
+        // keep the stored flags instead of overwriting them with a stale copy.
+        const [current] = await tx.$queryRaw<Array<{ settings: Prisma.JsonValue }>>`
+          SELECT "settings" FROM "tenants" WHERE "id" = ${tenant.id} FOR UPDATE
+        `;
+        const storedFlags = (current?.settings as Record<string, unknown> | null)
+          ?.featureFlags;
+        const settings =
+          storedFlags === undefined
+            ? tenant.settings
+            : { ...tenant.settings, featureFlags: storedFlags };
+
+        return tx.tenant.update({
+          where: { id: tenant.id },
+          data: {
+            name: tenant.name,
+            status: tenant.status as PrismaTenantStatus,
+            plan: tenant.plan,
+            domain: tenant.domain,
+            logoUrl: tenant.logoUrl,
+            maxAgents: tenant.maxAgents,
+            maxCustomers: tenant.maxCustomers,
+            maxTicketsPerDay: tenant.maxTicketsPerDay,
+            settings: toInputJson(settings),
+            suspendedAt: tenant.suspendedAt,
+            suspendedReason: tenant.suspendedReason,
+            updatedAt: new Date(),
+          },
+        });
       });
 
       return this.toDomain(record);

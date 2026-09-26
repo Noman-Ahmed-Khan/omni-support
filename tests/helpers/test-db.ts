@@ -1,5 +1,6 @@
-import { PrismaClient } from '@prisma/client';
 import { execSync } from 'child_process';
+
+import { PrismaClient } from '@prisma/client';
 
 let prismaInstance: PrismaClient | null = null;
 
@@ -28,6 +29,7 @@ export async function cleanupTestDatabase(): Promise<void> {
   // Delete in correct order respecting FK constraints
   // Keep system roles (tenantId: null) but delete tenant-specific data
   await prisma.$transaction([
+    prisma.outboxEvent.deleteMany(),
     prisma.aIResult.deleteMany(),
     prisma.analyticsSnapshot.deleteMany(),
     prisma.notification.deleteMany(),
@@ -60,7 +62,6 @@ export async function cleanupTestDatabase(): Promise<void> {
     // Don't delete system permissions or system roles
   ]);
 }
-
 
 export async function disconnectTestDatabase(): Promise<void> {
   if (prismaInstance) {

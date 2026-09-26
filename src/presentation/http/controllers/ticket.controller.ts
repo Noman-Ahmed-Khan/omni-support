@@ -10,6 +10,10 @@ import type { GetTicketHandler } from '../../../application/ticket/handlers/get-
 import type { ListTicketsHandler } from '../../../application/ticket/handlers/list-tickets.handler';
 import type { TicketHistoryHandler } from '../../../application/ticket/handlers/ticket-history.handler';
 import type { UpdateTicketHandler } from '../../../application/ticket/handlers/update-ticket.handler';
+import type {
+  TicketAccessService,
+  TicketActor,
+} from '../../../application/ticket/services/ticket-access.service';
 import type { TicketEntity } from '../../../domain/ticket/entities/ticket.entity';
 import { successResponse, paginatedResponse } from '../dtos/common/response.dto';
 import type {
@@ -20,6 +24,7 @@ import type {
   EscalateTicketDto,
   AddCommentDto,
   ListTicketsQueryDto,
+  TicketHistoryQuery,
 } from '../dtos/ticket/ticket.dto';
 
 export class TicketController {
@@ -33,7 +38,26 @@ export class TicketController {
     private readonly getTicketHandler: GetTicketHandler,
     private readonly listTicketsHandler: ListTicketsHandler,
     private readonly ticketHistoryHandler: TicketHistoryHandler,
+    private readonly ticketAccess: TicketAccessService,
   ) {}
+
+  /**
+   * Route-parameter guard for `:id`: the ticket must be in the caller's organization and
+   * visible to them (see TicketAccessPolicy) before any ticket route runs.
+   */
+  async authorizeTicket(
+    req: Request,
+    _res: Response,
+    next: NextFunction,
+    ticketId: string,
+  ): Promise<void> {
+    try {
+      await this.ticketAccess.assertCanAccess(toActor(req), ticketId);
+      next();
+    } catch (error) {
+      next(error);
+    }
+  }
 
   async create(
     req: Request<ParamsDictionary, unknown, CreateTicketDto, unknown>,
@@ -41,19 +65,26 @@ export class TicketController {
     next: NextFunction,
   ): Promise<void> {
     try {
+      const isCustomer = req.user!.role === 'CUSTOMER';
+
+      // Customers always file tickets for their own record and cannot set triage fields.
+      const customerId = isCustomer
+        ? await this.ticketAccess.requireOwnCustomerId(toActor(req))
+        : req.body.customerId;
+
       const ticket = await this.createTicketHandler.execute({
         tenantId: req.tenantId!,
-        customerId: req.body.customerId,
+        customerId,
         createdById: req.user!.id,
         createdByRole: req.user!.role,
         title: req.body.title,
         description: req.body.description,
-        priority: req.body.priority,
+        priority: isCustomer ? undefined : req.body.priority,
         category: req.body.category,
         tags: req.body.tags,
         source: req.body.source,
-        assignedAgentId: req.body.assignedAgentId,
-        dueAt: req.body.dueAt ? new Date(req.body.dueAt) : undefined,
+        assignedAgentId: isCustomer ? undefined : req.body.assignedAgentId,
+        dueAt: !isCustomer && req.body.dueAt ? new Date(req.body.dueAt) : undefined,
       });
 
       res.status(201).json(successResponse(this.toTicketResponse(ticket)));
@@ -85,9 +116,12 @@ export class TicketController {
         tags,
       } = req.query;
 
-      // Agents can only see their own tickets
-      const effectiveAgentId =
-        req.user!.role === 'AGENT' ? req.user!.id : assignedAgentId;
+      // Agents see their assigned tickets, customers the tickets of their own record.
+      const scope = await this.ticketAccess.listScope(toActor(req));
+      if (scope.none) {
+        res.status(200).json(paginatedResponse([], 0, Number(page), Number(limit)));
+        return;
+      }
 
       const result = await this.listTicketsHandler.execute({
         filters: {
@@ -95,8 +129,8 @@ export class TicketController {
           status,
           priority,
           category,
-          assignedAgentId: effectiveAgentId,
-          customerId,
+          assignedAgentId: scope.assignedAgentId ?? assignedAgentId,
+          customerId: scope.customerId ?? customerId,
           isEscalated,
           search,
           dateFrom: dateFrom ? new Date(dateFrom) : undefined,
@@ -126,16 +160,7 @@ export class TicketController {
         tenantId: req.tenantId!,
       });
 
-      // Agents can only view their assigned tickets
-      if (req.user!.role === 'AGENT' && ticket.assignedAgentId !== req.user!.id) {
-        res.status(403).json({
-          type: 'https://omnisupport.io/errors/forbidden',
-          title: 'Forbidden',
-          status: 403,
-          detail: 'You can only view tickets assigned to you',
-        });
-        return;
-      }
+      // Visibility was checked by authorizeTicket (router.param('id')).
 
       res.status(200).json(successResponse(this.toTicketResponse(ticket)));
     } catch (error) {
@@ -246,18 +271,19 @@ export class TicketController {
   }
 
   async getHistory(
-    req: Request<ParamsDictionary, unknown, unknown, { page?: string; limit?: string }>,
+    req: Request<ParamsDictionary, unknown, unknown, TicketHistoryQuery>,
     res: Response,
     next: NextFunction,
   ): Promise<void> {
     try {
+      // page/limit are validated and bounded by ticketHistoryQuerySchema
       const { page, limit } = req.query;
 
       const history = await this.ticketHistoryHandler.execute({
         ticketId: req.params.id,
         tenantId: req.tenantId!,
-        page: Number(page ?? 1),
-        limit: Number(limit ?? 50),
+        page,
+        limit,
       });
 
       res
@@ -297,4 +323,13 @@ export class TicketController {
       updatedAt: ticket.updatedAt,
     };
   }
+}
+
+function toActor(req: Pick<Request, 'user' | 'tenantId'>): TicketActor {
+  return {
+    id: req.user!.id,
+    role: req.user!.role,
+    email: req.user!.email,
+    tenantId: req.tenantId!,
+  };
 }

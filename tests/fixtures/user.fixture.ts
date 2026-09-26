@@ -1,6 +1,7 @@
-import { PrismaClient } from '@prisma/client';
-import argon2 from 'argon2';
 import crypto from 'crypto';
+
+import type { PrismaClient } from '@prisma/client';
+import argon2 from 'argon2';
 
 export const TEST_PASSWORD = 'TestPass@123!';
 

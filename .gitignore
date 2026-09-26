@@ -39,3 +39,6 @@ prisma/migrations/*.sql.bak
 
 # Test artifacts
 test-results/
+
+# Generated reports
+eslint-report.json

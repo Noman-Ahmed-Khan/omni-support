@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import type { Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
 
+import { getAppConfig } from '../../../config/app.config';
 import { BaseError } from '../../../shared/errors/base.error';
 import { ValidationError } from '../../../shared/errors/domain.error';
 import { logger } from '../../../shared/utils/logger.util';
@@ -101,18 +102,6 @@ export function errorHandlerMiddleware(
     }
   }
 
-  // Handle CORS errors
-  if (error.message?.includes('CORS')) {
-    res.status(403).json({
-      type: 'https://omnisupport.io/errors/forbidden',
-      title: 'CORS Error',
-      status: 403,
-      detail: 'Cross-origin request not allowed',
-      correlationId,
-    });
-    return;
-  }
-
   // Unknown/unexpected errors
   logger.error('Unexpected error', {
     error: error.message,
@@ -128,7 +117,7 @@ export function errorHandlerMiddleware(
     title: 'Internal Server Error',
     status: 500,
     detail:
-      process.env.NODE_ENV === 'production'
+      getAppConfig().env === 'production'
         ? 'An unexpected error occurred. Please try again later.'
         : error.message,
     correlationId,

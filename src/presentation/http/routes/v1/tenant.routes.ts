@@ -1,6 +1,6 @@
 import { Router } from 'express';
 
-import type { Container } from '../../../../infrastructure/di';
+import type { Container } from '../../../../shared/di/container';
 import type { TenantController } from '../../controllers/tenant.controller';
 import {
   createTenantSchema,
