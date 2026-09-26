@@ -8,11 +8,11 @@ export class AnalyticsController {
 
   async getTrends(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const days = Number(req.query.days ?? 30);
-      const trends = await this.analyticsService.getTicketTrends(
-        req.tenantId!,
-        Math.min(days, 365),
-      );
+      const requested = Number(req.query.days ?? 30);
+      const days = Number.isInteger(requested)
+        ? Math.min(Math.max(requested, 1), 365)
+        : 30;
+      const trends = await this.analyticsService.getTicketTrends(req.tenantId!, days);
 
       res.status(200).json(successResponse(trends));
     } catch (error) {
