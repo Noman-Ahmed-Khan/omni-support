@@ -1,5 +1,8 @@
+import crypto from 'crypto';
+
+import type { Application } from 'express';
 import request from 'supertest';
-import { Application } from 'express';
+
 import { getTestApp, getAuthToken } from '../helpers/test-app';
 import { getTestPrisma, cleanupTestDatabase } from '../helpers/test-db';
 
@@ -18,29 +21,28 @@ describe('Auth E2E', () => {
 
   describe('POST /api/v1/auth/register', () => {
     it('should register a new user', async () => {
-      const response = await request(app)
-        .post('/api/v1/auth/register')
-        .send({
-          email: 'newuser@example.com',
-          password: 'TestPass@123!',
-          firstName: 'New',
-          lastName: 'User',
-        });
+      const response = await request(app).post('/api/v1/auth/register').send({
+        email: 'newuser@example.com',
+        password: 'TestPass@123!',
+        firstName: 'New',
+        lastName: 'User',
+      });
 
-      expect(response.status).toBe(201);
+      expect(response.status).toBe(202);
       expect(response.body.success).toBe(true);
-      expect(response.body.data).toHaveProperty('userId');
+      const user = await prisma.user.findUnique({
+        where: { email: 'newuser@example.com' },
+      });
+      expect(user?.status).toBe('PENDING_VERIFICATION');
     });
 
     it('should return 400 for invalid email', async () => {
-      const response = await request(app)
-        .post('/api/v1/auth/register')
-        .send({
-          email: 'not-an-email',
-          password: 'TestPass@123!',
-          firstName: 'New',
-          lastName: 'User',
-        });
+      const response = await request(app).post('/api/v1/auth/register').send({
+        email: 'not-an-email',
+        password: 'TestPass@123!',
+        firstName: 'New',
+        lastName: 'User',
+      });
 
       expect(response.status).toBe(400);
       expect(response.body.status).toBe(400);
@@ -48,38 +50,36 @@ describe('Auth E2E', () => {
     });
 
     it('should return 400 for weak password', async () => {
-      const response = await request(app)
-        .post('/api/v1/auth/register')
-        .send({
-          email: 'test@example.com',
-          password: 'weak',
-          firstName: 'New',
-          lastName: 'User',
-        });
+      const response = await request(app).post('/api/v1/auth/register').send({
+        email: 'test@example.com',
+        password: 'weak',
+        firstName: 'New',
+        lastName: 'User',
+      });
 
       expect(response.status).toBe(400);
     });
 
-    it('should return 409 for duplicate email', async () => {
-      await request(app)
-        .post('/api/v1/auth/register')
-        .send({
-          email: 'duplicate@example.com',
-          password: 'TestPass@123!',
-          firstName: 'First',
-          lastName: 'User',
-        });
+    it('responds the same for an already registered email (no enumeration)', async () => {
+      await request(app).post('/api/v1/auth/register').send({
+        email: 'duplicate@example.com',
+        password: 'TestPass@123!',
+        firstName: 'First',
+        lastName: 'User',
+      });
 
-      const response = await request(app)
-        .post('/api/v1/auth/register')
-        .send({
-          email: 'duplicate@example.com',
-          password: 'TestPass@123!',
-          firstName: 'Second',
-          lastName: 'User',
-        });
+      const response = await request(app).post('/api/v1/auth/register').send({
+        email: 'duplicate@example.com',
+        password: 'TestPass@123!',
+        firstName: 'Second',
+        lastName: 'User',
+      });
 
-      expect(response.status).toBe(409);
+      expect(response.status).toBe(202);
+      const user = await prisma.user.findUniqueOrThrow({
+        where: { email: 'duplicate@example.com' },
+      });
+      expect(user.firstName).toBe('First');
     });
   });
 
@@ -88,7 +88,7 @@ describe('Auth E2E', () => {
       // Create verified user
       const tenant = await prisma.tenant.create({
         data: {
-          id: require('crypto').randomUUID(),
+          id: crypto.randomUUID(),
           name: 'Test Org',
           slug: `test-org-${Date.now()}`,
           status: 'ACTIVE',
@@ -102,7 +102,7 @@ describe('Auth E2E', () => {
       const argon2 = await import('argon2');
       await prisma.user.create({
         data: {
-          id: require('crypto').randomUUID(),
+          id: crypto.randomUUID(),
           tenantId: tenant.id,
           email: 'login@example.com',
           passwordHash: await argon2.hash('TestPass@123!'),
@@ -119,12 +119,10 @@ describe('Auth E2E', () => {
     });
 
     it('should login with valid credentials', async () => {
-      const response = await request(app)
-        .post('/api/v1/auth/login')
-        .send({
-          email: 'login@example.com',
-          password: 'TestPass@123!',
-        });
+      const response = await request(app).post('/api/v1/auth/login').send({
+        email: 'login@example.com',
+        password: 'TestPass@123!',
+      });
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -134,23 +132,19 @@ describe('Auth E2E', () => {
     });
 
     it('should return 401 for wrong password', async () => {
-      const response = await request(app)
-        .post('/api/v1/auth/login')
-        .send({
-          email: 'login@example.com',
-          password: 'WrongPass@123!',
-        });
+      const response = await request(app).post('/api/v1/auth/login').send({
+        email: 'login@example.com',
+        password: 'WrongPass@123!',
+      });
 
       expect(response.status).toBe(401);
     });
 
     it('should return 401 for non-existent email', async () => {
-      const response = await request(app)
-        .post('/api/v1/auth/login')
-        .send({
-          email: 'notfound@example.com',
-          password: 'TestPass@123!',
-        });
+      const response = await request(app).post('/api/v1/auth/login').send({
+        email: 'notfound@example.com',
+        password: 'TestPass@123!',
+      });
 
       expect(response.status).toBe(401);
     });

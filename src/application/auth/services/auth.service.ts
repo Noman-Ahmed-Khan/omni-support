@@ -13,16 +13,20 @@ import {
   UnauthorizedError,
   ForbiddenError,
 } from '../../../shared/errors/application.error';
-import { ConflictError, ValidationError } from '../../../shared/errors/domain.error';
+import { ValidationError } from '../../../shared/errors/domain.error';
+import { escapeHtml } from '../../../shared/utils/html.util';
 import { logger } from '../../../shared/utils/logger.util';
 
+/**
+ * Public self-registration. Role and organization are intentionally not accepted here:
+ * self-registered accounts are tenant-less CUSTOMER accounts with no staff privileges.
+ * Staff accounts are created by administrators.
+ */
 export interface RegisterDto {
   email: string;
   password: string;
   firstName: string;
   lastName: string;
-  tenantId?: string;
-  role?: string;
 }
 
 export interface LoginDto {
@@ -48,6 +52,9 @@ export interface AuthResult {
   expiresIn: number;
 }
 
+const LOCKOUT_THRESHOLD = 5;
+const MAX_LOCKOUT_MINUTES = 15;
+
 export class AuthService {
   constructor(
     private readonly prisma: PrismaClient,
@@ -58,26 +65,37 @@ export class AuthService {
     private readonly passwordHasher: PasswordHasher = new PasswordHasher(),
   ) {}
 
-  async register(dto: RegisterDto): Promise<{ userId: string }> {
-    // Check for existing user
-    const existing = await this.prisma.user.findUnique({
-      where: { email: dto.email.toLowerCase() },
-    });
-
-    if (existing) {
-      throw new ConflictError('An account with this email already exists');
+  /**
+   * Registers a customer account. The outcome for an email that is already registered
+   * is indistinguishable from a new registration (same response, similar timing), so
+   * the endpoint cannot be used to discover accounts. Returns the new user id, or null
+   * when nothing was created.
+   */
+  async register(dto: RegisterDto): Promise<{ userId: string | null }> {
+    if (!getAppConfig().allowPublicRegistration) {
+      throw new ForbiddenError('Public registration is disabled');
     }
 
     Password.create(dto.password);
 
+    // Hash before the lookup so both paths take comparable time.
     const passwordHash = await this.hashPassword(dto.password);
+
+    const existing = await this.prisma.user.findUnique({
+      where: { email: dto.email.toLowerCase() },
+      select: { id: true },
+    });
+
+    if (existing) {
+      logger.info('Registration attempted for an existing account', {
+        userId: existing.id,
+      });
+      return { userId: null };
+    }
+
     const userId = crypto.randomUUID();
 
-    const role: UserRole =
-      dto.role &&
-      ['PLATFORM_ADMIN', 'TENANT_MANAGER', 'AGENT', 'CUSTOMER'].includes(dto.role)
-        ? (dto.role as UserRole)
-        : 'AGENT';
+    const role: UserRole = 'CUSTOMER';
 
     const user = await this.prisma.user.create({
       data: {
@@ -87,7 +105,6 @@ export class AuthService {
         firstName: dto.firstName,
         lastName: dto.lastName,
         role,
-        tenantId: dto.tenantId,
         status: 'PENDING_VERIFICATION',
       },
     });
@@ -112,13 +129,12 @@ export class AuthService {
     });
 
     await this.auditRepo.create({
-      tenantId: dto.tenantId,
       actorId: userId,
-      actorRole: dto.role ?? 'AGENT',
+      actorRole: role,
       action: 'CREATE',
       resource: 'users',
       resourceId: userId,
-      newValue: { email: dto.email, role: dto.role },
+      newValue: { email: dto.email, role },
     });
 
     logger.info('User registered', { userId, email: dto.email });
@@ -131,54 +147,25 @@ export class AuthService {
       where: { email: dto.email.toLowerCase() },
     });
 
-    if (!user) {
-      throw new UnauthorizedError('Invalid email or password');
-    }
-
-    // Check if account is locked
-    if (user.lockedUntil && user.lockedUntil > new Date()) {
-      const minutesLeft = Math.ceil((user.lockedUntil.getTime() - Date.now()) / 60000);
-      throw new UnauthorizedError(`Account locked. Try again in ${minutesLeft} minutes`);
-    }
-
-    // Check account status
-    if (user.status === 'SUSPENDED') {
-      throw new ForbiddenError('Your account has been suspended');
-    }
-
-    if (!user.passwordHash) {
-      throw new UnauthorizedError(
-        'This account uses social login. Please use Google to sign in.',
-      );
-    }
-
-    // Verify password
+    // Unknown accounts, social-login accounts, locked accounts and wrong passwords all
+    // get the same response, and a password hash is always verified so response times
+    // do not reveal which accounts exist.
+    const isLocked = !!user?.lockedUntil && user.lockedUntil > new Date();
     const isValidPassword = await this.passwordHasher.verify(
-      user.passwordHash,
+      user?.passwordHash ?? (await this.getDummyPasswordHash()),
       dto.password,
     );
 
-    if (!isValidPassword) {
-      // Increment failed attempts
-      const failedAttempts = user.failedLoginAttempts + 1;
-      const updateData: Prisma.UserUpdateInput = {
-        failedLoginAttempts: failedAttempts,
-      };
-
-      if (failedAttempts >= 5) {
-        updateData.lockedUntil = new Date(Date.now() + 15 * 60 * 1000);
-        logger.warn('Account locked due to failed attempts', {
-          userId: user.id,
-          email: user.email,
-        });
+    if (!user || !user.passwordHash || isLocked || !isValidPassword) {
+      if (user && user.passwordHash && !isLocked && !isValidPassword) {
+        await this.recordFailedLogin(user.id, user.failedLoginAttempts + 1);
       }
-
-      await this.prisma.user.update({
-        where: { id: user.id },
-        data: updateData,
-      });
-
       throw new UnauthorizedError('Invalid email or password');
+    }
+
+    // Only reached with the correct password, so this reveals nothing to an attacker.
+    if (user.status === 'SUSPENDED') {
+      throw new ForbiddenError('Your account has been suspended');
     }
 
     // Check email verification for non-admin users
@@ -347,7 +334,7 @@ export class AuthService {
     await this.prisma.$transaction([
       this.prisma.user.update({
         where: { id: resetToken.userId },
-        data: { passwordHash },
+        data: { passwordHash, failedLoginAttempts: 0, lockedUntil: null },
       }),
       this.prisma.passwordResetToken.update({
         where: { id: resetToken.id },
@@ -394,16 +381,50 @@ export class AuthService {
     return this.passwordHasher.hash(password);
   }
 
+  /**
+   * Progressive lockout: from the 5th consecutive failure the account is locked for
+   * 1, 2, 4, 8 then 15 minutes, which slows guessing without letting anyone lock an
+   * account for long.
+   */
+  private async recordFailedLogin(userId: string, failedAttempts: number): Promise<void> {
+    const data: Prisma.UserUpdateInput = { failedLoginAttempts: failedAttempts };
+
+    if (failedAttempts >= LOCKOUT_THRESHOLD) {
+      const minutes = Math.min(
+        2 ** (failedAttempts - LOCKOUT_THRESHOLD),
+        MAX_LOCKOUT_MINUTES,
+      );
+      data.lockedUntil = new Date(Date.now() + minutes * 60 * 1000);
+      logger.warn('Account temporarily locked after failed logins', {
+        userId,
+        failedAttempts,
+        minutes,
+      });
+    }
+
+    await this.prisma.user.update({ where: { id: userId }, data });
+  }
+
+  private dummyPasswordHash: Promise<string> | null = null;
+
+  /** A real hash to verify against when the account does not exist. */
+  private getDummyPasswordHash(): Promise<string> {
+    this.dummyPasswordHash ??= this.passwordHasher.hash(
+      crypto.randomBytes(32).toString('hex'),
+    );
+    return this.dummyPasswordHash;
+  }
+
   private buildVerificationEmailHtml(
     firstName: string,
     token: string,
     userId: string,
   ): string {
-    const verifyUrl = `${getAppConfig().frontendUrl}/verify-email?token=${token}&userId=${userId}`;
+    const verifyUrl = `${getAppConfig().frontendUrl}/verify-email?token=${encodeURIComponent(token)}&userId=${encodeURIComponent(userId)}`;
     return `
-      <h1>Welcome to OmniSupport, ${firstName}!</h1>
+      <h1>Welcome to OmniSupport, ${escapeHtml(firstName)}!</h1>
       <p>Please verify your email address to activate your account.</p>
-      <a href="${verifyUrl}" style="background:#4F46E5;color:white;padding:12px 24px;text-decoration:none;border-radius:4px;">
+      <a href="${escapeHtml(verifyUrl)}" style="background:#4F46E5;color:white;padding:12px 24px;text-decoration:none;border-radius:4px;">
         Verify Email
       </a>
       <p>This link expires in 24 hours.</p>
@@ -411,11 +432,11 @@ export class AuthService {
   }
 
   private buildPasswordResetEmailHtml(firstName: string, token: string): string {
-    const resetUrl = `${getAppConfig().frontendUrl}/reset-password?token=${token}`;
+    const resetUrl = `${getAppConfig().frontendUrl}/reset-password?token=${encodeURIComponent(token)}`;
     return `
-      <h1>Reset your password, ${firstName}</h1>
+      <h1>Reset your password, ${escapeHtml(firstName)}</h1>
       <p>Click the button below to reset your password. This link expires in 1 hour.</p>
-      <a href="${resetUrl}" style="background:#4F46E5;color:white;padding:12px 24px;text-decoration:none;border-radius:4px;">
+      <a href="${escapeHtml(resetUrl)}" style="background:#4F46E5;color:white;padding:12px 24px;text-decoration:none;border-radius:4px;">
         Reset Password
       </a>
       <p>If you didn't request this, please ignore this email.</p>
