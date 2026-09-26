@@ -93,6 +93,10 @@ enum ActivityEventType {
   TICKET_CLOSED
   COMMENT_ADDED
   ATTACHMENT_ADDED
+  TICKET_UPDATED
+  TICKET_CATEGORY_CHANGED
+  COMMENT_EDITED
+  COMMENT_DELETED
   AI_CATEGORIZED
   AI_ESCALATED
   AI_SUMMARY_GENERATED
@@ -112,6 +116,7 @@ enum AuditAction {
   RESTORE
   ESCALATE
   ASSIGN
+  ROLE_CHANGE
 }
 
 enum AIResultType {
@@ -392,6 +397,7 @@ model Customer {
   notifications Notification[]
   aiResults     AIResult[]
 
+  @@index([searchVector], type: Gin, map: "customers_search_vector_idx")
   @@unique([tenantId, email])
   @@index([tenantId])
   @@index([tenantId, status])
@@ -459,6 +465,7 @@ model Ticket {
   @@index([tenantId, assignedAgentId, status])
   @@index([dueAt])
   @@index([slaBreached])
+  @@index([searchVector], type: Gin, map: "tickets_search_vector_idx")
   @@map("tickets")
 }
 
@@ -500,6 +507,7 @@ model TicketComment {
   @@index([tenantId, ticketId])
   @@index([authorId])
   @@index([createdAt])
+  @@index([searchVector], type: Gin, map: "ticket_comments_search_vector_idx")
   @@map("ticket_comments")
 }
 
@@ -725,6 +733,34 @@ model TenantIntegration {
   @@unique([tenantId, provider])
   @@index([tenantId])
   @@map("tenant_integrations")
+}
+
+// TRANSACTIONAL OUTBOX (domain events awaiting delivery)
+
+model OutboxEvent {
+  id               String    @id @default(uuid()) @db.Uuid
+  tenantId         String?   @map("tenant_id")
+  aggregateType    String?   @map("aggregate_type")
+  aggregateId      String?   @map("aggregate_id")
+  eventType        String    @map("event_type")
+  eventId          String    @unique @map("event_id")
+  occurredAt       DateTime  @map("occurred_at") @db.Timestamptz(6)
+  payload          Json
+  status           String    @default("PENDING")
+  attempts         Int       @default(0)
+  maxAttempts      Int       @default(5) @map("max_attempts")
+  availableAt      DateTime  @default(now()) @map("available_at") @db.Timestamptz(6)
+  lockedAt         DateTime? @map("locked_at") @db.Timestamptz(6)
+  lockedBy         String?   @map("locked_by")
+  processedAt      DateTime? @map("processed_at") @db.Timestamptz(6)
+  failedAt         DateTime? @map("failed_at") @db.Timestamptz(6)
+  deadLetterReason String?   @map("dead_letter_reason")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([status, availableAt], map: "outbox_events_status_available_at_idx")
+  @@index([tenantId, status], map: "outbox_events_tenant_status_idx")
+  @@map("outbox_events")
 }
 
 // WEBHOOK EVENTS LOG
