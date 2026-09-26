@@ -41,7 +41,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20.x'
+          node-version-file: '.nvmrc'
           cache: 'npm'
       - run: npm ci
       - run: npm run db:generate
@@ -58,6 +58,7 @@ jobs:
           REDIS_PORT: 6379
           JWT_ACCESS_SECRET: test_access_secret_minimum_32_characters_long
           JWT_REFRESH_SECRET: test_refresh_secret_minimum_32_characters_long
+          ENCRYPTION_KEY: test_encryption_key_minimum_32_characters
           OPENAI_API_KEY: sk-test
           EMAIL_FROM: test@test.com
           SMTP_HOST: localhost
@@ -66,11 +67,11 @@ jobs:
           SMTP_PASSWORD: test
           STORAGE_PROVIDER: local
           LOCAL_STORAGE_PATH: /tmp/uploads-test
-          LOCAL_STORAGE_SECRET: test_secret
+          LOCAL_STORAGE_SECRET: test_storage_secret_minimum_32_characters
           WHATSAPP_ACCOUNT_SID: test
           WHATSAPP_AUTH_TOKEN: test
           WHATSAPP_FROM_NUMBER: '+14155238886'
-          WHATSAPP_WEBHOOK_SECRET: test
+          WHATSAPP_WEBHOOK_URL: http://localhost:3000/api/v1/webhooks/whatsapp
           FRONTEND_URL: http://localhost:3001
           CORS_ORIGINS: http://localhost:3001
           LOG_LEVEL: error
