@@ -8,6 +8,7 @@ import { logger } from '../../shared/utils/logger.util';
 
 export interface WSClient {
   userId: string;
+  email: string;
   tenantId?: string;
   role: string;
   socket: WebSocket;
@@ -21,15 +22,34 @@ export interface WSMessage {
   room?: string;
 }
 
+export interface WebSocketGatewayOptions {
+  /**
+   * Returns true when the connected user may see the ticket (same organization and
+   * the ticket visibility rules). Ticket rooms are denied when no checker is configured.
+   */
+  canAccessTicket?: (
+    user: { userId: string; email: string; role: string; tenantId: string },
+    ticketId: string,
+  ) => Promise<boolean>;
+  /** Browser origins allowed to open a socket. Requests without an Origin header are allowed. */
+  allowedOrigins?: string[];
+}
+
 export class WebSocketGateway {
   private wss: WebSocketServer;
   private clients: Map<string, WSClient> = new Map();
   private pingInterval: NodeJS.Timeout | null = null;
   private readonly roomManager: RoomManager;
   private readonly wsAuth: WebSocketAuth;
+  private readonly options: WebSocketGatewayOptions;
 
-  constructor(server: Server, wsAuth: WebSocketAuth) {
+  constructor(
+    server: Server,
+    wsAuth: WebSocketAuth,
+    options: WebSocketGatewayOptions = {},
+  ) {
     this.wsAuth = wsAuth;
+    this.options = options;
     this.roomManager = new RoomManager();
 
     this.wss = new WebSocketServer({
@@ -58,11 +78,22 @@ export class WebSocketGateway {
     logger.info('WebSocket gateway initialized');
   }
 
+  private isOriginAllowed(request: IncomingMessage): boolean {
+    const origin = request.headers.origin;
+    if (!origin || !this.options.allowedOrigins) return true;
+    return this.options.allowedOrigins.includes(origin);
+  }
+
   private async handleConnection(
     socket: WebSocket,
     request: IncomingMessage,
   ): Promise<void> {
     try {
+      if (!this.isOriginAllowed(request)) {
+        socket.close(4003, 'Origin not allowed');
+        return;
+      }
+
       // Authenticate the connection
       const user = await this.wsAuth.authenticate(request);
 
@@ -74,6 +105,7 @@ export class WebSocketGateway {
       const clientId = crypto.randomUUID();
       const client: WSClient = {
         userId: user.userId,
+        email: user.email,
         tenantId: user.tenantId,
         role: user.role,
         socket,
@@ -118,7 +150,7 @@ export class WebSocketGateway {
           }
         }
 
-        this.handleMessage(clientId, client, raw);
+        void this.handleMessage(clientId, client, raw);
       });
 
       socket.on('pong', () => {
@@ -139,13 +171,23 @@ export class WebSocketGateway {
     }
   }
 
-  private handleMessage(clientId: string, client: WSClient, rawData: string): void {
+  private async handleMessage(
+    clientId: string,
+    client: WSClient,
+    rawData: string,
+  ): Promise<void> {
+    let message: WSMessage;
     try {
-      const message = JSON.parse(rawData) as WSMessage;
+      message = JSON.parse(rawData) as WSMessage;
+    } catch {
+      logger.warn('Invalid WebSocket message', { clientId });
+      return;
+    }
 
+    try {
       switch (message.event) {
         case 'subscribe':
-          this.handleSubscribe(clientId, client, message.room);
+          await this.handleSubscribe(clientId, client, message.room);
           break;
         case 'unsubscribe':
           this.handleUnsubscribe(clientId, client, message.room);
@@ -156,22 +198,29 @@ export class WebSocketGateway {
         default:
           logger.warn('Unknown WebSocket event', { event: message.event });
       }
-    } catch {
-      logger.warn('Invalid WebSocket message', { clientId });
+    } catch (error) {
+      logger.error('WebSocket message handling failed', { clientId, error });
     }
   }
 
-  private handleSubscribe(clientId: string, client: WSClient, room?: string): void {
-    if (!room) return;
+  private async handleSubscribe(
+    clientId: string,
+    client: WSClient,
+    room?: string,
+  ): Promise<void> {
+    if (!room || typeof room !== 'string') return;
 
     // Validate room access
-    if (!this.canAccessRoom(client, room)) {
+    if (!(await this.canAccessRoom(client, room))) {
       this.sendToClient(client.socket, {
         event: 'error',
         data: { message: 'Access denied to room' },
       });
       return;
     }
+
+    // The client may have disconnected while access was being checked
+    if (!this.clients.has(clientId)) return;
 
     this.roomManager.joinRoom(clientId, room);
     client.rooms.add(room);
@@ -188,7 +237,7 @@ export class WebSocketGateway {
     client.rooms.delete(room);
   }
 
-  private canAccessRoom(client: WSClient, room: string): boolean {
+  private async canAccessRoom(client: WSClient, room: string): Promise<boolean> {
     // Users can only subscribe to their own rooms
     if (room.startsWith('user:')) {
       return room === `user:${client.userId}`;
@@ -196,12 +245,24 @@ export class WebSocketGateway {
 
     // Tenant rooms only accessible by tenant members
     if (room.startsWith('tenant:')) {
-      return room === `tenant:${client.tenantId}`;
+      return !!client.tenantId && room === `tenant:${client.tenantId}`;
     }
 
-    // Ticket rooms accessible by tenant members
+    // Ticket rooms: the ticket must belong to the client's tenant
     if (room.startsWith('ticket:')) {
-      return !!client.tenantId;
+      const ticketId = room.slice('ticket:'.length);
+      if (!client.tenantId || !ticketId || !this.options.canAccessTicket) {
+        return false;
+      }
+      return this.options.canAccessTicket(
+        {
+          userId: client.userId,
+          email: client.email,
+          role: client.role,
+          tenantId: client.tenantId,
+        },
+        ticketId,
+      );
     }
 
     return false;
