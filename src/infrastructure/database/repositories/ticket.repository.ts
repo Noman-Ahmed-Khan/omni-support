@@ -19,9 +19,16 @@ import type {
 import { TicketPriority } from '../../../domain/ticket/value-objects/ticket-priority.vo';
 import { TicketStatus } from '../../../domain/ticket/value-objects/ticket-status.vo';
 import { InfrastructureError } from '../../../shared/errors/infrastructure.error';
+import { toSkip, toTotalPages } from '../../../shared/utils/pagination.util';
+import { resolveDatabaseClient, type DatabaseClient } from '../transaction-context';
 
 export class TicketRepository implements ITicketRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(private readonly prismaClient: PrismaClient) {}
+
+  /** Joins the caller's transaction when one is active (see TransactionManager). */
+  private get prisma(): DatabaseClient {
+    return resolveDatabaseClient(this.prismaClient);
+  }
 
   async findById(id: string, tenantId: string): Promise<TicketEntity | null> {
     try {
@@ -58,7 +65,7 @@ export class TicketRepository implements ITicketRepository {
   ): Promise<PaginatedResult<TicketEntity>> {
     try {
       const where = this.buildWhereClause(filters);
-      const skip = (pagination.page - 1) * pagination.limit;
+      const skip = toSkip(pagination.page, pagination.limit);
 
       const orderBy = this.buildOrderBy(pagination.sortBy, pagination.sortOrder);
 
@@ -77,7 +84,7 @@ export class TicketRepository implements ITicketRepository {
         total,
         page: pagination.page,
         limit: pagination.limit,
-        totalPages: Math.ceil(total / pagination.limit),
+        totalPages: toTotalPages(total, pagination.limit),
       };
     } catch (error) {
       throw new InfrastructureError('Failed to list tickets', { error });
@@ -176,16 +183,15 @@ export class TicketRepository implements ITicketRepository {
 
   async getNextTicketNumber(tenantId: string): Promise<number> {
     try {
-      const result = await this.prisma.$transaction(async (tx) => {
-        const sequence = await tx.ticketSequence.upsert({
-          where: { tenantId },
-          update: { lastNumber: { increment: 1 } },
-          create: { tenantId, lastNumber: 1 },
-        });
-        return sequence.lastNumber;
+      // A single-unique-field upsert runs as one INSERT ... ON CONFLICT statement, so the
+      // increment is atomic and joins the caller's transaction when there is one.
+      const sequence = await this.prisma.ticketSequence.upsert({
+        where: { tenantId },
+        update: { lastNumber: { increment: 1 } },
+        create: { tenantId, lastNumber: 1 },
       });
 
-      return result;
+      return sequence.lastNumber;
     } catch (error) {
       throw new InfrastructureError('Failed to get next ticket number', {
         error,
@@ -195,6 +201,10 @@ export class TicketRepository implements ITicketRepository {
 
   async countByTenantId(tenantId: string): Promise<number> {
     return this.prisma.ticket.count({ where: { tenantId } });
+  }
+
+  async countCreatedSince(tenantId: string, since: Date): Promise<number> {
+    return this.prisma.ticket.count({ where: { tenantId, createdAt: { gte: since } } });
   }
 
   async countByStatus(tenantId: string): Promise<Record<string, number>> {
@@ -227,6 +237,14 @@ export class TicketRepository implements ITicketRepository {
       }),
       {} as Record<string, number>,
     );
+  }
+
+  async markSlaBreached(id: string, tenantId: string): Promise<boolean> {
+    const result = await this.prisma.ticket.updateMany({
+      where: { id, tenantId, slaBreached: false },
+      data: { slaBreached: true },
+    });
+    return result.count === 1;
   }
 
   async findOverdueTickets(tenantId: string): Promise<TicketEntity[]> {

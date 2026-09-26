@@ -16,6 +16,7 @@ import type {
 } from '../../../domain/user/repositories/user.repository.interface';
 import { Email } from '../../../domain/user/value-objects/email.vo';
 import { UserRole } from '../../../domain/user/value-objects/user-role.vo';
+import { toSkip, toTotalPages } from '../../../shared/utils/pagination.util';
 
 export class UserRepository implements IUserRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -75,7 +76,7 @@ export class UserRepository implements IUserRepository {
 
     const orderBy = buildOrderBy(pagination.sortBy, pagination.sortOrder);
 
-    const skip = (pagination.page - 1) * pagination.limit;
+    const skip = toSkip(pagination.page, pagination.limit);
 
     const [users, total] = await Promise.all([
       this.prisma.user.findMany({
@@ -92,7 +93,7 @@ export class UserRepository implements IUserRepository {
       total,
       page: pagination.page,
       limit: pagination.limit,
-      totalPages: Math.ceil(total / pagination.limit),
+      totalPages: toTotalPages(total, pagination.limit),
     };
   }
 

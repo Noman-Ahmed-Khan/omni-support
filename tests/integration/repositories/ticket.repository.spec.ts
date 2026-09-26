@@ -1,12 +1,13 @@
-import { TicketRepository } from '../../../src/infrastructure/database/repositories/ticket.repository';
-import { TicketEntity } from '../../../src/domain/ticket/entities/ticket.entity';
-import { TicketStatus } from '../../../src/domain/ticket/value-objects/ticket-status.vo';
-import { TicketPriority } from '../../../src/domain/ticket/value-objects/ticket-priority.vo';
-import { getTestPrisma, cleanupTestDatabase } from '../../helpers/test-db';
-import { createTestTenant } from '../../fixtures/tenant.fixture';
-import { createTestUser } from '../../fixtures/user.fixture';
-import { createTestCustomer } from '../../fixtures/ticket.fixture';
 import crypto from 'crypto';
+
+import { TicketEntity } from '../../../src/domain/ticket/entities/ticket.entity';
+import { TicketPriority } from '../../../src/domain/ticket/value-objects/ticket-priority.vo';
+import { TicketStatus } from '../../../src/domain/ticket/value-objects/ticket-status.vo';
+import { TicketRepository } from '../../../src/infrastructure/database/repositories/ticket.repository';
+import { createTestTenant } from '../../fixtures/tenant.fixture';
+import { createTestCustomer } from '../../fixtures/ticket.fixture';
+import { createTestUser } from '../../fixtures/user.fixture';
+import { getTestPrisma, cleanupTestDatabase } from '../../helpers/test-db';
 
 describe('TicketRepository (Integration)', () => {
   const prisma = getTestPrisma();
@@ -187,7 +188,9 @@ describe('TicketRepository (Integration)', () => {
     });
 
     it('should be isolated per tenant', async () => {
-      const tenant2 = await createTestTenant(prisma, { slug: `test-org-2-${Date.now()}` });
+      const tenant2 = await createTestTenant(prisma, {
+        slug: `test-org-2-${Date.now()}`,
+      });
 
       const t1n1 = await repo.getNextTicketNumber(tenantId);
       const t2n1 = await repo.getNextTicketNumber(tenant2.id);

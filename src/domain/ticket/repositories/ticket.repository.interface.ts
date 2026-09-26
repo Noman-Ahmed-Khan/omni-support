@@ -55,8 +55,11 @@ export interface ITicketRepository {
   delete(id: string, tenantId: string): Promise<void>;
   getNextTicketNumber(tenantId: string): Promise<number>;
   countByTenantId(tenantId: string): Promise<number>;
+  countCreatedSince(tenantId: string, since: Date): Promise<number>;
   countByStatus(tenantId: string): Promise<Record<string, number>>;
   countByPriority(tenantId: string): Promise<Record<string, number>>;
   findOverdueTickets(tenantId: string): Promise<TicketEntity[]>;
+  /** Flags an overdue ticket; returns false when it was already flagged. */
+  markSlaBreached(id: string, tenantId: string): Promise<boolean>;
   findEscalatedTickets(tenantId: string): Promise<TicketEntity[]>;
 }

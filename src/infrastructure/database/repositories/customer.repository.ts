@@ -16,9 +16,16 @@ import type {
 import { HighRiskCustomerSpecification } from '../../../domain/specifications/high-risk-customer.specification';
 import { Email } from '../../../domain/user/value-objects/email.vo';
 import { InfrastructureError } from '../../../shared/errors/infrastructure.error';
+import { toSkip, toTotalPages } from '../../../shared/utils/pagination.util';
+import { resolveDatabaseClient, type DatabaseClient } from '../transaction-context';
 
 export class CustomerRepository implements ICustomerRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(private readonly prismaClient: PrismaClient) {}
+
+  /** Joins the caller's transaction when one is active (see TransactionManager). */
+  private get prisma(): DatabaseClient {
+    return resolveDatabaseClient(this.prismaClient);
+  }
 
   async findById(id: string, tenantId: string): Promise<CustomerEntity | null> {
     try {
@@ -52,7 +59,7 @@ export class CustomerRepository implements ICustomerRepository {
   ): Promise<PaginatedResult<CustomerEntity>> {
     try {
       const where = this.buildWhereClause(filters);
-      const skip = (pagination.page - 1) * pagination.limit;
+      const skip = toSkip(pagination.page, pagination.limit);
       const orderBy = this.buildOrderBy(pagination.sortBy, pagination.sortOrder);
 
       const [records, total] = await Promise.all([
@@ -65,7 +72,7 @@ export class CustomerRepository implements ICustomerRepository {
         total,
         page: pagination.page,
         limit: pagination.limit,
-        totalPages: Math.ceil(total / pagination.limit),
+        totalPages: toTotalPages(total, pagination.limit),
       };
     } catch (error) {
       throw new InfrastructureError('Failed to list customers', { error });
@@ -137,6 +144,14 @@ export class CustomerRepository implements ICustomerRepository {
     } catch (error) {
       throw new InfrastructureError('Failed to delete customer', { error });
     }
+  }
+
+  async hasTickets(id: string, tenantId: string): Promise<boolean> {
+    const ticket = await this.prisma.ticket.findFirst({
+      where: { customerId: id, tenantId },
+      select: { id: true },
+    });
+    return ticket !== null;
   }
 
   async existsByEmail(email: string, tenantId: string): Promise<boolean> {
