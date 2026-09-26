@@ -98,6 +98,22 @@ export class CustomerEntity extends AggregateRoot {
     this._assignedAgentId = agentId;
   }
 
+  updateProfile(input: {
+    fullName?: string;
+    phone?: string;
+    company?: string;
+    notes?: string;
+  }): void {
+    if (input.fullName !== undefined) this._fullName = input.fullName.trim();
+    if (input.phone !== undefined) this._phone = input.phone;
+    if (input.company !== undefined) this._company = input.company;
+    if (input.notes !== undefined) this._notes = input.notes;
+  }
+
+  deactivate(): void {
+    this._status = CustomerStatusEnum.INACTIVE;
+  }
+
   recordActivity(): void {
     this._lastActivityAt = new Date();
   }

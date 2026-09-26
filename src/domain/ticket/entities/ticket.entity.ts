@@ -113,6 +113,12 @@ export class TicketEntity extends AggregateRoot {
     const oldStatus = this._status.toString();
     this._status = newStatus;
 
+    if (newStatus.isActive()) {
+      // Reopened: previous resolution/closure no longer applies.
+      this._resolvedAt = undefined;
+      this._closedAt = undefined;
+    }
+
     if (newStatus.isResolved() && !this._resolvedAt) {
       this._resolvedAt = new Date();
     }
@@ -154,7 +160,7 @@ export class TicketEntity extends AggregateRoot {
 
   escalate(reason: string, escalatedById: string): void {
     if (this._isEscalated) {
-      throw new Error('Ticket is already escalated');
+      throw new DomainError('Ticket is already escalated');
     }
 
     this._isEscalated = true;
@@ -194,6 +200,33 @@ export class TicketEntity extends AggregateRoot {
 
   updatePriority(priority: TicketPriority): void {
     this._priority = priority;
+  }
+
+  updateDetails(input: {
+    title?: string;
+    description?: string;
+    tags?: string[];
+    dueAt?: Date;
+  }): void {
+    if (input.title !== undefined) {
+      const title = input.title.trim();
+      if (!title) throw new DomainError('Ticket title cannot be empty');
+      this._title = title;
+    }
+
+    if (input.description !== undefined) {
+      const description = input.description.trim();
+      if (!description) throw new DomainError('Ticket description cannot be empty');
+      this._description = description;
+    }
+
+    if (input.tags !== undefined) {
+      this._tags = Array.from(new Set(input.tags));
+    }
+
+    if (input.dueAt !== undefined) {
+      this._dueAt = input.dueAt;
+    }
   }
 
   updateCategory(category: string): void {
