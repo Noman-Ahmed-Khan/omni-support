@@ -82,8 +82,9 @@ run_step() {
 
   spinner "$pid" "$label" "$num"
 
-  wait "$pid"
-  local rc=$?
+  # Capture the exit code without triggering `set -e`, so the failure output below is shown.
+  local rc=0
+  wait "$pid" || rc=$?
 
   local elapsed=$(( $(date +%s) - start ))
 
@@ -92,8 +93,6 @@ run_step() {
         "$label" \
         "$(progress_bar "$num" "$TOTAL_STEPS")" \
         "$elapsed"
-
-    # progress_bar "$num" "$TOTAL_STEPS"
 
     rm -f "$tmpout"
   else
@@ -140,8 +139,8 @@ run_step 2 "Generating Prisma Client" \
 run_step 3 "Running ESLint" \
   npm run lint
 
-run_step 4 "Auto-formatting code" \
-  npm run format
+run_step 4 "Checking code formatting" \
+  npm run format:check
 
 run_step 5 "Running TypeScript type check" \
   npm run typecheck
