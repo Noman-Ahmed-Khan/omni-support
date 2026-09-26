@@ -94,10 +94,69 @@
       }
     ],
 
+    /*
+     * Layering: inner layers never depend on outer ones. The composition root
+     * (src/bootstrap) is the only place that wires everything together.
+     */
+    "import/no-restricted-paths": [
+      "error",
+      {
+        "zones": [
+          {
+            "target": "./src/domain",
+            "from": ["./src/application", "./src/infrastructure", "./src/presentation", "./src/bootstrap"],
+            "message": "The domain layer must not depend on outer layers."
+          },
+          {
+            "target": "./src/application",
+            "from": ["./src/presentation", "./src/bootstrap"],
+            "message": "The application layer must not depend on presentation or the composition root."
+          },
+          {
+            "target": "./src/infrastructure",
+            "from": ["./src/presentation", "./src/bootstrap"],
+            "message": "Infrastructure must not depend on presentation or the composition root."
+          },
+          {
+            "target": "./src/presentation",
+            "from": ["./src/bootstrap"],
+            "message": "Presentation must not depend on the composition root."
+          },
+          {
+            "target": "./src/shared",
+            "from": ["./src/domain", "./src/application", "./src/infrastructure", "./src/presentation", "./src/bootstrap"],
+            "message": "Shared code must not depend on any layer."
+          }
+        ]
+      }
+    ],
+
     "no-debugger": "error",
     "prefer-const": "error",
     "no-var": "error"
   },
+
+  "overrides": [
+    {
+      "files": ["tests/**/*.ts"],
+      "env": { "jest": true },
+      "rules": {
+        "@typescript-eslint/unbound-method": "off",
+        "@typescript-eslint/no-unsafe-member-access": "off",
+        "@typescript-eslint/no-unsafe-assignment": "off",
+        "@typescript-eslint/no-unsafe-call": "off",
+        "@typescript-eslint/no-unsafe-argument": "off",
+        "@typescript-eslint/no-explicit-any": "off",
+        "@typescript-eslint/require-await": "off"
+      }
+    },
+    {
+      "files": ["scripts/**/*.ts", "prisma/**/*.ts"],
+      "rules": {
+        "no-console": "off"
+      }
+    }
+  ],
 
   "ignorePatterns": [
     "dist",
