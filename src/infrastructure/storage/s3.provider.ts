@@ -7,11 +7,12 @@ import {
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
-import type {
-  IStorageProvider,
-  UploadOptions,
-  UploadResult,
-  SignedUrlOptions,
+import {
+  safeExtension,
+  type IStorageProvider,
+  type UploadOptions,
+  type UploadResult,
+  type SignedUrlOptions,
 } from './storage-provider.interface';
 import type { AwsStorageConfig } from '../../config/storage.config';
 import { InfrastructureError } from '../../shared/errors/infrastructure.error';
@@ -115,9 +116,8 @@ export class S3StorageProvider implements IStorageProvider {
   }
 
   private buildStoragePath(options: UploadOptions): string {
-    const timestamp = Date.now();
-    const ext = options.filename.split('.').pop();
     const folder = options.folder ?? 'attachments';
-    return `${options.tenantId}/${folder}/${timestamp}-${crypto.randomUUID()}.${ext}`;
+    const fileName = `${Date.now()}-${crypto.randomUUID()}${safeExtension(options.filename)}`;
+    return `${options.tenantId}/${folder}/${fileName}`;
   }
 }

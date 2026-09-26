@@ -1,16 +1,13 @@
-const DEFAULT_ALLOWED_MIME_TYPES = new Set([
-  'image/png',
-  'image/jpeg',
-  'image/webp',
-  'application/pdf',
-  'text/plain',
-  'application/zip',
-]);
+import { getStorageConfig } from '../../../config/storage.config';
 
 export class MimeValidator {
-  constructor(
-    private readonly allowedMimeTypes: Set<string> = DEFAULT_ALLOWED_MIME_TYPES,
-  ) {}
+  private readonly allowedMimeTypes: Set<string>;
+
+  constructor(allowedMimeTypes: Iterable<string> = getStorageConfig().allowedMimeTypes) {
+    this.allowedMimeTypes = new Set(
+      Array.from(allowedMimeTypes, (type) => type.toLowerCase()),
+    );
+  }
 
   isAllowed(mimeType: string): boolean {
     return this.allowedMimeTypes.has(mimeType.toLowerCase());

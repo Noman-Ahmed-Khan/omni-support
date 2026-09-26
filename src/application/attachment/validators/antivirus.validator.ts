@@ -7,15 +7,18 @@ export interface AntivirusScanner {
   scan(buffer: Buffer, filename: string): Promise<AntivirusScanResult>;
 }
 
+export type AntivirusVerdict = 'clean' | 'infected' | 'not-scanned';
+
 export class AntivirusValidator {
   constructor(private readonly scanner?: AntivirusScanner) {}
 
-  async isClean(buffer: Buffer, filename: string): Promise<boolean> {
+  /** Without a configured scanner files are reported as not scanned, never as clean. */
+  async scan(buffer: Buffer, filename: string): Promise<AntivirusVerdict> {
     if (!this.scanner) {
-      return true;
+      return 'not-scanned';
     }
 
     const result = await this.scanner.scan(buffer, filename);
-    return result.clean;
+    return result.clean ? 'clean' : 'infected';
   }
 }

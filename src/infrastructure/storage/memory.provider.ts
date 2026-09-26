@@ -1,10 +1,11 @@
 import crypto from 'crypto';
 
-import type {
-  IStorageProvider,
-  UploadOptions,
-  UploadResult,
-  SignedUrlOptions,
+import {
+  safeExtension,
+  type IStorageProvider,
+  type UploadOptions,
+  type UploadResult,
+  type SignedUrlOptions,
 } from './storage-provider.interface';
 
 interface MemoryFile {
@@ -31,11 +32,7 @@ export class MemoryStorageProvider implements IStorageProvider {
       createdAt: Date.now(),
     });
 
-    return Promise.resolve({
-      storagePath,
-      provider: 'memory',
-      publicUrl: `memory://${storagePath}`,
-    });
+    return Promise.resolve({ storagePath, provider: 'memory' });
   }
 
   getSignedUrl(storagePath: string, options: SignedUrlOptions = {}): Promise<string> {
@@ -54,9 +51,8 @@ export class MemoryStorageProvider implements IStorageProvider {
   }
 
   private buildStoragePath(options: UploadOptions): string {
-    const timestamp = Date.now();
-    const ext = options.filename.split('.').pop();
     const folder = options.folder ?? 'attachments';
-    return `${options.tenantId}/${folder}/${timestamp}-${crypto.randomUUID()}.${ext}`;
+    const fileName = `${Date.now()}-${crypto.randomUUID()}${safeExtension(options.filename)}`;
+    return `${options.tenantId}/${folder}/${fileName}`;
   }
 }
