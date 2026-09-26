@@ -51,11 +51,24 @@ export class CacheService {
     }
   }
 
+  /**
+   * Deletes keys matching a glob pattern. Uses incremental SCAN rather than KEYS, which
+   * blocks Redis while it walks the whole keyspace.
+   */
   async delPattern(pattern: string): Promise<void> {
     try {
-      const keys = await this.redis.keys(pattern);
-      if (keys.length > 0) {
-        await this.redis.del(keys);
+      let batch: string[] = [];
+
+      for await (const key of this.redis.scanIterator({ MATCH: pattern, COUNT: 500 })) {
+        batch.push(...(Array.isArray(key) ? key : [key]));
+        if (batch.length >= 500) {
+          await this.redis.del(batch);
+          batch = [];
+        }
+      }
+
+      if (batch.length > 0) {
+        await this.redis.del(batch);
       }
     } catch (error) {
       logger.warn('Cache pattern delete failed', { pattern, error });
@@ -105,11 +118,6 @@ export class CacheService {
   // Tenant-aware cache key builder
   static tenantKey(tenantId: string, resource: string, id?: string): string {
     return id ? `tenant:${tenantId}:${resource}:${id}` : `tenant:${tenantId}:${resource}`;
-  }
-
-  // Permission cache key
-  static permissionKey(userId: string): string {
-    return `permissions:${userId}`;
   }
 
   // Dashboard cache key
