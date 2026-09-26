@@ -1,13 +1,16 @@
 import crypto from 'crypto';
 
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient, RefreshToken, User } from '@prisma/client';
 import argon2 from 'argon2';
 import jwt from 'jsonwebtoken';
 
-import { getJwtConfig } from '../../../config/jwt.config';
+import { getJwtConfig, JWT_AUDIENCE, JWT_ISSUER } from '../../../config/jwt.config';
 import { SecretsService } from '../../../infrastructure/security/secrets.service';
 import { TokenSigningService } from '../../../infrastructure/security/token-signing.service';
-import { UnauthorizedError } from '../../../shared/errors/application.error';
+import {
+  ForbiddenError,
+  UnauthorizedError,
+} from '../../../shared/errors/application.error';
 import { sha256 } from '../../../shared/utils/crypto.util';
 import { logger } from '../../../shared/utils/logger.util';
 
@@ -23,6 +26,7 @@ export interface RefreshTokenPayload {
   sub: string;
   familyId: string;
   type: 'refresh';
+  jti?: string;
 }
 
 export interface TokenPair {
@@ -30,6 +34,16 @@ export interface TokenPair {
   refreshToken: string;
   expiresIn: number;
 }
+
+/**
+ * A second refresh with an already-rotated token inside this window is treated as a
+ * client race (e.g. two browser tabs) and rejected without revoking the session.
+ */
+const ROTATION_GRACE_MS = 10_000;
+
+const BLOCKED_TENANT_STATUSES = new Set(['SUSPENDED', 'CANCELLED']);
+
+type AccountState = Pick<User, 'id' | 'status' | 'lockedUntil' | 'tenantId'>;
 
 export class TokenService {
   constructor(
@@ -41,40 +55,39 @@ export class TokenService {
   generateAccessToken(payload: Omit<AccessTokenPayload, 'type'>): string {
     const options: jwt.SignOptions = {
       expiresIn: getJwtConfig().accessExpiresIn as jwt.SignOptions['expiresIn'],
-      issuer: 'omnisupport',
-      audience: 'omnisupport-api',
+      issuer: JWT_ISSUER,
+      audience: JWT_AUDIENCE,
     };
 
     return this.tokenSigningService.sign(
       { ...payload, type: 'access' },
-      this.secretsService.getJwtAccessSecret() ?? getJwtConfig().accessSecret,
+      this.secretsService.getJwtAccessSecret(),
       options,
     );
   }
 
-  generateRefreshToken(userId: string, familyId: string): string {
+  generateRefreshToken(userId: string, familyId: string, tokenId?: string): string {
     const options: jwt.SignOptions = {
       expiresIn: getJwtConfig().refreshExpiresIn as jwt.SignOptions['expiresIn'],
-      issuer: 'omnisupport',
-      audience: 'omnisupport-api',
+      issuer: JWT_ISSUER,
+      audience: JWT_AUDIENCE,
+      ...(tokenId ? { jwtid: tokenId } : {}),
     };
 
     return this.tokenSigningService.sign(
       { sub: userId, familyId, type: 'refresh' },
-      this.secretsService.getJwtRefreshSecret() ?? getJwtConfig().refreshSecret,
+      this.secretsService.getJwtRefreshSecret(),
       options,
     );
   }
 
   verifyAccessToken(token: string): AccessTokenPayload {
+    let payload: AccessTokenPayload;
     try {
-      return this.tokenSigningService.verify<AccessTokenPayload>(
+      payload = this.tokenSigningService.verify<AccessTokenPayload>(
         token,
-        this.secretsService.getJwtAccessSecret() ?? getJwtConfig().accessSecret,
-        {
-          issuer: 'omnisupport',
-          audience: 'omnisupport-api',
-        },
+        this.secretsService.getJwtAccessSecret(),
+        { issuer: JWT_ISSUER, audience: JWT_AUDIENCE },
       );
     } catch (error) {
       if (error instanceof jwt.TokenExpiredError) {
@@ -82,17 +95,21 @@ export class TokenService {
       }
       throw new UnauthorizedError('Invalid access token');
     }
+
+    if (payload.type !== 'access') {
+      throw new UnauthorizedError('Invalid access token');
+    }
+
+    return payload;
   }
 
   verifyRefreshToken(token: string): RefreshTokenPayload {
+    let payload: RefreshTokenPayload;
     try {
-      return this.tokenSigningService.verify<RefreshTokenPayload>(
+      payload = this.tokenSigningService.verify<RefreshTokenPayload>(
         token,
-        this.secretsService.getJwtRefreshSecret() ?? getJwtConfig().refreshSecret,
-        {
-          issuer: 'omnisupport',
-          audience: 'omnisupport-api',
-        },
+        this.secretsService.getJwtRefreshSecret(),
+        { issuer: JWT_ISSUER, audience: JWT_AUDIENCE },
       );
     } catch (error) {
       if (error instanceof jwt.TokenExpiredError) {
@@ -100,19 +117,29 @@ export class TokenService {
       }
       throw new UnauthorizedError('Invalid refresh token');
     }
+
+    if (payload.type !== 'refresh') {
+      throw new UnauthorizedError('Invalid refresh token');
+    }
+
+    return payload;
   }
 
+  /**
+   * Issues a new access/refresh pair. Pass `familyId` when rotating so the new token
+   * stays in the same session family and reuse detection can revoke the whole chain.
+   */
   async createTokenPair(
     userId: string,
     payload: Omit<AccessTokenPayload, 'type' | 'sub'>,
     ipAddress?: string,
     userAgent?: string,
+    familyId: string = crypto.randomUUID(),
   ): Promise<TokenPair> {
-    const familyId = crypto.randomUUID();
-    const refreshToken = this.generateRefreshToken(userId, familyId);
+    const tokenId = crypto.randomUUID();
+    const refreshToken = this.generateRefreshToken(userId, familyId, tokenId);
     const accessToken = this.generateAccessToken({ ...payload, sub: userId });
 
-    // Hash and store refresh token
     const tokenHash = await argon2.hash(refreshToken, {
       type: argon2.argon2id,
       memoryCost: 19456,
@@ -124,6 +151,7 @@ export class TokenService {
 
     await this.prisma.refreshToken.create({
       data: {
+        id: tokenId,
         userId,
         tokenHash,
         familyId,
@@ -136,7 +164,7 @@ export class TokenService {
     return {
       accessToken,
       refreshToken,
-      expiresIn: 900, // 15 minutes in seconds
+      expiresIn: getJwtConfig().accessExpiresInSeconds,
     };
   }
 
@@ -150,50 +178,30 @@ export class TokenService {
     const payload = this.verifyRefreshToken(oldRefreshToken);
     const { sub: userId, familyId } = payload;
 
-    // Find the token family
-    const storedTokens = await this.prisma.refreshToken.findMany({
-      where: { familyId, userId },
-      include: { user: true },
-      orderBy: { createdAt: 'desc' },
-    });
+    const storedToken = payload.jti
+      ? await this.findTokenById(payload.jti, userId, familyId)
+      : await this.findLegacyActiveToken(userId, familyId);
 
-    if (storedTokens.length === 0) {
+    if (!storedToken) {
       throw new UnauthorizedError('Refresh token not found');
     }
 
-    // Check for token reuse (security: detect token theft)
-    const revokedTokens = storedTokens.filter((t) => t.isRevoked);
-    if (revokedTokens.length > 0) {
-      // Token reuse detected - revoke entire family
-      await this.revokeTokenFamily(familyId, 'TOKEN_REUSE_DETECTED');
-      logger.warn('Token reuse detected - entire family revoked', {
-        userId,
-        familyId,
-        ipAddress,
-      });
-      throw new UnauthorizedError('Token reuse detected. Please login again.');
+    if (storedToken.isRevoked) {
+      await this.handleRevokedTokenUse(storedToken, ipAddress);
     }
 
-    // Find the active token and verify it
-    const activeToken = storedTokens.find((t) => !t.isRevoked);
-    if (!activeToken) {
-      throw new UnauthorizedError('No active refresh token found');
-    }
-
-    if (activeToken.expiresAt < new Date()) {
+    if (storedToken.expiresAt < new Date()) {
       throw new UnauthorizedError('Refresh token expired');
     }
 
-    // Verify hash matches
-    const isValid = await argon2.verify(activeToken.tokenHash, oldRefreshToken);
-
+    const isValid = await argon2.verify(storedToken.tokenHash, oldRefreshToken);
     if (!isValid) {
       throw new UnauthorizedError('Invalid refresh token');
     }
 
-    // Revoke old token
-    await this.prisma.refreshToken.update({
-      where: { id: activeToken.id },
+    // Atomic claim: only one concurrent request can rotate a given token.
+    const claimed = await this.prisma.refreshToken.updateMany({
+      where: { id: storedToken.id, isRevoked: false },
       data: {
         isRevoked: true,
         revokedAt: new Date(),
@@ -201,9 +209,19 @@ export class TokenService {
       },
     });
 
-    const user = activeToken.user;
+    if (claimed.count !== 1) {
+      throw new UnauthorizedError('Refresh token already used');
+    }
 
-    // Issue new token pair
+    const user = storedToken.user;
+
+    try {
+      await this.assertAccountUsable(user);
+    } catch (error) {
+      await this.revokeTokenFamily(familyId, 'ACCOUNT_NOT_USABLE');
+      throw error;
+    }
+
     const tokenPair = await this.createTokenPair(
       userId,
       {
@@ -213,6 +231,7 @@ export class TokenService {
       },
       ipAddress,
       userAgent,
+      familyId,
     );
 
     return {
@@ -224,54 +243,144 @@ export class TokenService {
     };
   }
 
-  async revokeToken(refreshToken: string): Promise<void> {
-    try {
-      const payload = this.verifyRefreshToken(refreshToken);
+  /**
+   * Throws when the user (or their organization) may no longer obtain tokens.
+   */
+  async assertAccountUsable(user: AccountState): Promise<void> {
+    if (user.status === 'SUSPENDED' || user.status === 'INACTIVE') {
+      throw new ForbiddenError('Your account is not active');
+    }
 
-      const storedToken = await this.prisma.refreshToken.findFirst({
-        where: {
-          userId: payload.sub,
-          familyId: payload.familyId,
-          isRevoked: false,
-        },
-        orderBy: { createdAt: 'desc' },
+    if (user.lockedUntil && user.lockedUntil > new Date()) {
+      throw new UnauthorizedError('Account is temporarily locked');
+    }
+
+    if (user.tenantId) {
+      const tenant = await this.prisma.tenant.findUnique({
+        where: { id: user.tenantId },
+        select: { status: true },
       });
 
-      if (storedToken) {
-        await this.prisma.refreshToken.update({
-          where: { id: storedToken.id },
-          data: {
-            isRevoked: true,
-            revokedAt: new Date(),
-            revokedReason: 'LOGOUT',
-          },
-        });
+      if (!tenant || BLOCKED_TENANT_STATUSES.has(tenant.status)) {
+        throw new ForbiddenError('Your organization account is not active');
       }
-    } catch {
-      // Token may already be invalid - that's fine for logout
     }
   }
 
-  async revokeAllUserTokens(userId: string): Promise<void> {
+  /**
+   * Revokes the session (token family) the given refresh token belongs to.
+   */
+  async revokeToken(refreshToken: string): Promise<void> {
+    let payload: RefreshTokenPayload;
+    try {
+      payload = this.verifyRefreshToken(refreshToken);
+    } catch {
+      // Token may already be invalid - that's fine for logout
+      return;
+    }
+
     await this.prisma.refreshToken.updateMany({
-      where: { userId, isRevoked: false },
+      where: { userId: payload.sub, familyId: payload.familyId, isRevoked: false },
       data: {
         isRevoked: true,
         revokedAt: new Date(),
-        revokedReason: 'REVOKED_ALL',
+        revokedReason: 'LOGOUT',
       },
     });
   }
 
-  private async revokeTokenFamily(familyId: string, reason: string): Promise<void> {
+  async revokeAllUserTokens(
+    userId: string,
+    reason: string = 'REVOKED_ALL',
+  ): Promise<void> {
     await this.prisma.refreshToken.updateMany({
-      where: { familyId },
+      where: { userId, isRevoked: false },
       data: {
         isRevoked: true,
         revokedAt: new Date(),
         revokedReason: reason,
       },
     });
+  }
+
+  async revokeAllTenantTokens(tenantId: string, reason: string): Promise<void> {
+    await this.prisma.refreshToken.updateMany({
+      where: { user: { tenantId }, isRevoked: false },
+      data: {
+        isRevoked: true,
+        revokedAt: new Date(),
+        revokedReason: reason,
+      },
+    });
+  }
+
+  private async revokeTokenFamily(familyId: string, reason: string): Promise<void> {
+    await this.prisma.refreshToken.updateMany({
+      where: { familyId, isRevoked: false },
+      data: {
+        isRevoked: true,
+        revokedAt: new Date(),
+        revokedReason: reason,
+      },
+    });
+  }
+
+  private async handleRevokedTokenUse(
+    token: RefreshToken,
+    ipAddress?: string,
+  ): Promise<never> {
+    const recentlyRotated =
+      token.revokedReason === 'ROTATED' &&
+      token.revokedAt !== null &&
+      Date.now() - token.revokedAt.getTime() < ROTATION_GRACE_MS;
+
+    if (recentlyRotated) {
+      throw new UnauthorizedError('Refresh token already used');
+    }
+
+    await this.revokeTokenFamily(token.familyId, 'TOKEN_REUSE_DETECTED');
+    logger.warn('Refresh token reuse detected - session family revoked', {
+      userId: token.userId,
+      familyId: token.familyId,
+      ipAddress,
+    });
+    throw new UnauthorizedError('Token reuse detected. Please login again.');
+  }
+
+  private async findTokenById(
+    tokenId: string,
+    userId: string,
+    familyId: string,
+  ): Promise<(RefreshToken & { user: User }) | null> {
+    const token = await this.prisma.refreshToken.findUnique({
+      where: { id: tokenId },
+      include: { user: true },
+    });
+
+    if (!token || token.userId !== userId || token.familyId !== familyId) {
+      return null;
+    }
+
+    return token;
+  }
+
+  /**
+   * Tokens issued before refresh tokens carried a `jti` are matched to the newest
+   * active token of their family.
+   */
+  private async findLegacyActiveToken(
+    userId: string,
+    familyId: string,
+  ): Promise<(RefreshToken & { user: User }) | null> {
+    const tokens = await this.prisma.refreshToken.findMany({
+      where: { familyId, userId },
+      include: { user: true },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (tokens.length === 0) return null;
+
+    return tokens.find((t) => !t.isRevoked) ?? tokens[0];
   }
 
   async cleanupExpiredTokens(): Promise<void> {
