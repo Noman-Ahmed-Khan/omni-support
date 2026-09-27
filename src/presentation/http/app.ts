@@ -122,5 +122,7 @@ declare module 'express-serve-static-core' {
       tenantId?: string;
     };
     tenantId?: string;
+    /** Effective permissions, resolved once per request by requirePermission. */
+    permissions?: ReadonlySet<string>;
   }
 }
