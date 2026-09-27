@@ -21,14 +21,18 @@ export const createTenantSchema = z.object({
   maxCustomers: z.number().int().min(1).max(100000).default(1000),
 });
 
-export const updateTenantSchema = z.object({
-  name: z.string().min(2).max(200).trim().optional(),
-  domain: z.string().max(253).optional(),
-  plan: z.enum(['starter', 'professional', 'enterprise']).optional(),
-  maxAgents: z.number().int().min(1).max(1000).optional(),
-  maxCustomers: z.number().int().min(1).max(100000).optional(),
-  settings: z.record(z.unknown()).optional(),
-});
+export const updateTenantSchema = z
+  .object({
+    name: z.string().min(2).max(200).trim().optional(),
+    domain: z.string().max(253).optional(),
+    plan: z.enum(['starter', 'professional', 'enterprise']).optional(),
+    maxAgents: z.number().int().min(1).max(1000).optional(),
+    maxCustomers: z.number().int().min(1).max(100000).optional(),
+    maxTicketsPerDay: z.number().int().min(1).max(1000000).optional(),
+    settings: z.record(z.unknown()).optional(),
+  })
+  // Unsupported fields are rejected instead of being silently ignored.
+  .strict();
 
 export const suspendTenantSchema = z.object({
   reason: z

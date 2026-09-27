@@ -74,6 +74,15 @@ export class TenantService {
     const tenant = await this.tenantRepo.findById(command.tenantId);
     if (!tenant) throw new NotFoundError('Tenant', command.tenantId);
 
+    if (
+      command.domain &&
+      command.domain !== tenant.domain &&
+      (await this.tenantRepo.existsByDomain(command.domain))
+    ) {
+      throw new ConflictError('Domain already registered');
+    }
+
+    tenant.updateDetails(command);
     tenant.updateSettings(command.settings ?? {});
     const updated = await this.tenantRepo.update(tenant);
 
@@ -84,7 +93,15 @@ export class TenantService {
       action: 'UPDATE',
       resource: 'tenants',
       resourceId: command.tenantId,
-      newValue: { settings: command.settings ?? {} },
+      newValue: {
+        name: command.name,
+        domain: command.domain,
+        plan: command.plan,
+        maxAgents: command.maxAgents,
+        maxCustomers: command.maxCustomers,
+        maxTicketsPerDay: command.maxTicketsPerDay,
+        settings: command.settings,
+      },
     });
 
     return updated;

@@ -114,6 +114,12 @@ export class TenantController {
         tenantId: req.params.id,
         actorId: req.user!.id,
         actorRole: req.user!.role,
+        name: req.body.name,
+        domain: req.body.domain,
+        plan: req.body.plan,
+        maxAgents: req.body.maxAgents,
+        maxCustomers: req.body.maxCustomers,
+        maxTicketsPerDay: req.body.maxTicketsPerDay,
         settings: req.body.settings,
       });
 

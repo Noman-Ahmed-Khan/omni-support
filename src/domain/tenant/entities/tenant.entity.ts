@@ -81,6 +81,23 @@ export class TenantEntity extends AggregateRoot {
     this._settings = { ...this._settings, ...settings };
   }
 
+  updateDetails(details: {
+    name?: string;
+    domain?: string;
+    plan?: string;
+    maxAgents?: number;
+    maxCustomers?: number;
+    maxTicketsPerDay?: number;
+  }): void {
+    if (details.name !== undefined) this._name = details.name;
+    if (details.domain !== undefined) this._domain = details.domain;
+    if (details.plan !== undefined) this._plan = details.plan;
+    if (details.maxAgents !== undefined) this._maxAgents = details.maxAgents;
+    if (details.maxCustomers !== undefined) this._maxCustomers = details.maxCustomers;
+    if (details.maxTicketsPerDay !== undefined)
+      this._maxTicketsPerDay = details.maxTicketsPerDay;
+  }
+
   isActive(): boolean {
     return this._status.isActive();
   }
