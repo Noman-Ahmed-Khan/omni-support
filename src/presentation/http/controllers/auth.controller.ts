@@ -8,7 +8,6 @@ import type { ForgotPasswordHandler } from '../../../application/auth/handlers/f
 import type { LoginHandler } from '../../../application/auth/handlers/login.handler';
 import type { LogoutHandler } from '../../../application/auth/handlers/logout.handler';
 import type { RefreshTokenHandler } from '../../../application/auth/handlers/refresh-token.handler';
-import type { RegisterHandler } from '../../../application/auth/handlers/register.handler';
 import type { ResetPasswordHandler } from '../../../application/auth/handlers/reset-password.handler';
 import type { VerifyEmailHandler } from '../../../application/auth/handlers/verify-email.handler';
 import type { OAuthService } from '../../../application/auth/services/oauth.service';
@@ -17,7 +16,6 @@ import { getAppConfig } from '../../../config/app.config';
 import { getJwtConfig } from '../../../config/jwt.config';
 import { UnauthorizedError } from '../../../shared/errors/application.error';
 import type {
-  RegisterDto,
   LoginDto,
   RefreshTokenDto,
   ForgotPasswordDto,
@@ -46,7 +44,6 @@ function refreshCookieOptions(): CookieOptions {
 
 export class AuthController {
   constructor(
-    private readonly registerHandler: RegisterHandler,
     private readonly loginHandler: LoginHandler,
     private readonly refreshTokenHandler: RefreshTokenHandler,
     private readonly logoutHandler: LogoutHandler,
@@ -56,30 +53,6 @@ export class AuthController {
     private readonly oauthService: OAuthService,
     private readonly tokenService?: TokenService,
   ) {}
-
-  async register(
-    req: Request<ParamsDictionary, unknown, RegisterDto, unknown>,
-    res: Response,
-    next: NextFunction,
-  ): Promise<void> {
-    try {
-      await this.registerHandler.execute({
-        email: req.body.email,
-        password: req.body.password,
-        firstName: req.body.firstName,
-        lastName: req.body.lastName,
-      });
-
-      // Same response whether or not the email was already registered (no enumeration).
-      res.status(202).json(
-        successResponse({
-          message: 'If this email can be registered, a verification link has been sent.',
-        }),
-      );
-    } catch (error) {
-      next(error);
-    }
-  }
 
   async login(
     req: Request<ParamsDictionary, unknown, LoginDto, unknown>,

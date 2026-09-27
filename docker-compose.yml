@@ -50,7 +50,6 @@ services:
       AI_PROVIDER: ${AI_PROVIDER:-openai}
       AI_ESCALATION_THRESHOLD: ${AI_ESCALATION_THRESHOLD:-75}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
-      ALLOW_PUBLIC_REGISTRATION: ${ALLOW_PUBLIC_REGISTRATION:-false}
       ENABLE_API_DOCS: ${ENABLE_API_DOCS:-false}
       TRUST_PROXY: ${TRUST_PROXY:-false}
       # Set RUN_WORKERS=false when the dedicated worker service (--profile workers) runs;

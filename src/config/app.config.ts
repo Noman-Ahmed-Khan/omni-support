@@ -14,7 +14,6 @@ const appConfigSchema = z.object({
   apiPrefix: z.string().default('/api/v1'),
   bcryptRounds: z.coerce.number().default(12),
   maxUploadSizeMb: z.coerce.number().default(10),
-  allowPublicRegistration: booleanFlag,
   enableApiDocs: booleanFlag,
   runWorkers: booleanFlag,
   enableTenantPurge: booleanFlag,
@@ -35,9 +34,8 @@ type ParsedAppConfig = z.infer<typeof appConfigSchema>;
 
 export type AppConfig = Omit<
   ParsedAppConfig,
-  'allowPublicRegistration' | 'enableApiDocs' | 'runWorkers' | 'enableTenantPurge'
+  'enableApiDocs' | 'runWorkers' | 'enableTenantPurge'
 > & {
-  allowPublicRegistration: boolean;
   enableApiDocs: boolean;
   runWorkers: boolean;
   enableTenantPurge: boolean;
@@ -61,7 +59,6 @@ export function getAppConfig(): AppConfig {
       corsOrigins: process.env.CORS_ORIGINS,
       apiPrefix: process.env.API_PREFIX,
       maxUploadSizeMb: process.env.MAX_UPLOAD_SIZE,
-      allowPublicRegistration: process.env.ALLOW_PUBLIC_REGISTRATION,
       enableApiDocs: process.env.ENABLE_API_DOCS,
       runWorkers: process.env.RUN_WORKERS,
       enableTenantPurge: process.env.ENABLE_TENANT_PURGE,
@@ -76,8 +73,6 @@ export function getAppConfig(): AppConfig {
 
     _appConfig = {
       ...parsed,
-      // Secure defaults: self sign-up and public API docs are opt-in in production.
-      allowPublicRegistration: parsed.allowPublicRegistration ?? !isProduction,
       enableApiDocs: parsed.enableApiDocs ?? !isProduction,
       runWorkers: parsed.runWorkers ?? true,
       enableTenantPurge: parsed.enableTenantPurge ?? false,

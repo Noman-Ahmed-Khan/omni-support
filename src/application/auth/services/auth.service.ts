@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 
-import type { Prisma, PrismaClient, UserRole } from '@prisma/client';
+import type { Prisma, PrismaClient } from '@prisma/client';
 
 import type { TokenPair, TokenService } from './token.service';
 import { getAppConfig } from '../../../config/app.config';
@@ -16,18 +16,6 @@ import {
 import { ValidationError } from '../../../shared/errors/domain.error';
 import { escapeHtml } from '../../../shared/utils/html.util';
 import { logger } from '../../../shared/utils/logger.util';
-
-/**
- * Public self-registration. Role and organization are intentionally not accepted here:
- * self-registered accounts are tenant-less CUSTOMER accounts with no staff privileges.
- * Staff accounts are created by administrators.
- */
-export interface RegisterDto {
-  email: string;
-  password: string;
-  firstName: string;
-  lastName: string;
-}
 
 export interface LoginDto {
   email: string;
@@ -64,83 +52,6 @@ export class AuthService {
     private readonly cache: CacheService,
     private readonly passwordHasher: PasswordHasher = new PasswordHasher(),
   ) {}
-
-  /**
-   * Registers a customer account. The outcome for an email that is already registered
-   * is indistinguishable from a new registration (same response, similar timing), so
-   * the endpoint cannot be used to discover accounts. Returns the new user id, or null
-   * when nothing was created.
-   */
-  async register(dto: RegisterDto): Promise<{ userId: string | null }> {
-    if (!getAppConfig().allowPublicRegistration) {
-      throw new ForbiddenError('Public registration is disabled');
-    }
-
-    Password.create(dto.password);
-
-    // Hash before the lookup so both paths take comparable time.
-    const passwordHash = await this.hashPassword(dto.password);
-
-    const existing = await this.prisma.user.findUnique({
-      where: { email: dto.email.toLowerCase() },
-      select: { id: true },
-    });
-
-    if (existing) {
-      logger.info('Registration attempted for an existing account', {
-        userId: existing.id,
-      });
-      return { userId: null };
-    }
-
-    const userId = crypto.randomUUID();
-
-    const role: UserRole = 'CUSTOMER';
-
-    const user = await this.prisma.user.create({
-      data: {
-        id: userId,
-        email: dto.email.toLowerCase(),
-        passwordHash,
-        firstName: dto.firstName,
-        lastName: dto.lastName,
-        role,
-        status: 'PENDING_VERIFICATION',
-      },
-    });
-
-    // Create email verification token
-    const rawToken = this.tokenService.generateSecureToken();
-    const tokenHash = await this.tokenService.hashToken(rawToken);
-
-    await this.prisma.emailVerifyToken.create({
-      data: {
-        userId: user.id,
-        tokenHash,
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
-      },
-    });
-
-    // Queue verification email
-    await this.emailQueue.addUrgent({
-      to: user.email,
-      subject: 'Verify your OmniSupport account',
-      html: this.buildVerificationEmailHtml(user.firstName, rawToken, userId),
-    });
-
-    await this.auditRepo.create({
-      actorId: userId,
-      actorRole: role,
-      action: 'CREATE',
-      resource: 'users',
-      resourceId: userId,
-      newValue: { email: dto.email, role },
-    });
-
-    logger.info('User registered', { userId, email: dto.email });
-
-    return { userId: user.id };
-  }
 
   async login(dto: LoginDto): Promise<AuthResult> {
     const user = await this.prisma.user.findUnique({
@@ -413,22 +324,6 @@ export class AuthService {
       crypto.randomBytes(32).toString('hex'),
     );
     return this.dummyPasswordHash;
-  }
-
-  private buildVerificationEmailHtml(
-    firstName: string,
-    token: string,
-    userId: string,
-  ): string {
-    const verifyUrl = `${getAppConfig().frontendUrl}/verify-email?token=${encodeURIComponent(token)}&userId=${encodeURIComponent(userId)}`;
-    return `
-      <h1>Welcome to OmniSupport, ${escapeHtml(firstName)}!</h1>
-      <p>Please verify your email address to activate your account.</p>
-      <a href="${escapeHtml(verifyUrl)}" style="background:#4F46E5;color:white;padding:12px 24px;text-decoration:none;border-radius:4px;">
-        Verify Email
-      </a>
-      <p>This link expires in 24 hours.</p>
-    `;
   }
 
   private buildPasswordResetEmailHtml(firstName: string, token: string): string {

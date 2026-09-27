@@ -5,7 +5,6 @@ import { ForgotPasswordHandler } from '../../../application/auth/handlers/forgot
 import { LoginHandler } from '../../../application/auth/handlers/login.handler';
 import { LogoutHandler } from '../../../application/auth/handlers/logout.handler';
 import { RefreshTokenHandler } from '../../../application/auth/handlers/refresh-token.handler';
-import { RegisterHandler } from '../../../application/auth/handlers/register.handler';
 import { ResetPasswordHandler } from '../../../application/auth/handlers/reset-password.handler';
 import { VerifyEmailHandler } from '../../../application/auth/handlers/verify-email.handler';
 import { AuthService } from '../../../application/auth/services/auth.service';
@@ -38,7 +37,6 @@ export function registerAuthModule(container: Container): void {
   container.register('oauthService', oauthService);
 
   // Handlers
-  container.register('registerHandler', new RegisterHandler(authService));
   container.register('loginHandler', new LoginHandler(authService));
   container.register('refreshTokenHandler', new RefreshTokenHandler(authService));
   container.register('logoutHandler', new LogoutHandler(authService));
@@ -49,7 +47,6 @@ export function registerAuthModule(container: Container): void {
   container.register(
     'authController',
     new AuthController(
-      container.resolve('registerHandler'),
       container.resolve('loginHandler'),
       container.resolve('refreshTokenHandler'),
       container.resolve('logoutHandler'),

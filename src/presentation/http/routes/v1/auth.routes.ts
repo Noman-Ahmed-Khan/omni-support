@@ -3,7 +3,6 @@ import { Router } from 'express';
 import type { Container } from '../../../../shared/di/container';
 import type { AuthController } from '../../controllers/auth.controller';
 import {
-  registerSchema,
   loginSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
@@ -28,13 +27,6 @@ export function createAuthRoutes(container: Container): Router {
   const sessionRateLimitMiddleware = createSessionRateLimitMiddleware();
 
   // Public routes with strict rate limiting
-  router.post(
-    '/register',
-    authRateLimitMiddleware,
-    validate(registerSchema),
-    asyncHandler((req, res, next) => controller.register(req, res, next)),
-  );
-
   router.post(
     '/login',
     authRateLimitMiddleware,

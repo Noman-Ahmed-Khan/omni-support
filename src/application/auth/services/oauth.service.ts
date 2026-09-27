@@ -4,7 +4,6 @@ import type { PrismaClient, User } from '@prisma/client';
 import { OAuth2Client } from 'google-auth-library';
 
 import type { TokenService } from './token.service';
-import { getAppConfig } from '../../../config/app.config';
 import { getOAuthConfig } from '../../../config/oauth.config';
 import {
   ForbiddenError,
@@ -146,36 +145,7 @@ export class OAuthService {
       return { user: existingUser, isNewUser: false };
     }
 
-    if (!getAppConfig().allowPublicRegistration) {
-      throw new ForbiddenError('No account exists for this Google identity');
-    }
-
-    // Self sign-up creates a tenant-less customer without staff privileges.
-    const newUser = await this.prisma.$transaction(async (tx) => {
-      const user = await tx.user.create({
-        data: {
-          id: crypto.randomUUID(),
-          email: googleUser.email.toLowerCase(),
-          firstName: googleUser.firstName,
-          lastName: googleUser.lastName,
-          role: 'CUSTOMER',
-          status: 'ACTIVE',
-          emailVerifiedAt: new Date(),
-          avatarUrl: googleUser.avatarUrl,
-        },
-      });
-
-      await tx.oAuthAccount.create({
-        data: {
-          userId: user.id,
-          provider: 'google',
-          providerUid: googleUser.googleId,
-        },
-      });
-
-      return user;
-    });
-
-    return { user: newUser, isNewUser: true };
+    // Accounts are created only through invitations; Google can sign in existing ones.
+    throw new ForbiddenError('No account exists for this Google identity');
   }
 }
