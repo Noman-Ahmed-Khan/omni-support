@@ -1,11 +1,13 @@
 import 'dotenv/config';
 import http from 'http';
 
+import { PermissionService } from './application/auth/services/permission.service';
 import type { TicketAccessService } from './application/ticket/services/ticket-access.service';
 import { buildContainer } from './bootstrap/container';
 import { startBackgroundProcessing } from './bootstrap/workers';
 import { getAppConfig } from './config/app.config';
 import { validateStartupConfig } from './config/startup';
+import { isPermission } from './domain/policies/permission.catalog';
 import { createRedisClient } from './infrastructure/cache/redis.client';
 import { connectDatabase, prisma } from './infrastructure/database/prisma.client';
 import {
@@ -34,30 +36,41 @@ async function bootstrap(): Promise<void> {
     // Prepare a shared HTTP server and WebSocket gateway before building the app container.
     // Ticket rooms follow the same visibility rules as the ticket API.
     let ticketAccess: TicketAccessService | null = null;
+    const permissions = new PermissionService(prisma);
     const rawServer = http.createServer();
-    const wsGateway = new WebSocketGateway(rawServer, new WebSocketAuth(), {
-      allowedOrigins: appConfig.corsOrigins
-        .split(',')
-        .map((origin) => origin.trim())
-        .filter(Boolean),
-      canAccessTicket: async (user, ticketId) => {
-        if (!ticketAccess) return false;
-        try {
-          await ticketAccess.assertCanAccess(
-            {
-              id: user.userId,
-              email: user.email,
-              role: user.role,
-              tenantId: user.tenantId,
-            },
-            ticketId,
-          );
-          return true;
-        } catch {
-          return false;
-        }
+    const wsGateway = new WebSocketGateway(
+      rawServer,
+      new WebSocketAuth(undefined, prisma),
+      {
+        allowedOrigins: appConfig.corsOrigins
+          .split(',')
+          .map((origin) => origin.trim())
+          .filter(Boolean),
+        hasPermission: async (user, permission) =>
+          isPermission(permission) &&
+          (await permissions.has(
+            { id: user.userId, role: user.role, tenantId: user.tenantId },
+            permission,
+          )),
+        canAccessTicket: async (user, ticketId) => {
+          if (!ticketAccess) return false;
+          try {
+            await ticketAccess.assertCanAccess(
+              {
+                id: user.userId,
+                email: user.email,
+                role: user.role,
+                tenantId: user.tenantId,
+              },
+              ticketId,
+            );
+            return true;
+          } catch {
+            return false;
+          }
+        },
       },
-    });
+    );
 
     // Realtime events go through Redis so that every API replica, and events raised by
     // the worker process, reach the right clients.

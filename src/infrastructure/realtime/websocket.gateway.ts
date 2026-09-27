@@ -31,6 +31,14 @@ export interface WebSocketGatewayOptions {
     user: { userId: string; email: string; role: string; tenantId: string },
     ticketId: string,
   ) => Promise<boolean>;
+  /**
+   * Returns true when the user holds the permission (same effective permissions as the
+   * HTTP API). Without a checker, only tenant managers may join tenant rooms.
+   */
+  hasPermission?: (
+    user: { userId: string; role: string; tenantId?: string },
+    permission: string,
+  ) => Promise<boolean>;
   /** Browser origins allowed to open a socket. Requests without an Origin header are allowed. */
   allowedOrigins?: string[];
 }
@@ -120,7 +128,7 @@ export class WebSocketGateway {
       client.rooms.add(`user:${user.userId}`);
 
       // Auto-subscribe to tenant room
-      if (user.tenantId) {
+      if (user.tenantId && (await this.canAccessTenantRoom(client))) {
         this.roomManager.joinRoom(clientId, `tenant:${user.tenantId}`);
         client.rooms.add(`tenant:${user.tenantId}`);
       }
@@ -245,7 +253,11 @@ export class WebSocketGateway {
 
     // Tenant rooms only accessible by tenant members
     if (room.startsWith('tenant:')) {
-      return !!client.tenantId && room === `tenant:${client.tenantId}`;
+      return (
+        !!client.tenantId &&
+        room === `tenant:${client.tenantId}` &&
+        (await this.canAccessTenantRoom(client))
+      );
     }
 
     // Ticket rooms: the ticket must belong to the client's tenant
@@ -268,6 +280,26 @@ export class WebSocketGateway {
     return false;
   }
 
+  private async canAccessTenantRoom(client: WSClient): Promise<boolean> {
+    if (!this.options.hasPermission) return client.role === 'TENANT_MANAGER';
+    return this.options.hasPermission(
+      { userId: client.userId, role: client.role, tenantId: client.tenantId },
+      'realtime:tenant',
+    );
+  }
+
+  /** Drops rooms the client may no longer see (permission or assignment changed). */
+  private async revalidateRooms(clientId: string, client: WSClient): Promise<void> {
+    for (const room of [...client.rooms]) {
+      if (room.startsWith('user:')) continue;
+      if (!(await this.canAccessRoom(client, room))) {
+        this.roomManager.leaveRoom(clientId, room);
+        client.rooms.delete(room);
+        this.sendToClient(client.socket, { event: 'unsubscribed', data: { room } });
+      }
+    }
+  }
+
   private handleDisconnect(clientId: string): void {
     const client = this.clients.get(clientId);
     if (client) {
@@ -283,6 +315,19 @@ export class WebSocketGateway {
 
   private heartbeat(): void {
     this.clients.forEach((client, clientId) => {
+      void this.wsAuth
+        .isStillAuthorized(client)
+        .then((authorized) => {
+          if (!authorized) {
+            client.socket.close(4001, 'Session no longer valid');
+            this.handleDisconnect(clientId);
+            return;
+          }
+          return this.revalidateRooms(clientId, client);
+        })
+        .catch((error: unknown) => {
+          logger.warn('WebSocket account recheck failed', { clientId, error });
+        });
       if (!client.isAlive) {
         client.socket.terminate();
         this.handleDisconnect(clientId);
