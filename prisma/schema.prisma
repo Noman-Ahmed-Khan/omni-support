@@ -117,6 +117,7 @@ enum AuditAction {
   ESCALATE
   ASSIGN
   ROLE_CHANGE
+  VIEW
 }
 
 enum AIResultType {
@@ -182,15 +183,20 @@ model Tenant {
   suspendedReason  String?
 
   // Relations
-  users             User[]
-  customers         Customer[]
-  tickets           Ticket[]
-  notifications     Notification[]
-  auditLogs         AuditLog[]
-  activities        ActivityLog[]
-  integrations      TenantIntegration[]
+  users              User[]
+  customers          Customer[]
+  tickets            Ticket[]
+  notifications      Notification[]
+  auditLogs          AuditLog[]
+  activities         ActivityLog[]
+  integrations       TenantIntegration[]
   analyticsSnapshots AnalyticsSnapshot[]
-  aiResults         AIResult[]
+  aiResults          AIResult[]
+  invitations        Invitation[]
+  customerLinks      CustomerLink[]
+  reportJobs         ReportJob[]
+  roles              Role[]
+  roleMemberships    UserRoleMembership[]
 
   @@index([status])
   @@index([slug])
@@ -201,39 +207,44 @@ model Tenant {
 // USERS (Platform Admin + Tenant Users)
 
 model User {
-  id                    String     @id @default(uuid())
-  tenantId              String?    // null = Platform Admin
-  email                 String     @unique
-  passwordHash          String?
-  firstName             String
-  lastName              String
-  role                  UserRole
-  status                UserStatus @default(PENDING_VERIFICATION)
-  avatarUrl             String?
-  phone                 String?
-  timezone              String     @default("UTC")
-  locale                String     @default("en")
-  emailVerifiedAt       DateTime?
-  lastLoginAt           DateTime?
-  lastLoginIp           String?
-  failedLoginAttempts   Int        @default(0)
-  lockedUntil           DateTime?
-  metadata              Json       @default("{}")
-  createdAt             DateTime   @default(now())
-  updatedAt             DateTime   @updatedAt
+  id                  String     @id @default(uuid())
+  tenantId            String? // null = Platform Admin
+  email               String     @unique
+  passwordHash        String?
+  firstName           String
+  lastName            String
+  role                UserRole
+  status              UserStatus @default(PENDING_VERIFICATION)
+  avatarUrl           String?
+  phone               String?
+  timezone            String     @default("UTC")
+  locale              String     @default("en")
+  emailVerifiedAt     DateTime?
+  lastLoginAt         DateTime?
+  lastLoginIp         String?
+  failedLoginAttempts Int        @default(0)
+  lockedUntil         DateTime?
+  metadata            Json       @default("{}")
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
 
   // Relations
-  tenant              Tenant?           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant              Tenant?              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   refreshTokens       RefreshToken[]
   oauthAccounts       OAuthAccount[]
-  assignedTickets     Ticket[]          @relation("AssignedAgent")
-  createdTickets      Ticket[]          @relation("TicketCreator")
+  assignedTickets     Ticket[]             @relation("AssignedAgent")
+  createdTickets      Ticket[]             @relation("TicketCreator")
   comments            TicketComment[]
   notifications       Notification[]
-  auditLogsAsActor    AuditLog[]        @relation("AuditActor")
+  auditLogsAsActor    AuditLog[]           @relation("AuditActor")
   passwordResetTokens PasswordResetToken[]
   emailVerifyTokens   EmailVerifyToken[]
-  assignedCustomers   Customer[]        @relation("AssignedAgent")
+  assignedCustomers   Customer[]           @relation("AssignedAgent")
+  customerLink        CustomerLink?
+  sentInvitations     Invitation[]         @relation("InvitationSender")
+  reportJobs          ReportJob[]
+  roleMemberships     UserRoleMembership[] @relation("RoleMember")
+  grantedMemberships  UserRoleMembership[] @relation("RoleGrantor")
 
   @@index([tenantId])
   @@index([email])
@@ -247,16 +258,16 @@ model User {
 // OAUTH ACCOUNTS
 
 model OAuthAccount {
-  id           String   @id @default(uuid())
+  id           String    @id @default(uuid())
   userId       String
-  provider     String   // google, github, etc.
+  provider     String // google, github, etc.
   providerUid  String
   accessToken  String?
   refreshToken String?
   expiresAt    DateTime?
-  profile      Json     @default("{}")
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  profile      Json      @default("{}")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -268,17 +279,17 @@ model OAuthAccount {
 // REFRESH TOKENS
 
 model RefreshToken {
-  id          String    @id @default(uuid())
-  userId      String
-  tokenHash   String    @unique
-  familyId    String    // Token rotation family
-  isRevoked   Boolean   @default(false)
-  revokedAt   DateTime?
+  id            String    @id @default(uuid())
+  userId        String
+  tokenHash     String    @unique
+  familyId      String // Token rotation family
+  isRevoked     Boolean   @default(false)
+  revokedAt     DateTime?
   revokedReason String?
-  expiresAt   DateTime
-  ipAddress   String?
-  userAgent   String?
-  createdAt   DateTime  @default(now())
+  expiresAt     DateTime
+  ipAddress     String?
+  userAgent     String?
+  createdAt     DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -292,12 +303,12 @@ model RefreshToken {
 // PASSWORD RESET TOKENS
 
 model PasswordResetToken {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   userId    String
-  tokenHash String   @unique
+  tokenHash String    @unique
   expiresAt DateTime
   usedAt    DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -309,12 +320,12 @@ model PasswordResetToken {
 // EMAIL VERIFICATION TOKENS
 
 model EmailVerifyToken {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   userId    String
-  tokenHash String   @unique
+  tokenHash String    @unique
   expiresAt DateTime
   usedAt    DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -326,7 +337,7 @@ model EmailVerifyToken {
 
 model Role {
   id          String   @id @default(uuid())
-  tenantId    String?  // null = system role
+  tenantId    String? // null = system role
   name        String
   displayName String
   description String?
@@ -334,7 +345,9 @@ model Role {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  tenant      Tenant?              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   permissions RolePermission[]
+  memberships UserRoleMembership[]
 
   @@unique([tenantId, name])
   @@index([tenantId])
@@ -343,8 +356,8 @@ model Role {
 
 model Permission {
   id          String   @id @default(uuid())
-  resource    String   // tickets, customers, users
-  action      String   // create, read, update, delete
+  resource    String // tickets, customers, users
+  action      String // create, read, update, delete
   description String?
   createdAt   DateTime @default(now())
 
@@ -366,6 +379,25 @@ model RolePermission {
   @@map("role_permissions")
 }
 
+// Tenant role memberships: optional grants on top of the user's account class.
+model UserRoleMembership {
+  userId       String
+  roleId       String
+  tenantId     String
+  assignedById String?
+  createdAt    DateTime @default(now())
+
+  user       User   @relation("RoleMember", fields: [userId], references: [id], onDelete: Cascade)
+  role       Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  tenant     Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  assignedBy User?  @relation("RoleGrantor", fields: [assignedById], references: [id], onDelete: SetNull)
+
+  @@id([userId, roleId])
+  @@index([tenantId])
+  @@index([roleId])
+  @@map("user_role_memberships")
+}
+
 // CUSTOMERS
 
 model Customer {
@@ -379,26 +411,28 @@ model Customer {
   notes           String?
   status          CustomerStatus @default(ACTIVE)
   riskScore       Float?         @default(0)
-  riskLabel       String?        // LOW, MEDIUM, HIGH, CRITICAL
+  riskLabel       String? // LOW, MEDIUM, HIGH, CRITICAL
   metadata        Json           @default("{}")
-  externalId      String?        // For CRM integrations
+  externalId      String? // For CRM integrations
   lastActivityAt  DateTime?
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
   // Full text search vector
-  searchVector    Unsupported("tsvector")?
+  searchVector Unsupported("tsvector")?
 
   // Relations
-  tenant        Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  assignedAgent User?           @relation("AssignedAgent", fields: [assignedAgentId], references: [id])
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  assignedAgent User?          @relation("AssignedAgent", fields: [assignedAgentId], references: [id])
   tickets       Ticket[]
   activities    ActivityLog[]
   notifications Notification[]
   aiResults     AIResult[]
+  customerLink  CustomerLink?
+  invitations   Invitation[]
 
-  @@index([searchVector], type: Gin, map: "customers_search_vector_idx")
   @@unique([tenantId, email])
+  @@index([searchVector], type: Gin, map: "customers_search_vector_idx")
   @@index([tenantId])
   @@index([tenantId, status])
   @@index([tenantId, assignedAgentId])
@@ -413,7 +447,7 @@ model Customer {
 model Ticket {
   id              String         @id @default(uuid())
   tenantId        String
-  ticketNumber    Int            // Auto-incremented per tenant
+  ticketNumber    Int // Auto-incremented per tenant
   customerId      String
   assignedAgentId String?
   createdById     String
@@ -434,10 +468,10 @@ model Ticket {
   slaBreached     Boolean        @default(false)
   metadata        Json           @default("{}")
   internalNotes   String?
-  externalRef     String?        // WhatsApp thread ID, email thread ID
+  externalRef     String? // WhatsApp thread ID, email thread ID
 
   // Full text search vector
-  searchVector    Unsupported("tsvector")?
+  searchVector Unsupported("tsvector")?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -472,8 +506,8 @@ model Ticket {
 // TICKET SEQUENCE (per-tenant auto-increment)
 
 model TicketSequence {
-  tenantId    String @id
-  lastNumber  Int    @default(0)
+  tenantId   String @id
+  lastNumber Int    @default(0)
 
   @@map("ticket_sequences")
 }
@@ -481,18 +515,18 @@ model TicketSequence {
 // TICKET COMMENTS
 
 model TicketComment {
-  id          String      @id @default(uuid())
-  tenantId    String
-  ticketId    String
-  authorId    String
-  content     String
-  type        CommentType @default(PUBLIC)
-  isAiDraft   Boolean     @default(false)
-  aiDraftId   String?     // Reference to AIResult
-  editedAt    DateTime?
-  metadata    Json        @default("{}")
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  id        String      @id @default(uuid())
+  tenantId  String
+  ticketId  String
+  authorId  String
+  content   String
+  type      CommentType @default(PUBLIC)
+  isAiDraft Boolean     @default(false)
+  aiDraftId String? // Reference to AIResult
+  editedAt  DateTime?
+  metadata  Json        @default("{}")
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
 
   // Full text search vector
   searchVector Unsupported("tsvector")?
@@ -576,20 +610,20 @@ model ActivityLog {
 // AUDIT LOGS (Security & Compliance - Immutable)
 
 model AuditLog {
-  id           String      @id @default(uuid())
-  tenantId     String?
-  actorId      String?
-  actorRole    String?
-  action       AuditAction
-  resource     String
-  resourceId   String?
-  oldValue     Json?
-  newValue     Json?
-  ipAddress    String?
-  userAgent    String?
+  id            String      @id @default(uuid())
+  tenantId      String?
+  actorId       String?
+  actorRole     String?
+  action        AuditAction
+  resource      String
+  resourceId    String?
+  oldValue      Json?
+  newValue      Json?
+  ipAddress     String?
+  userAgent     String?
   correlationId String?
-  metadata     Json        @default("{}")
-  occurredAt   DateTime    @default(now())
+  metadata      Json        @default("{}")
+  occurredAt    DateTime    @default(now())
 
   // Relations
   tenant Tenant? @relation(fields: [tenantId], references: [id])
@@ -647,23 +681,23 @@ model Notification {
 // AI RESULTS
 
 model AIResult {
-  id              String       @id @default(uuid())
-  tenantId        String
-  ticketId        String?
-  customerId      String?
-  type            AIResultType
-  provider        String       @default("openai")
-  model           String
-  prompt          String?
-  result          Json
-  confidence      Float?
-  tokensUsed      Int?
-  processingMs    Int?
-  wasAccepted     Boolean?     // For response suggestions
-  acceptedAt      DateTime?
-  acceptedById    String?
-  metadata        Json         @default("{}")
-  createdAt       DateTime     @default(now())
+  id           String       @id @default(uuid())
+  tenantId     String
+  ticketId     String?
+  customerId   String?
+  type         AIResultType
+  provider     String       @default("openai")
+  model        String
+  prompt       String?
+  result       Json
+  confidence   Float?
+  tokensUsed   Int?
+  processingMs Int?
+  wasAccepted  Boolean? // For response suggestions
+  acceptedAt   DateTime?
+  acceptedById String?
+  metadata     Json         @default("{}")
+  createdAt    DateTime     @default(now())
 
   // Relations
   tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -682,27 +716,27 @@ model AIResult {
 // ANALYTICS SNAPSHOTS (Reporting Warehouse)
 
 model AnalyticsSnapshot {
-  id                    String   @id @default(uuid())
-  tenantId              String
-  snapshotDate          DateTime @db.Date
-  totalTickets          Int      @default(0)
-  openTickets           Int      @default(0)
-  resolvedTickets       Int      @default(0)
-  closedTickets         Int      @default(0)
-  escalatedTickets      Int      @default(0)
-  avgResolutionTimeMs   BigInt?
+  id                     String   @id @default(uuid())
+  tenantId               String
+  snapshotDate           DateTime @db.Date
+  totalTickets           Int      @default(0)
+  openTickets            Int      @default(0)
+  resolvedTickets        Int      @default(0)
+  closedTickets          Int      @default(0)
+  escalatedTickets       Int      @default(0)
+  avgResolutionTimeMs    BigInt?
   avgFirstResponseTimeMs BigInt?
-  slaBreachedCount      Int      @default(0)
-  criticalTickets       Int      @default(0)
-  highTickets           Int      @default(0)
-  mediumTickets         Int      @default(0)
-  lowTickets            Int      @default(0)
-  totalCustomers        Int      @default(0)
-  activeAgents          Int      @default(0)
-  categoryDistribution  Json     @default("{}")
-  agentPerformance      Json     @default("{}")
-  sentimentDistribution Json     @default("{}")
-  createdAt             DateTime @default(now())
+  slaBreachedCount       Int      @default(0)
+  criticalTickets        Int      @default(0)
+  highTickets            Int      @default(0)
+  mediumTickets          Int      @default(0)
+  lowTickets             Int      @default(0)
+  totalCustomers         Int      @default(0)
+  activeAgents           Int      @default(0)
+  categoryDistribution   Json     @default("{}")
+  agentPerformance       Json     @default("{}")
+  sentimentDistribution  Json     @default("{}")
+  createdAt              DateTime @default(now())
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
@@ -716,17 +750,17 @@ model AnalyticsSnapshot {
 // TENANT INTEGRATIONS
 
 model TenantIntegration {
-  id           String   @id @default(uuid())
-  tenantId     String
-  provider     String   // whatsapp, slack, email
-  isEnabled    Boolean  @default(true)
-  config       Json     @default("{}")  // Encrypted
-  webhookUrl   String?
+  id            String    @id @default(uuid())
+  tenantId      String
+  provider      String // whatsapp, slack, email
+  isEnabled     Boolean   @default(true)
+  config        Json      @default("{}") // Encrypted
+  webhookUrl    String?
   webhookSecret String? // Encrypted
-  lastSyncAt   DateTime?
-  metadata     Json     @default("{}")
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  lastSyncAt    DateTime?
+  metadata      Json      @default("{}")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
@@ -755,6 +789,8 @@ model OutboxEvent {
   processedAt      DateTime? @map("processed_at") @db.Timestamptz(6)
   failedAt         DateTime? @map("failed_at") @db.Timestamptz(6)
   deadLetterReason String?   @map("dead_letter_reason")
+  // Set on rows created by an operator replay; the original row is never modified.
+  replayOfId       String?   @map("replay_of_id") @db.Uuid
   createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -776,11 +812,106 @@ model WebhookEvent {
   processedAt DateTime?
   error       String?
   retryCount  Int              @default(0)
+  // RECEIVED | PROCESSING | PROCESSED | SKIPPED | FAILED | CANCELLED
+  status      String           @default("RECEIVED")
+  lockedAt    DateTime?
+  lockedBy    String?
+  // Set on rows created by an operator replay; the original row is never modified.
+  replayOfId  String?
   createdAt   DateTime         @default(now())
 
   @@index([tenantId])
   @@index([processed])
   @@index([eventType])
   @@index([createdAt])
+  @@index([status, createdAt])
   @@map("webhook_events")
+}
+
+// Operator interventions on webhook and outbox records (retry, replay, cancel, config).
+model OperationalIntervention {
+  id         String   @id @default(uuid())
+  targetType String // outbox | webhook | settings
+  targetId   String?
+  action     String // RETRY | REPLAY | CANCEL | CONFIGURE | PURGE
+  reason     String
+  actorId    String
+  resultId   String? // id of the record created by a replay
+  outcome    String // ACCEPTED | SUCCEEDED | FAILED
+  error      String?
+  createdAt  DateTime @default(now())
+
+  @@index([targetType, targetId])
+  @@index([createdAt])
+  @@map("operational_interventions")
+}
+
+model OperationalSetting {
+  key         String   @id
+  value       Json
+  updatedById String?
+  updatedAt   DateTime @updatedAt
+
+  @@map("operational_settings")
+}
+
+model Invitation {
+  id          String    @id @default(uuid())
+  tenantId    String
+  email       String
+  role        UserRole
+  customerId  String?
+  tokenHash   String    @unique
+  invitedById String
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer  Customer? @relation(fields: [customerId], references: [id])
+  invitedBy User      @relation("InvitationSender", fields: [invitedById], references: [id])
+
+  @@index([tenantId, email])
+  @@index([expiresAt])
+  @@map("invitations")
+}
+
+model CustomerLink {
+  userId     String   @id
+  customerId String   @unique
+  tenantId   String
+  createdAt  DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("customer_links")
+}
+
+model ReportJob {
+  id            String    @id @default(uuid())
+  tenantId      String
+  requestedById String
+  kind          String
+  subject       String
+  format        String
+  filters       Json      @default("{}")
+  status        String    @default("PENDING")
+  startedAt     DateTime?
+  storagePath   String?
+  rowCount      Int?
+  error         String?
+  expiresAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  tenant      Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  requestedBy User   @relation(fields: [requestedById], references: [id])
+
+  @@index([tenantId, createdAt])
+  @@index([status, createdAt])
+  @@map("report_jobs")
 }
