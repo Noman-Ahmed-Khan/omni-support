@@ -262,65 +262,38 @@ ESLint’s `import/no-restricted-paths` rule enforces these dependency boundarie
 
 ### Request and event flow
 
-Ticket creation and outbox events commit in one database transaction. Background delivery happens afterward.
-
-**1. Create the ticket**
+Creating a ticket: the write and its events commit together, side effects run later
+through the outbox.
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor Agent
     participant API as API (Express)
-    participant DB as PostgreSQL
-    participant Queue as BullMQ (Redis)
+    participant PG as PostgreSQL
+    participant Q as BullMQ (Redis)
+    participant W as Worker
+    participant R as Redis pub/sub
+    participant WS as WebSocket clients
 
     Agent->>API: POST /api/v1/tickets
-    Note over API: Authenticate and validate tenant, role, and ticket access
-
-    rect rgb(240, 253, 250)
-        Note over API,DB: Atomic database transaction
-        API->>DB: BEGIN
-        API->>DB: Insert ticket, activity, and audit
-        API->>DB: Insert outbox event: TICKET_CREATED
-        API->>DB: COMMIT
-    end
-
-    API->>Queue: Enqueue AI analysis
+    Note over API: auth, tenant check,<br/>role and ticket access policy
+    API->>PG: BEGIN
+    API->>PG: insert ticket, activity, audit
+    API->>PG: insert outbox_events (TICKET_CREATED)
+    API->>PG: COMMIT
+    API->>Q: enqueue AI analysis
     API-->>Agent: 201 Created
-```
 
-**2. Process events and deliver updates**
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant DB as PostgreSQL
-    participant Worker
-    participant Redis as Redis pub/sub
-    participant API as API replicas
-    participant Clients as WebSocket clients
-
-    loop Poll every few seconds
-        Worker->>DB: Claim available outbox events
-        Note over DB,Worker: FOR UPDATE SKIP LOCKED
-        DB-->>Worker: Claimed events
-
-        opt Events available
-            Worker->>Worker: Run notification handlers; queue email
-            Worker->>Redis: Publish realtime event
-            Redis-->>API: Fan out to every replica
-            API-->>Clients: Push to tenant, ticket, or user rooms
-
-            alt Processing succeeds
-                Worker->>DB: Mark event processed
-            else Processing fails
-                Worker->>DB: Record failure and retry with backoff
-            end
-        end
+    loop every few seconds
+        W->>PG: claim events (FOR UPDATE SKIP LOCKED)
     end
+    W->>W: notification handlers (email via queue)
+    W->>R: publish realtime event
+    R-->>API: every API replica receives it
+    API-->>WS: push to tenant / ticket / user rooms
+    W->>PG: mark event processed (or retry with backoff)
 ```
-
-The AI job enqueue happens after the database commit in this flow; it is separate from the atomic ticket-and-outbox write.
 
 ### Database
 
