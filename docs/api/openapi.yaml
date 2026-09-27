@@ -35,6 +35,12 @@ tags:
     description: User notification management
   - name: Webhooks
     description: Incoming webhook receivers
+  - name: Roles
+    description: Permission catalog, tenant roles and role memberships
+  - name: Integrations
+    description: Tenant WhatsApp and email channel configuration
+  - name: Admin
+    description: Audit logs and platform-admin operations
 paths:
   /health:
     get:
@@ -100,32 +106,92 @@ paths:
             text/plain:
               schema:
                 type: string
-  /api/v1/auth/register:
+  /api/v1/invitations:
+    get:
+      tags: [Auth]
+      summary: List this organization's invitations
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Invitation metadata without tokens }
     post:
-      tags:
-        - Auth
-      summary: Register a new user
+      tags: [Auth]
+      summary: Invite a customer or agent to this organization
+      description: Tenant managers may invite an agent or a customer linked to an existing customer record. The invitation token is emailed and is not returned.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/AuthRegisterRequest'
-      description: >-
-        Creates a customer account without organization and sends a verification email.
-        The response is identical when the email is already registered, so the endpoint
-        cannot be used to discover accounts. Disabled when ALLOW_PUBLIC_REGISTRATION=false.
+              type: object
+              required: [email, role]
+              properties:
+                email: { type: string, format: email }
+                role: { type: string, enum: [CUSTOMER, AGENT] }
+                customerId: { type: string, format: uuid, description: Required for customer invitations }
       responses:
-        '202':
-          description: Accepted; a verification email is sent if the address can be registered
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MessageResponse'
-        '400':
-          $ref: '#/components/responses/ValidationError'
-        '403':
-          description: Public registration is disabled
+        '201': { description: Invitation created; returns its id and expiry }
+        '400': { $ref: '#/components/responses/ValidationError' }
+  /api/v1/invitations/accept:
+    post:
+      tags: [Auth]
+      summary: Accept an emailed invitation
+      description: >-
+        Token possession verifies the invited email address. Name and password are required
+        when creating a new account. An existing tenantless account is linked only when its
+        owner is signed in (Bearer token optional on this route) or gives its current
+        password; an unverified existing account must choose a new password, and its previous
+        sessions and social logins are revoked. Tokens are single use and expire after 24 hours.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token: { type: string }
+                password: { type: string, format: password }
+                firstName: { type: string }
+                lastName: { type: string }
+      responses:
+        '204': { description: Invitation accepted }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '403': { description: The invitation belongs to a different or unproven account }
+        '409': { description: Account or organization cannot accept, or staff limit reached }
+  /api/v1/invitations/platform:
+    post:
+      tags: [Auth]
+      summary: Platform administrator invites a tenant manager or agent
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tenantId, email, role]
+              properties:
+                tenantId: { type: string, format: uuid }
+                email: { type: string, format: email }
+                role: { type: string, enum: [TENANT_MANAGER, AGENT] }
+      responses:
+        '201': { description: Invitation created }
+  /api/v1/invitations/{id}/resend:
+    post:
+      tags: [Auth]
+      summary: Replace and resend an active invitation token
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: Invitation resent }
+  /api/v1/invitations/{id}:
+    delete:
+      tags: [Auth]
+      summary: Revoke an active invitation
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: Invitation revoked }
   /api/v1/auth/login:
     post:
       tags:
@@ -392,6 +458,578 @@ paths:
           $ref: '#/components/responses/UnauthorizedError'
         '403':
           $ref: '#/components/responses/ForbiddenError'
+  /api/v1/users/{id}/disable:
+    post:
+      tags: [Users]
+      summary: Disable an agent and revoke refresh sessions
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '204': { description: Agent disabled }
+  /api/v1/users/{id}/reactivate:
+    post:
+      tags: [Users]
+      summary: Reactivate a disabled agent
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '204': { description: Agent reactivated }
+  /api/v1/users/{id}/remove:
+    post:
+      tags: [Users]
+      summary: Remove an agent while retaining historical attribution
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                replacementAgentId: { type: string, format: uuid, description: Omit to unassign active work }
+      responses:
+        '204': { description: Agent removed and active work transferred or unassigned }
+  /api/v1/users/me/permissions:
+    get:
+      tags: [Users]
+      summary: Effective permissions of the current user
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: OK }
+  /api/v1/users/{id}/permissions:
+    get:
+      tags: [Users]
+      summary: Account class, tenant roles and effective permissions of a user
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200': { description: Effective permissions }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+  /api/v1/roles/permissions:
+    get:
+      tags: [Roles]
+      summary: Permission catalog with class defaults and boundaries
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Catalog entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/PermissionCatalogEntry' }
+  /api/v1/roles:
+    get:
+      tags: [Roles]
+      summary: System roles and this organization's tenant roles
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Roles
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Role' }
+    post:
+      tags: [Roles]
+      summary: Create a tenant role
+      description: >-
+        Grants must be tenant permissions the caller holds; platform permissions are never grantable.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRoleRequest'
+      responses:
+        '201': { description: Role created }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+  /api/v1/roles/{id}:
+    get:
+      tags: [Roles]
+      summary: Get a role
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Role }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+    patch:
+      tags: [Roles]
+      summary: Update a tenant role
+      description: >-
+        System roles are read-only. New grants must stay within every current member's account class boundary.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateRoleRequest'
+      responses:
+        '200': { description: Role updated }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+    delete:
+      tags: [Roles]
+      summary: Delete a tenant role and its memberships
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: Role deleted }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+  /api/v1/roles/{id}/members:
+    get:
+      tags: [Roles]
+      summary: Members of a role (for system roles, users of that account class)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Members }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+  /api/v1/roles/{id}/members/{userId}:
+    put:
+      tags: [Roles]
+      summary: Grant a tenant role to a user
+      description: >-
+        Rejected when the role grants permissions outside the user's account class boundary, or when changing one's own roles.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: userId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: Role granted }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+    delete:
+      tags: [Roles]
+      summary: Revoke a tenant role from a user
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: userId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: Role revoked }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+  /api/v1/integrations:
+    get:
+      tags: [Integrations]
+      summary: List this organization's channels (redacted)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Channels
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Channel' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+  /api/v1/integrations/{provider}:
+    get:
+      tags: [Integrations]
+      summary: Get a channel (redacted)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: provider, in: path, required: true, schema: { type: string, enum: [whatsapp, email] } }
+      responses:
+        '200': { description: Channel }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+    put:
+      tags: [Integrations]
+      summary: Create or change a channel identity
+      description: >-
+        Provider credentials are shared deployment configuration. A changed channel is disabled until its configuration passes a connection test. Unknown fields are rejected.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: provider, in: path, required: true, schema: { type: string, enum: [whatsapp, email] } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChannelConfig'
+      responses:
+        '200': { description: Channel saved (disabled) }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+    delete:
+      tags: [Integrations]
+      summary: Delete a channel
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: provider, in: path, required: true, schema: { type: string, enum: [whatsapp, email] } }
+      responses:
+        '204': { description: Channel deleted }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+  /api/v1/integrations/{provider}/test:
+    post:
+      tags: [Integrations]
+      summary: Run a connection test of the current configuration
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: provider, in: path, required: true, schema: { type: string, enum: [whatsapp, email] } }
+      responses:
+        '200': { description: Test result (SUCCEEDED or FAILED) }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+  /api/v1/integrations/{provider}/enable:
+    post:
+      tags: [Integrations]
+      summary: Enable a channel after a passing test
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: provider, in: path, required: true, schema: { type: string, enum: [whatsapp, email] } }
+      responses:
+        '200': { description: Channel enabled }
+        '409': { $ref: '#/components/responses/ConflictError' }
+  /api/v1/integrations/{provider}/disable:
+    post:
+      tags: [Integrations]
+      summary: Disable a channel
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: provider, in: path, required: true, schema: { type: string, enum: [whatsapp, email] } }
+      responses:
+        '200': { description: Channel disabled }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+  /api/v1/integrations/{provider}/rotate-secret:
+    post:
+      tags: [Integrations]
+      summary: Rotate the channel signing secret
+      description: >-
+        The new secret is returned once in this response (Cache-Control no-store) and stored encrypted; read APIs only report hasSigningSecret.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: provider, in: path, required: true, schema: { type: string, enum: [whatsapp, email] } }
+      responses:
+        '200': { description: New secret and rotation time }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+  /api/v1/admin/audit:
+    get:
+      tags: [Admin]
+      summary: Audit log metadata
+      description: >-
+        Tenant users see only their organization. Requires audit:read.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - { name: resource, in: query, schema: { type: string } }
+        - { name: resourceId, in: query, schema: { type: string } }
+        - { name: actorId, in: query, schema: { type: string, format: uuid } }
+        - { name: action, in: query, schema: { type: string } }
+        - { name: tenantId, in: query, description: Platform administrators only, schema: { type: string, format: uuid } }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+      responses:
+        '200': { description: Paginated audit entries }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+  /api/v1/admin/audit/{id}:
+    get:
+      tags: [Admin]
+      summary: One audit entry with secret-like values redacted
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Audit entry }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+  /api/v1/admin/internal-health:
+    get:
+      tags: [Admin]
+      summary: Counts for internal token, sequence, snapshot, report, role, webhook and outbox tables
+      description: >-
+        Platform administrators only. Returns counts and redacted provider status; never token values or record contents. Audited.
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Health snapshot }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+  /api/v1/admin/providers:
+    get:
+      tags: [Admin]
+      summary: Redacted status of shared storage, email, WhatsApp, Google OAuth and AI providers
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: check, in: query, description: 'true runs live storage and SMTP checks', schema: { type: string, enum: ['true', 'false'] } }
+      responses:
+        '200': { description: Provider status }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+  /api/v1/admin/integrations:
+    get:
+      tags: [Admin]
+      summary: Integration records across organizations (redacted)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: tenantId, in: query, schema: { type: string, format: uuid } }
+        - { name: provider, in: query, schema: { type: string } }
+      responses:
+        '200': { description: Integration records }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+  /api/v1/admin/outbox:
+    get:
+      tags: [Admin]
+      summary: Outbox records (filtered, paginated, audited)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - { name: status, in: query, schema: { type: string } }
+        - { name: eventType, in: query, schema: { type: string } }
+        - { name: tenantId, in: query, schema: { type: string, format: uuid } }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+      responses:
+        '200': { description: Records without payloads }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+  /api/v1/admin/outbox/{id}:
+    get:
+      tags: [Admin]
+      summary: Outbox record with redacted payload, replays and interventions
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Record }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+  /api/v1/admin/outbox/{id}/retry:
+    post:
+      tags: [Admin]
+      summary: Retry a outbox record
+      description: >-
+        Moves a FAILED or DEAD_LETTER event back to PENDING with fresh attempts. PROCESSED and CANCELLED are terminal. Requires a reason; audited.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InterventionRequest'
+      responses:
+        '202':
+          description: Intervention record
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Intervention' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+  /api/v1/admin/outbox/{id}/replay:
+    post:
+      tags: [Admin]
+      summary: Replay a outbox record
+      description: >-
+        Inserts a new event (new id and event id) referencing the original, which is never modified. Only one unfinished replay per event. Requires a reason; audited.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InterventionRequest'
+      responses:
+        '202':
+          description: Intervention record
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Intervention' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+  /api/v1/admin/outbox/{id}/cancel:
+    post:
+      tags: [Admin]
+      summary: Cancel a outbox record
+      description: >-
+        Cancels a PENDING, FAILED or DEAD_LETTER event. Events a worker is processing cannot be cancelled. Requires a reason; audited.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InterventionRequest'
+      responses:
+        '200':
+          description: Intervention record
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Intervention' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+  /api/v1/admin/webhooks:
+    get:
+      tags: [Admin]
+      summary: Webhook records (filtered, paginated, audited)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - { name: status, in: query, schema: { type: string } }
+        - { name: eventType, in: query, schema: { type: string } }
+        - { name: tenantId, in: query, schema: { type: string, format: uuid } }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+      responses:
+        '200': { description: Records without payloads }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+  /api/v1/admin/webhooks/{id}:
+    get:
+      tags: [Admin]
+      summary: Webhook record with redacted payload, replays and interventions
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Record }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+  /api/v1/admin/webhooks/{id}/retry:
+    post:
+      tags: [Admin]
+      summary: Retry a webhook record
+      description: >-
+        Re-processes a RECEIVED, SKIPPED or FAILED inbound event under a lease, so concurrent retries never run twice. PROCESSED and CANCELLED are terminal. Requires a reason; audited.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InterventionRequest'
+      responses:
+        '200':
+          description: Intervention record
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Intervention' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+  /api/v1/admin/webhooks/{id}/replay:
+    post:
+      tags: [Admin]
+      summary: Replay a webhook record
+      description: >-
+        Stores a copy of an inbound event as a new row referencing the original and processes it. Only one unfinished replay per event. Requires a reason; audited.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InterventionRequest'
+      responses:
+        '200':
+          description: Intervention record
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Intervention' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+  /api/v1/admin/webhooks/{id}/cancel:
+    post:
+      tags: [Admin]
+      summary: Cancel a webhook record
+      description: >-
+        Cancels a RECEIVED, SKIPPED or FAILED event. Requires a reason; audited.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InterventionRequest'
+      responses:
+        '200':
+          description: Intervention record
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Intervention' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+  /api/v1/admin/operations/settings:
+    get:
+      tags: [Admin]
+      summary: Outbox and webhook processing settings
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Settings
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OperationalSettings' }
+    patch:
+      tags: [Admin]
+      summary: Change processing settings (requires reason; audited)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperationalSettingsUpdate'
+      responses:
+        '200': { description: Updated settings }
+        '400': { $ref: '#/components/responses/ValidationError' }
+  /api/v1/admin/operations/purge:
+    post:
+      tags: [Admin]
+      summary: Apply retention now (requires reason; audited)
+      description: >-
+        Deletes processed/cancelled outbox rows and finished webhook rows older than the configured retention. Intervention records are kept.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InterventionRequest'
+      responses:
+        '200': { description: Deleted counts }
+        '400': { $ref: '#/components/responses/ValidationError' }
+  /api/v1/admin/operations/interventions:
+    get:
+      tags: [Admin]
+      summary: Operator intervention history
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: targetType, in: query, schema: { type: string, enum: [outbox, webhook, settings] } }
+        - { name: targetId, in: query, schema: { type: string } }
+      responses:
+        '200': { description: Interventions }
   /api/v1/tenants:
     get:
       tags:
@@ -1181,8 +1819,8 @@ paths:
     post:
       tags:
         - Reports
-      summary: Generate a report (not available yet)
-      description: Report generation has no processor yet; the endpoint returns 501.
+      summary: Queue a tenant report
+      description: Generates a filtered CSV or JSON export or JSON summary asynchronously.
       security:
         - bearerAuth: []
       requestBody:
@@ -1192,8 +1830,59 @@ paths:
             schema:
               $ref: '#/components/schemas/GenerateReportRequest'
       responses:
-        '501':
-          description: Report generation is not implemented
+        '202':
+          description: Report job queued
+  /api/v1/reports:
+    get:
+      tags: [Reports]
+      summary: List the current user's report jobs
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [PENDING, RUNNING, COMPLETED, FAILED, CANCELLED, EXPIRED] }
+      responses:
+        '200': { description: Report jobs }
+  /api/v1/reports/{id}:
+    get:
+      tags: [Reports]
+      summary: Get the current user's report job
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Report job }
+  /api/v1/reports/{id}/cancel:
+    post:
+      tags: [Reports]
+      summary: Cancel a pending or running report job
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: Report cancelled }
+  /api/v1/reports/{id}/download-url:
+    get:
+      tags: [Reports]
+      summary: Get a short-lived download URL for a completed report
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Signed URL valid for 600 seconds; the report file itself expires after 24 hours
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data:
+                    type: object
+                    properties:
+                      url: { type: string }
+                      expiresInSeconds: { type: integer }
+        '409': { description: Report is not completed or has expired }
   /api/v1/search:
     get:
       tags:
@@ -1410,20 +2099,6 @@ components:
             connectedClients:
               type: integer
       required: [status, checks, websocket]
-    AuthRegisterRequest:
-      type: object
-      required: [email, password, firstName, lastName]
-      properties:
-        email:
-          type: string
-          format: email
-        password:
-          type: string
-          minLength: 8
-        firstName:
-          type: string
-        lastName:
-          type: string
     AuthLoginRequest:
       type: object
       required: [email, password]
@@ -1612,9 +2287,12 @@ components:
           type: integer
         maxCustomers:
           type: integer
+        maxTicketsPerDay:
+          type: integer
         settings:
           type: object
           additionalProperties: true
+      additionalProperties: false
     SuspendTenantRequest:
       type: object
       required: [reason]
@@ -1707,11 +2385,12 @@ components:
       $ref: '#/components/schemas/TicketResponse'
     CreateTicketRequest:
       type: object
-      required: [customerId, title, description]
+      required: [title, description]
       properties:
         customerId:
           type: string
           format: uuid
+          description: Required for staff; ignored for customers, whose linked record is used.
         title:
           type: string
           minLength: 5
@@ -2176,17 +2855,117 @@ components:
       additionalProperties: true
     GenerateReportRequest:
       type: object
-      required: [jobType]
+      required: [subject, kind]
       properties:
-        jobType:
+        subject:
           type: string
-          enum: [summary, export, snapshot]
+          enum: [tickets, customers]
+        kind:
+          type: string
+          enum: [summary, export]
         format:
           type: string
           enum: [json, csv]
         filters:
           type: object
-          additionalProperties: true
+          properties:
+            status: { type: string }
+            dateFrom: { type: string, format: date-time }
+            dateTo: { type: string, format: date-time }
+    PermissionCatalogEntry:
+      type: object
+      properties:
+        key: { type: string, example: 'tickets:assign' }
+        defaults: { type: array, items: { type: string, enum: [PLATFORM_ADMIN, TENANT_MANAGER, AGENT, CUSTOMER] } }
+        boundary: { type: array, items: { type: string, enum: [PLATFORM_ADMIN, TENANT_MANAGER, AGENT, CUSTOMER] } }
+    Role:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        displayName: { type: string }
+        description: { type: string, nullable: true }
+        isSystem: { type: boolean }
+        permissions: { type: array, items: { type: string } }
+        memberCount: { type: integer }
+    CreateRoleRequest:
+      type: object
+      required: [name, displayName, permissions]
+      properties:
+        name: { type: string, pattern: '^[A-Za-z0-9_-]+$', minLength: 2, maxLength: 50 }
+        displayName: { type: string, maxLength: 100 }
+        description: { type: string, maxLength: 500 }
+        permissions: { type: array, items: { type: string } }
+    UpdateRoleRequest:
+      type: object
+      properties:
+        displayName: { type: string, maxLength: 100 }
+        description: { type: string, maxLength: 500 }
+        permissions: { type: array, items: { type: string } }
+    WhatsAppChannelConfig:
+      type: object
+      required: [phoneNumber]
+      additionalProperties: false
+      properties:
+        phoneNumber: { type: string, description: E.164 business number; unique across organizations }
+        displayName: { type: string, maxLength: 100 }
+    EmailChannelConfig:
+      type: object
+      required: [fromName]
+      additionalProperties: false
+      properties:
+        fromName: { type: string, maxLength: 100, description: Sender name used with the shared sender address }
+        replyTo: { type: string, format: email }
+    ChannelConfig:
+      oneOf:
+        - $ref: '#/components/schemas/WhatsAppChannelConfig'
+        - $ref: '#/components/schemas/EmailChannelConfig'
+    Channel:
+      type: object
+      properties:
+        provider: { type: string, enum: [whatsapp, email] }
+        isEnabled: { type: boolean }
+        config: { type: object }
+        hasSigningSecret: { type: boolean }
+        secretRotatedAt: { type: string, format: date-time, nullable: true }
+        lastTest:
+          type: object
+          nullable: true
+          properties:
+            status: { type: string, enum: [SUCCEEDED, FAILED] }
+            checkedAt: { type: string, format: date-time }
+            message: { type: string }
+        sharedProviderConfigured: { type: boolean }
+        updatedAt: { type: string, format: date-time }
+    InterventionRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 10, maxLength: 1000 }
+    Intervention:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        targetType: { type: string, enum: [outbox, webhook, settings] }
+        targetId: { type: string, nullable: true }
+        action: { type: string, enum: [RETRY, REPLAY, CANCEL, CONFIGURE, PURGE] }
+        reason: { type: string }
+        actorId: { type: string, format: uuid }
+        resultId: { type: string, nullable: true, description: Id of the record a replay created }
+        outcome: { type: string, enum: [ACCEPTED, SUCCEEDED, FAILED] }
+        error: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+    OperationalSettings:
+      type: object
+      properties:
+        outboxPaused: { type: boolean }
+        retryMaxAttempts: { type: integer, minimum: 1, maximum: 20 }
+        outboxRetentionDays: { type: integer, minimum: 1, maximum: 365 }
+        webhookRetentionDays: { type: integer, minimum: 1, maximum: 365 }
+    OperationalSettingsUpdate:
+      allOf:
+        - $ref: '#/components/schemas/OperationalSettings'
+        - $ref: '#/components/schemas/InterventionRequest'
     SearchResultsResponse:
       type: object
       properties:

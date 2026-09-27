@@ -30,7 +30,8 @@ clients, so both processes can raise them.
 ## Request flow
 
 `auth` → `tenant` (organization must be active; platform admins are unscoped) →
-`requireTenantContext` (routes that hold tenant data) → `requireRole` → controller →
+`requireTenantContext` (routes that hold tenant data) → `requirePermission` (effective
+permissions, see ADR-004) → controller →
 application service. Ticket routes additionally check row-level visibility through
 `TicketAccessService` before any `/:id` handler runs.
 

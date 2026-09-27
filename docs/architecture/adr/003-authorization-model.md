@@ -1,6 +1,6 @@
 # ADR-003: Role checks plus resource policies (no permission tables)
 
-- Status: Accepted
+- Status: Superseded by ADR-004
 - Date: 2026-09-26
 
 ## Context

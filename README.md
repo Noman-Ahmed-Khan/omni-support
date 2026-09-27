@@ -97,7 +97,6 @@ npm run docker:down
 | ------------------------------------------------- | ------------------------------------------------ | -------------------------------------------------------------------------------- |
 | `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`         | required                                         | Token signing secrets (min 32 chars, no fallbacks)                               |
 | `JWT_ACCESS_EXPIRES_IN`, `JWT_REFRESH_EXPIRES_IN` | `15m`, `30d`                                     | Token lifetimes                                                                  |
-| `ALLOW_PUBLIC_REGISTRATION`                       | `true` outside production, `false` in production | Self sign-up (creates tenant-less `CUSTOMER` accounts)                           |
 | `ENABLE_API_DOCS`                                 | `true` outside production, `false` in production | Serve `/docs`                                                                    |
 | `TRUST_PROXY`                                     | `false`                                          | Express trust proxy (`true`, hop count, or proxy IP/CIDR list)                   |
 | `RUN_WORKERS`                                     | `true`                                           | Run background processing in this process                                        |
