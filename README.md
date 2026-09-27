@@ -10,9 +10,24 @@
 - Background processing (BullMQ queue workers, the transactional outbox relay, and scheduled jobs) runs inside the API process by default (`RUN_WORKERS=true`). `src/worker.ts` runs the same background processing as a dedicated process; set `RUN_WORKERS=false` on the API when it runs.
   - Realtime (WebSocket) events are published to Redis (`omnisupport:realtime`) and every API process forwards them to its own clients, so events raised by the worker or another API replica reach everyone.
 - Ticket and customer writes, their activity/audit records and their domain events are committed in one database transaction. Domain events are written to the `outbox_events` table and delivered by the outbox worker with at-least-once semantics (atomic claiming, lease expiry, exponential backoff, dead-lettering); handlers that already succeeded are not re-run on retry.
-- Every authenticated request is scoped to one organization. Within it, managers see all tickets, agents see tickets assigned to them, and customers see the tickets of their own customer record (`TicketAccessPolicy`). See `docs/architecture/adr/`.
+- Every authenticated request is scoped to one organization. Routes check effective permissions: the account class defaults (`PLATFORM_ADMIN`, `TENANT_MANAGER`, `AGENT`, `CUSTOMER`) plus bounded tenant role grants (ADR-004). Row-level rules still apply: managers see all tickets, agents see tickets assigned to them, and customers see the tickets of the customer record their account is linked to (`TicketAccessPolicy`). See `docs/architecture/adr/`.
+- Accounts are created only through invitations; there is no public sign-up.
 - `Prisma` is used for database modeling and migrations.
 - `OpenAI`, SMTP email, Twilio, AWS S3, and Google OAuth integrations are configured through environment variables.
+
+## Backend services
+
+| Area                  | Routes                                                                              | What it does                                                                                                                                                                                                                                                                                              |
+| --------------------- | ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Invitations           | `/api/v1/invitations`                                                               | Staff-issued, single-use invitations that expire after 24 hours, for agents, tenant managers (platform route) and customers tied to a customer record. Supports resend and revoke. Accepting creates the account, or links an existing tenantless account whose owner is signed in or gives its password. |
+| Staff lifecycle       | `/api/v1/users/:id/{disable,reactivate,remove}`                                     | Disable/reactivate agents; removal moves open tickets and customers to a replacement agent (or unassigns them), revokes sessions and role memberships, and keeps the user row for history.                                                                                                                |
+| Roles and permissions | `/api/v1/roles`, `/api/v1/users/:id/permissions`                                    | Permission catalog, read-only system roles, tenant roles and memberships. Grants cannot exceed the granter's own permissions or the member's account class, and never include platform permissions.                                                                                                       |
+| Reports               | `/api/v1/reports`                                                                   | Asynchronous ticket/customer CSV or JSON exports and JSON summaries. The worker builds them in batches; downloads use 10-minute signed URLs; files expire after 24 hours and job records after 30 days. Audits record metadata only.                                                                      |
+| Channel integrations  | `/api/v1/integrations`                                                              | Tenant WhatsApp number and email sender identity on shared provider credentials: connection test, enable/disable, signing-secret rotation (returned once, stored encrypted).                                                                                                                              |
+| Administration        | `/api/v1/admin/audit`                                                               | Filtered audit log for tenant managers (own organization) and platform admins.                                                                                                                                                                                                                            |
+| Platform operations   | `/api/v1/admin/{outbox,webhooks,operations,providers,integrations,internal-health}` | Platform admins only, audited: inspect records with redacted payloads, retry, replay (as a new row) or cancel with a required reason, processing settings (pause, retry attempts, retention), purge, redacted provider status and internal table counts.                                                  |
+
+Scheduled jobs in the worker: analytics rollup (daily), ticket escalation (every 15 minutes), report processing (every minute), operations retention (daily) and, when enabled, tenant purge.
 
 ## Repository structure
 
@@ -201,12 +216,12 @@ flowchart TB
     class clients,twilio,storage,google,openai,smtp external
 ```
 
-| Component  | Responsibilities                                        |
-| ---------- | ------------------------------------------------------- |
-| API        | REST endpoints, WebSocket connections, inbound webhooks |
-| Worker     | Queues, outbox relay, scheduled jobs                    |
-| PostgreSQL | Tenants, tickets, durable outbox events                 |
-| Redis      | Cache, rate limits, BullMQ, realtime pub/sub, locks     |
+| Component  | Responsibilities                                         |
+| ---------- | -------------------------------------------------------- |
+| API        | REST endpoints, WebSocket connections, inbound webhooks  |
+| Worker     | Queues, outbox relay, reports, retention, scheduled jobs |
+| PostgreSQL | Tenants, tickets, access, reports, durable outbox events |
+| Redis      | Cache, rate limits, BullMQ, realtime pub/sub, locks      |
 
 `RUN_WORKERS=true` (the default) also runs worker duties inside the API process. Set it to `false` when deploying a dedicated worker.
 
@@ -276,7 +291,7 @@ sequenceDiagram
     participant WS as WebSocket clients
 
     Agent->>API: POST /api/v1/tickets
-    Note over API: auth, tenant check,<br/>role and ticket access policy
+    Note over API: auth, tenant check,<br/>permission and ticket access policy
     API->>PG: BEGIN
     API->>PG: insert ticket, activity, audit
     API->>PG: insert outbox_events (TICKET_CREATED)
@@ -336,6 +351,84 @@ erDiagram
         string tenantId FK
         string email "Unique per tenant"
         float riskScore
+    }
+```
+
+**Access and onboarding**
+
+Invitations and customer links replace self sign-up. System roles (`tenantId` null) mirror the account classes; tenant roles add bounded grants through memberships.
+
+```mermaid
+erDiagram
+    direction TB
+
+    TENANT ||--o{ INVITATION : issues
+    USER ||--o{ INVITATION : sends
+    CUSTOMER |o--o{ INVITATION : "invited for"
+    USER ||--o| CUSTOMER_LINK : "portal account"
+    CUSTOMER ||--o| CUSTOMER_LINK : "linked record"
+
+    TENANT |o--o{ ROLE : "tenant roles"
+    ROLE ||--o{ ROLE_PERMISSION : grants
+    PERMISSION ||--o{ ROLE_PERMISSION : "granted by"
+    USER ||--o{ USER_ROLE_MEMBERSHIP : holds
+    ROLE ||--o{ USER_ROLE_MEMBERSHIP : "held by"
+
+    INVITATION {
+        string id PK
+        string email
+        enum role
+        string tokenHash UK "Token only travels by email"
+        datetime expiresAt
+        datetime acceptedAt
+        datetime revokedAt
+    }
+
+    CUSTOMER_LINK {
+        string userId PK
+        string customerId UK
+        string tenantId FK
+    }
+
+    ROLE {
+        string id PK
+        string tenantId FK "Null for system roles"
+        string name
+        boolean isSystem
+    }
+
+    PERMISSION {
+        string id PK
+        string resource
+        string action "Key is resource:action"
+    }
+
+    USER_ROLE_MEMBERSHIP {
+        string userId PK
+        string roleId PK
+        string tenantId FK
+        string assignedById FK
+    }
+```
+
+**Reports**
+
+```mermaid
+erDiagram
+    direction TB
+
+    TENANT ||--o{ REPORT_JOB : has
+    USER ||--o{ REPORT_JOB : requests
+
+    REPORT_JOB {
+        string id PK
+        string subject "tickets, customers"
+        string kind "export, summary"
+        string format "csv, json"
+        json filters
+        string status "PENDING, RUNNING, COMPLETED, FAILED, CANCELLED, EXPIRED"
+        string storagePath "Cleared on expiry"
+        datetime expiresAt
     }
 ```
 
@@ -405,7 +498,7 @@ erDiagram
 
 **Event processing**
 
-These tables are standalone. Outbox rows identify their aggregate through `aggregateId`; webhook rows retain the raw provider payload.
+These tables are standalone. Outbox rows identify their aggregate through `aggregateId`; webhook rows retain the raw provider payload. Payloads are never edited: an operator replay inserts a new row pointing at the original through `replayOfId`, and a partial unique index allows only one unfinished replay per event. Every operator action is recorded as an intervention.
 
 ```mermaid
 erDiagram
@@ -414,14 +507,31 @@ erDiagram
     OUTBOX_EVENT {
         uuid id PK
         string eventId UK
-        string status "PENDING, PROCESSING, FAILED, PROCESSED, DEAD_LETTER"
+        string status "PENDING, PROCESSING, FAILED, PROCESSED, DEAD_LETTER, CANCELLED"
         int attempts
         datetime lockedAt "Worker lease"
+        uuid replayOfId "Set on operator replays"
     }
 
     WEBHOOK_EVENT {
         string id PK
         enum eventType
-        boolean processed
+        string status "RECEIVED, PROCESSING, PROCESSED, SKIPPED, FAILED, CANCELLED"
+        datetime lockedAt "Processing lease"
+        string replayOfId "Set on operator replays"
+    }
+
+    OPERATIONAL_INTERVENTION {
+        string id PK
+        string targetType "outbox, webhook, settings"
+        string action "RETRY, REPLAY, CANCEL, CONFIGURE, PURGE"
+        string reason "Required"
+        string actorId
+        string resultId "Row created by a replay"
+    }
+
+    OPERATIONAL_SETTING {
+        string key PK "outboxPaused, retryMaxAttempts, retention days"
+        json value
     }
 ```
