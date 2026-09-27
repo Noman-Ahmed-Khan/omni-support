@@ -103,6 +103,30 @@ export class TokenService {
     return payload;
   }
 
+  /** Reject stale access claims after account status, role, or tenant membership changes. */
+  async assertAccessTokenUsable(payload: AccessTokenPayload): Promise<void> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+      select: {
+        id: true,
+        status: true,
+        lockedUntil: true,
+        tenantId: true,
+        role: true,
+        email: true,
+      },
+    });
+    if (
+      !user ||
+      user.role !== payload.role ||
+      user.email !== payload.email ||
+      (user.tenantId ?? undefined) !== payload.tenantId
+    ) {
+      throw new UnauthorizedError('Session is no longer valid');
+    }
+    await this.assertAccountUsable(user);
+  }
+
   verifyRefreshToken(token: string): RefreshTokenPayload {
     let payload: RefreshTokenPayload;
     try {
