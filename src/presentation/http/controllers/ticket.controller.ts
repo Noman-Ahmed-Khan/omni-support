@@ -15,6 +15,7 @@ import type {
   TicketActor,
 } from '../../../application/ticket/services/ticket-access.service';
 import type { TicketEntity } from '../../../domain/ticket/entities/ticket.entity';
+import { ValidationError } from '../../../shared/errors/domain.error';
 import { successResponse, paginatedResponse } from '../dtos/common/response.dto';
 import type {
   CreateTicketDto,
@@ -71,6 +72,8 @@ export class TicketController {
       const customerId = isCustomer
         ? await this.ticketAccess.requireOwnCustomerId(toActor(req))
         : req.body.customerId;
+      if (!customerId)
+        throw new ValidationError('Customer ID is required for staff tickets');
 
       const ticket = await this.createTicketHandler.execute({
         tenantId: req.tenantId!,

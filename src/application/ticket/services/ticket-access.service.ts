@@ -1,4 +1,5 @@
-import type { ICustomerRepository } from '../../../domain/customer/repositories/customer.repository.interface';
+import type { PrismaClient } from '@prisma/client';
+
 import {
   TicketAccessPolicy,
   type TicketViewer,
@@ -26,7 +27,7 @@ export interface TicketListScope {
 export class TicketAccessService {
   constructor(
     private readonly ticketRepo: Pick<ITicketRepository, 'findById'>,
-    private readonly customerRepo: Pick<ICustomerRepository, 'findByEmail'>,
+    private readonly prisma: PrismaClient,
     private readonly policy: TicketAccessPolicy = new TicketAccessPolicy(),
   ) {}
 
@@ -35,8 +36,11 @@ export class TicketAccessService {
       return { id: actor.id, role: actor.role };
     }
 
-    const customer = await this.customerRepo.findByEmail(actor.email, actor.tenantId);
-    return { id: actor.id, role: actor.role, customerId: customer?.id };
+    const link = await this.prisma.customerLink.findFirst({
+      where: { userId: actor.id, tenantId: actor.tenantId },
+      select: { customerId: true },
+    });
+    return { id: actor.id, role: actor.role, customerId: link?.customerId };
   }
 
   /**

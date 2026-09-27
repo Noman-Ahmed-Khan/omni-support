@@ -6,7 +6,7 @@ import {
 } from '../../../../shared/validators/common.schemas';
 
 export const createTicketSchema = z.object({
-  customerId: z.string().uuid('Invalid customer ID'),
+  customerId: z.string().uuid('Invalid customer ID').optional(),
   title: z.string().min(5, 'Title must be at least 5 characters').max(500).trim(),
   description: z
     .string()

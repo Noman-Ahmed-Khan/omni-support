@@ -51,7 +51,7 @@ export function registerTicketModule(container: Container): void {
   );
   container.register('ticketService', ticketService);
 
-  const ticketAccessService = new TicketAccessService(ticketRepo, customerRepo);
+  const ticketAccessService = new TicketAccessService(ticketRepo, prisma);
   container.register('ticketAccessService', ticketAccessService);
 
   // Handlers
