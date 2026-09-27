@@ -9,6 +9,8 @@ export class OutboxWorker {
   constructor(
     private readonly processor: OutboxProcessor,
     private readonly intervalMs: number = 5000,
+    /** Operator pause switch; checked before each batch. */
+    private readonly isPaused: () => Promise<boolean> = () => Promise.resolve(false),
   ) {}
 
   start(): void {
@@ -48,6 +50,7 @@ export class OutboxWorker {
 
     this.inFlight = (async () => {
       try {
+        if (await this.isPaused()) return;
         await this.processor.processBatch();
       } catch (error) {
         logger.error('Outbox batch failed', { error });

@@ -21,7 +21,7 @@ function normalizePhone(value: string): string {
  * The organization is identified by the business number the customer wrote to (the
  * `phoneNumber` of the tenant's enabled "whatsapp" integration). Every lookup is scoped
  * to that organization. Comments and tickets must be attributed to a user, so the
- * customer needs a linked CUSTOMER account (same email); otherwise the message is kept
+ * customer needs a linked portal account (customer_links); otherwise the message is kept
  * in webhook_events for manual follow-up.
  */
 export class ProcessInboundWhatsAppHandler {
@@ -45,18 +45,16 @@ export class ProcessInboundWhatsAppHandler {
       return { status: 'skipped', reason: 'Unknown sender' };
     }
 
-    const author = await this.prisma.user.findFirst({
-      where: {
-        tenantId,
-        email: customer.email.toLowerCase(),
-        role: 'CUSTOMER',
-        status: 'ACTIVE',
-      },
-      select: { id: true },
+    // Only a portal account linked to this customer record (via an accepted invitation)
+    // may author on the customer's behalf; matching by email alone is not enough.
+    const link = await this.prisma.customerLink.findFirst({
+      where: { tenantId, customerId: customer.id, user: { status: 'ACTIVE' } },
+      select: { userId: true },
     });
-    if (!author) {
+    if (!link) {
       return { status: 'skipped', reason: 'Customer has no linked user account' };
     }
+    const author = { id: link.userId };
 
     const openTicket = await this.prisma.ticket.findFirst({
       where: {

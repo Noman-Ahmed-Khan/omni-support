@@ -4,6 +4,8 @@ export enum OutboxStatus {
   PROCESSED = 'PROCESSED',
   FAILED = 'FAILED',
   DEAD_LETTER = 'DEAD_LETTER',
+  /** Set by an operator; terminal like PROCESSED. */
+  CANCELLED = 'CANCELLED',
 }
 
 export interface OutboxPayload {

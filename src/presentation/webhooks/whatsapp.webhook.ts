@@ -4,18 +4,18 @@ import type { Prisma, PrismaClient, WebhookEventType } from '@prisma/client';
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 
-import type { ProcessInboundWhatsAppHandler } from '../../application/messaging/handlers/process-inbound-whatsapp.handler';
+import type { WebhookProcessingService } from '../../application/messaging/services/webhook-processing.service';
 import type { IWhatsAppProvider } from '../../infrastructure/messaging/whatsapp/whatsapp-provider.interface';
 import { logger } from '../../shared/utils/logger.util';
 import { asyncHandler } from '../http/utils/async-handler';
 
 /**
  * Twilio WhatsApp webhooks. Every request must carry a valid X-Twilio-Signature;
- * message handling lives in ProcessInboundWhatsAppHandler.
+ * events are stored first and then processed by WebhookProcessingService.
  */
 export function createWhatsAppWebhook(
   whatsAppProvider: IWhatsAppProvider,
-  inboundHandler: ProcessInboundWhatsAppHandler,
+  processing: WebhookProcessingService,
   prisma: PrismaClient,
 ): Router {
   const router = Router();
@@ -74,34 +74,18 @@ export function createWhatsAppWebhook(
       // Acknowledge immediately; Twilio retries slow webhooks.
       res.status(200).send('OK');
 
-      void inboundHandler
-        .execute(message)
-        .then(async (outcome) => {
-          if (outcome.status === 'skipped') {
+      void processing
+        .process(event.id)
+        .then((outcome) => {
+          if (outcome.status !== 'PROCESSED') {
             logger.warn('Inbound WhatsApp message not processed', {
-              reason: outcome.reason,
+              eventId: event.id,
+              status: outcome.status,
             });
           }
-          await prisma.webhookEvent.update({
-            where: { id: event.id },
-            data: {
-              processed: outcome.status !== 'skipped',
-              processedAt: new Date(),
-              error: outcome.status === 'skipped' ? outcome.reason : null,
-            },
-          });
         })
-        .catch(async (error: unknown) => {
+        .catch((error: unknown) => {
           logger.error('Failed to process inbound WhatsApp message', { error });
-          await prisma.webhookEvent
-            .update({
-              where: { id: event.id },
-              data: {
-                error: error instanceof Error ? error.message : String(error),
-                retryCount: { increment: 1 },
-              },
-            })
-            .catch(() => undefined);
         });
     }),
   );
