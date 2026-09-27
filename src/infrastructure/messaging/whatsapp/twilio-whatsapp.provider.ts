@@ -47,6 +47,11 @@ function resolveTwilioConfig(): TwilioWhatsAppConfig | null {
   };
 }
 
+/** True when the shared (deployment-level) Twilio WhatsApp credentials are complete. */
+export function isWhatsAppConfigured(): boolean {
+  return resolveTwilioConfig() !== null;
+}
+
 export class TwilioWhatsAppProvider implements IWhatsAppProvider {
   private readonly client: Twilio;
   private readonly fromNumber: string;

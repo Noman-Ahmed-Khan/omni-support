@@ -83,6 +83,7 @@ export class NotificationService {
 
       // Email customer
       await this.emailQueue.add({
+        tenantId: dto.tenantId,
         to: customer.email,
         subject: `[${tenant.name}] Ticket #${dto.ticketNumber} Created: ${dto.title}`,
         html: this.buildTicketCreatedEmail(
@@ -287,6 +288,7 @@ export class NotificationService {
 
       // Email customer
       await this.emailQueue.add({
+        tenantId,
         to: ticket.customer.email,
         subject: `[${ticket.tenant.name}] Ticket #${ticket.ticketNumber} Resolved`,
         html: this.buildTicketResolvedEmail(
@@ -337,6 +339,7 @@ export class NotificationService {
 
       if (author && author.role !== 'CUSTOMER') {
         await this.emailQueue.add({
+          tenantId: dto.tenantId,
           to: ticket.customer.email,
           subject: `[${ticket.tenant.name}] New reply on Ticket #${dto.ticketNumber}`,
           html: this.buildCommentNotificationEmail(

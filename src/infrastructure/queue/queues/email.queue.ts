@@ -3,6 +3,8 @@ import type { Queue } from 'bullmq';
 import { createQueue, QueueName } from '../queue.factory';
 
 export interface EmailJobData {
+  /** Customer-facing mail is sent under the tenant's email channel identity when enabled. */
+  tenantId?: string;
   to: string;
   subject: string;
   html: string;
