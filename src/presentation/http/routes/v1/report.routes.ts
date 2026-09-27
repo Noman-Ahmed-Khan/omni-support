@@ -4,7 +4,7 @@ import type { Container } from '../../../../shared/di/container';
 import type { ReportController } from '../../controllers/report.controller';
 import { generateReportSchema } from '../../controllers/report.controller';
 import { createAuthMiddleware } from '../../middlewares/auth.middleware';
-import { requireRole } from '../../middlewares/rbac.middleware';
+import { createPermissionGuard } from '../../middlewares/permission.middleware';
 import {
   createTenantMiddleware,
   requireTenantContext,
@@ -14,6 +14,7 @@ import { asyncHandler } from '../../utils/async-handler';
 
 export function createReportRoutes(container: Container): Router {
   const router = Router();
+  const requirePermission = createPermissionGuard(container.resolve('permissionService'));
   const controller: ReportController = container.resolve('reportController');
   const authMiddleware = createAuthMiddleware(container.resolve('tokenService'));
   const tenantMiddleware = createTenantMiddleware(container.resolve('prisma'));
@@ -23,9 +24,30 @@ export function createReportRoutes(container: Container): Router {
 
   router.post(
     '/generate',
-    requireRole('TENANT_MANAGER', 'AGENT'),
+    requirePermission('reports:create'),
     validate(generateReportSchema),
-    asyncHandler((req, res, next) => controller.generateReport(req, res, next)),
+    asyncHandler((req, res) => controller.generateReport(req, res)),
+  );
+
+  router.get(
+    '/',
+    requirePermission('reports:create'),
+    asyncHandler((req, res) => controller.list(req, res)),
+  );
+  router.get(
+    '/:id',
+    requirePermission('reports:create'),
+    asyncHandler((req, res) => controller.get(req, res)),
+  );
+  router.post(
+    '/:id/cancel',
+    requirePermission('reports:create'),
+    asyncHandler((req, res) => controller.cancel(req, res)),
+  );
+  router.get(
+    '/:id/download-url',
+    requirePermission('reports:create'),
+    asyncHandler((req, res) => controller.download(req, res)),
   );
 
   return router;
