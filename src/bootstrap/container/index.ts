@@ -9,8 +9,11 @@ import { registerNotificationModule } from './modules/notification.module';
 import { registerReportModule } from './modules/report.module';
 import { registerTenantModule } from './modules/tenant.module';
 import { registerTicketModule } from './modules/ticket.module';
+import { OperationalSettingsService } from '../../application/admin/services/operational-settings.service';
+import { PlatformOperationsService } from '../../application/admin/services/platform-operations.service';
 import { AnalyticsService } from '../../application/analytics/services/analytics.service';
 import { AuditService } from '../../application/audit/services/audit.service';
+import { PermissionService } from '../../application/auth/services/permission.service';
 import { TokenService } from '../../application/auth/services/token.service';
 import { CreateCustomerHandler } from '../../application/customer/handlers/create-customer.handler';
 import { CustomerTimelineHandler } from '../../application/customer/handlers/customer-timeline.handler';
@@ -24,8 +27,14 @@ import { InProcessEventBus } from '../../application/event-bus/event-bus';
 import type { IEventBus } from '../../application/event-bus/event-bus.interface';
 import { registerNotificationHandlers } from '../../application/event-bus/handlers/notification.handlers';
 import { FeatureFlagService } from '../../application/feature-flags/feature-flag.service';
+import { ProcessInboundWhatsAppHandler } from '../../application/messaging/handlers/process-inbound-whatsapp.handler';
+import { WebhookProcessingService } from '../../application/messaging/services/webhook-processing.service';
 import type { NotificationService } from '../../application/notification/services/notification.service';
 import { SearchService } from '../../application/search/services/search.service';
+import {
+  ChannelIntegrationService,
+  createSharedProviderStatus,
+} from '../../application/tenant/services/channel-integration.service';
 import { UserService } from '../../application/user/services/user.service';
 import { getStorageConfig } from '../../config/storage.config';
 import type { ITenantRepository } from '../../domain/tenant/repositories/tenant.repository.interface';
@@ -38,6 +47,7 @@ import { CustomerRepository } from '../../infrastructure/database/repositories/c
 import { PrismaFeatureFlagRepository } from '../../infrastructure/database/repositories/feature.repository';
 import { UserRepository } from '../../infrastructure/database/repositories/user.repository';
 import { TransactionManager } from '../../infrastructure/database/transaction-manager';
+import { isWhatsAppConfigured } from '../../infrastructure/messaging/whatsapp/twilio-whatsapp.provider';
 import { HealthService } from '../../infrastructure/observability/health/health.service';
 import { MetricsService } from '../../infrastructure/observability/metrics/metrics.service';
 import {
@@ -58,6 +68,7 @@ import { CronRegistry } from '../../infrastructure/scheduler/cron.registry';
 import { SchedulerService } from '../../infrastructure/scheduler/scheduler.service';
 import { createTenantCleanupJob } from '../../infrastructure/scheduler/tenant-cleanup.job';
 import { createTicketEscalationJob } from '../../infrastructure/scheduler/ticket-escalation.job';
+import { EncryptionService } from '../../infrastructure/security/encryption.service';
 import { SecretsService } from '../../infrastructure/security/secrets.service';
 import { TokenSigningService } from '../../infrastructure/security/token-signing.service';
 import { LocalStorageProvider } from '../../infrastructure/storage/local.provider';
@@ -162,7 +173,14 @@ export function buildContainer(
   const outboxProcessor = new OutboxProcessor(outboxRepository, eventDispatcher);
   container.register('outboxProcessor', outboxProcessor);
 
-  const outboxWorker = new OutboxWorker(outboxProcessor);
+  const operationalSettings = new OperationalSettingsService(prisma);
+  container.register('operationalSettings', operationalSettings);
+
+  const outboxWorker = new OutboxWorker(
+    outboxProcessor,
+    5000,
+    async () => (await operationalSettings.get()).outboxPaused,
+  );
   container.register('outboxWorker', outboxWorker);
 
   const tokenService = new TokenService(
@@ -171,10 +189,21 @@ export function buildContainer(
     new SecretsService(),
   );
   container.register('tokenService', tokenService);
+  container.register('permissionService', new PermissionService(prisma));
 
   // Domain Modules
   registerTenantModule(container);
   registerMessagingModule(container); // Needs to be before auth for emailQueue
+  container.register(
+    'channelIntegrationService',
+    new ChannelIntegrationService(
+      prisma,
+      new EncryptionService(new SecretsService().getEncryptionKey()),
+      container.resolve('emailProvider'),
+      createSharedProviderStatus(isWhatsAppConfigured),
+      auditRepo,
+    ),
+  );
   registerNotificationModule(container);
   registerReportModule(container);
 
@@ -207,6 +236,21 @@ export function buildContainer(
 
   registerAuthModule(container);
   registerTicketModule(container);
+  const webhookProcessing = new WebhookProcessingService(
+    prisma,
+    container.resolve('whatsAppProvider'),
+    new ProcessInboundWhatsAppHandler(prisma, container.resolve('ticketService')),
+  );
+  container.register('webhookProcessingService', webhookProcessing);
+  container.register(
+    'platformOperationsService',
+    new PlatformOperationsService(
+      prisma,
+      operationalSettings,
+      webhookProcessing,
+      auditRepo,
+    ),
+  );
   registerAttachmentModule(container); // Needs ticketAccessService
   registerAIModule(container);
 

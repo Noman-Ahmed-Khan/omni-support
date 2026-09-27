@@ -1,5 +1,8 @@
 import type { Container } from './container';
+import type { PlatformOperationsService } from '../application/admin/services/platform-operations.service';
 import type { AIService } from '../application/ai/services/ai.service';
+import type { ReportService } from '../application/report/services/report.service';
+import type { ChannelIntegrationService } from '../application/tenant/services/channel-integration.service';
 import type { SMTPEmailProvider } from '../infrastructure/messaging/email/smtp.provider';
 import type { OutboxWorker } from '../infrastructure/outbox/outbox.worker';
 import type { AIJobData } from '../infrastructure/queue/queues/ai.queue';
@@ -42,6 +45,20 @@ export function startBackgroundProcessing(
     cronExpression: '*/15 * * * *',
     handler: container.resolve<ScheduledJob>('ticketEscalationJob'),
   });
+  schedulerService.register({
+    name: 'operations-retention',
+    cronExpression: '15 3 * * *',
+    handler: async () => {
+      await container
+        .resolve<PlatformOperationsService>('platformOperationsService')
+        .purge();
+    },
+  });
+  schedulerService.register({
+    name: 'report-processing',
+    cronExpression: '*/1 * * * *',
+    handler: () => container.resolve<ReportService>('reportService').processPending(),
+  });
 
   if (options.enableTenantPurge) {
     logger.warn(
@@ -77,8 +94,18 @@ export function startBackgroundProcessing(
     },
   });
 
+  const channels = container.resolve<ChannelIntegrationService>(
+    'channelIntegrationService',
+  );
   createEmailWorker(async (data) => {
-    await emailProvider.send(data);
+    const identity = data.tenantId
+      ? await channels.resolveEmailIdentity(data.tenantId)
+      : null;
+    await emailProvider.send({
+      ...data,
+      from: data.from ?? identity?.from,
+      replyTo: data.replyTo ?? identity?.replyTo,
+    });
   });
 
   createNotificationWorker((data) => {
