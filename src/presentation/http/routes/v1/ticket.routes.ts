@@ -13,7 +13,7 @@ import {
   ticketHistoryQuerySchema,
 } from '../../dtos/ticket/ticket.dto';
 import { createAuthMiddleware } from '../../middlewares/auth.middleware';
-import { requireRole } from '../../middlewares/rbac.middleware';
+import { createPermissionGuard } from '../../middlewares/permission.middleware';
 import {
   createTenantMiddleware,
   requireTenantContext,
@@ -23,6 +23,7 @@ import { asyncHandler } from '../../utils/async-handler';
 
 export function createTicketRoutes(container: Container): Router {
   const router = Router();
+  const requirePermission = createPermissionGuard(container.resolve('permissionService'));
   const controller: TicketController = container.resolve('ticketController');
   const authMiddleware = createAuthMiddleware(container.resolve('tokenService'));
   const tenantMiddleware = createTenantMiddleware(container.resolve('prisma'));
@@ -45,7 +46,7 @@ export function createTicketRoutes(container: Container): Router {
   // Create ticket - managers and agents
   router.post(
     '/',
-    requireRole('TENANT_MANAGER', 'AGENT', 'CUSTOMER'),
+    requirePermission('tickets:create'),
     validate(createTicketSchema),
     asyncHandler((req, res, next) => controller.create(req, res, next)),
   );
@@ -59,7 +60,7 @@ export function createTicketRoutes(container: Container): Router {
   // Update ticket - managers and agents
   router.patch(
     '/:id',
-    requireRole('TENANT_MANAGER', 'AGENT'),
+    requirePermission('tickets:update'),
     validate(updateTicketSchema),
     asyncHandler((req, res, next) => controller.update(req, res, next)),
   );
@@ -67,7 +68,7 @@ export function createTicketRoutes(container: Container): Router {
   // Assign ticket - managers only
   router.post(
     '/:id/assign',
-    requireRole('TENANT_MANAGER'),
+    requirePermission('tickets:assign'),
     validate(assignTicketSchema),
     asyncHandler((req, res, next) => controller.assign(req, res, next)),
   );
@@ -75,7 +76,7 @@ export function createTicketRoutes(container: Container): Router {
   // Change status
   router.patch(
     '/:id/status',
-    requireRole('TENANT_MANAGER', 'AGENT'),
+    requirePermission('tickets:update'),
     validate(changeStatusSchema),
     asyncHandler((req, res, next) => controller.changeStatus(req, res, next)),
   );
@@ -83,7 +84,7 @@ export function createTicketRoutes(container: Container): Router {
   // Escalate ticket
   router.post(
     '/:id/escalate',
-    requireRole('TENANT_MANAGER', 'AGENT'),
+    requirePermission('tickets:escalate'),
     validate(escalateTicketSchema),
     asyncHandler((req, res, next) => controller.escalate(req, res, next)),
   );

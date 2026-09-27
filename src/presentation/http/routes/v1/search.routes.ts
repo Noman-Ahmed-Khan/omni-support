@@ -3,7 +3,7 @@ import { Router } from 'express';
 import type { Container } from '../../../../shared/di/container';
 import type { SearchController } from '../../controllers/search.controller';
 import { createAuthMiddleware } from '../../middlewares/auth.middleware';
-import { requireRole } from '../../middlewares/rbac.middleware';
+import { createPermissionGuard } from '../../middlewares/permission.middleware';
 import {
   createTenantMiddleware,
   requireTenantContext,
@@ -12,6 +12,7 @@ import { asyncHandler } from '../../utils/async-handler';
 
 export function createSearchRoutes(container: Container): Router {
   const router = Router();
+  const requirePermission = createPermissionGuard(container.resolve('permissionService'));
   const controller: SearchController = container.resolve('searchController');
   const authMiddleware = createAuthMiddleware(container.resolve('tokenService'));
   const tenantMiddleware = createTenantMiddleware(container.resolve('prisma'));
@@ -22,7 +23,7 @@ export function createSearchRoutes(container: Container): Router {
     tenantMiddleware,
     requireTenantContext,
     // Search spans tickets, customers and comments: staff only.
-    requireRole('TENANT_MANAGER', 'AGENT'),
+    requirePermission('search:use'),
   );
 
   router.get(

@@ -8,7 +8,7 @@ import {
   listCustomersQuerySchema,
 } from '../../dtos/customer/customer.dto';
 import { createAuthMiddleware } from '../../middlewares/auth.middleware';
-import { requireRole } from '../../middlewares/rbac.middleware';
+import { createPermissionGuard } from '../../middlewares/permission.middleware';
 import {
   createTenantMiddleware,
   requireTenantContext,
@@ -18,6 +18,7 @@ import { asyncHandler } from '../../utils/async-handler';
 
 export function createCustomerRoutes(container: Container): Router {
   const router = Router();
+  const requirePermission = createPermissionGuard(container.resolve('permissionService'));
   const controller: CustomerController = container.resolve('customerController');
   const authMiddleware = createAuthMiddleware(container.resolve('tokenService'));
   const tenantMiddleware = createTenantMiddleware(container.resolve('prisma'));
@@ -27,7 +28,7 @@ export function createCustomerRoutes(container: Container): Router {
     authMiddleware,
     tenantMiddleware,
     requireTenantContext,
-    requireRole('TENANT_MANAGER', 'AGENT'),
+    requirePermission('customers:read'),
   );
 
   router.get(
@@ -38,7 +39,7 @@ export function createCustomerRoutes(container: Container): Router {
 
   router.post(
     '/',
-    requireRole('TENANT_MANAGER', 'AGENT'),
+    requirePermission('customers:write'),
     validate(createCustomerSchema),
     asyncHandler((req, res, next) => controller.create(req, res, next)),
   );
@@ -50,14 +51,14 @@ export function createCustomerRoutes(container: Container): Router {
 
   router.patch(
     '/:id',
-    requireRole('TENANT_MANAGER', 'AGENT'),
+    requirePermission('customers:write'),
     validate(updateCustomerSchema),
     asyncHandler((req, res, next) => controller.update(req, res, next)),
   );
 
   router.delete(
     '/:id',
-    requireRole('TENANT_MANAGER'),
+    requirePermission('customers:delete'),
     asyncHandler((req, res, next) => controller.delete(req, res, next)),
   );
 
@@ -68,7 +69,7 @@ export function createCustomerRoutes(container: Container): Router {
 
   router.post(
     '/:id/risk-score',
-    requireRole('TENANT_MANAGER'),
+    requirePermission('customers:risk'),
     asyncHandler((req, res, next) => controller.triggerRiskScore(req, res, next)),
   );
 

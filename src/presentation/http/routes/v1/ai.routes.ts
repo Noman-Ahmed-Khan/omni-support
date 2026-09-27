@@ -4,8 +4,8 @@ import type { ParamsDictionary } from 'express-serve-static-core';
 import type { Container } from '../../../../shared/di/container';
 import type { AIController, AIRequestBody } from '../../controllers/ai.controller';
 import { createAuthMiddleware } from '../../middlewares/auth.middleware';
+import { createPermissionGuard } from '../../middlewares/permission.middleware';
 import { createAIRateLimitMiddleware } from '../../middlewares/rate-limit.middleware';
-import { requireRole } from '../../middlewares/rbac.middleware';
 import {
   createTenantMiddleware,
   requireTenantContext,
@@ -14,6 +14,7 @@ import { asyncHandler } from '../../utils/async-handler';
 
 export function createAIRoutes(container: Container): Router {
   const router = Router();
+  const requirePermission = createPermissionGuard(container.resolve('permissionService'));
   const controller: AIController = container.resolve('aiController');
   const authMiddleware = createAuthMiddleware(container.resolve('tokenService'));
   const tenantMiddleware = createTenantMiddleware(container.resolve('prisma'));
@@ -27,7 +28,7 @@ export function createAIRoutes(container: Container): Router {
   );
 
   // Agent / Manager routes
-  const requireAgentOrAbove = requireRole('TENANT_MANAGER', 'AGENT');
+  const requireAgentOrAbove = requirePermission('ai:use');
 
   router.post(
     '/tickets/:id/categorize',
