@@ -96,6 +96,9 @@ describe('Access control E2E', () => {
     const email = `buyer-${crypto.randomUUID()}@test.com`;
     customerUser = await createUser('CUSTOMER', tenantId, email);
     const ownCustomer = await createTestCustomer(prisma, tenantId, { email });
+    await prisma.customerLink.create({
+      data: { userId: customerUser.id, customerId: ownCustomer.id, tenantId },
+    });
     const otherCustomer = await createTestCustomer(prisma, tenantId, {
       email: `other-${crypto.randomUUID()}@test.com`,
     });

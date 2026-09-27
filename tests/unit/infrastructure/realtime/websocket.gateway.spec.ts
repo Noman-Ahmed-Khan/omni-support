@@ -20,6 +20,7 @@ describe('WebSocketGateway room authorization (SEC-04)', () => {
   beforeAll(async () => {
     server = http.createServer();
     const auth = {
+      isStillAuthorized: () => Promise.resolve(true),
       authenticate: () =>
         Promise.resolve({
           userId: 'user-1',
@@ -95,6 +96,14 @@ describe('WebSocketGateway room authorization (SEC-04)', () => {
     socket.close();
   });
 
+  it('denies an agent the tenant-wide room', async () => {
+    const { socket, messages } = await connect();
+    await nextMessage(messages, 1);
+    socket.send(JSON.stringify({ event: 'subscribe', room: 'tenant:tenant-a' }));
+    expect((await nextMessage(messages, 2)).event).toBe('error');
+    socket.close();
+  });
+
   it('closes connections from origins that are not allowed', async () => {
     const socket = new WebSocket(`ws://127.0.0.1:${port}/ws`, {
       headers: { origin: 'https://evil.example.com' },
@@ -102,5 +111,42 @@ describe('WebSocketGateway room authorization (SEC-04)', () => {
 
     const code = await new Promise<number>((resolve) => socket.once('close', resolve));
     expect(code).toBe(4003);
+  });
+
+  it('lets an agent join the tenant room when granted realtime:tenant', async () => {
+    const granted = http.createServer();
+    const permissionGateway = new WebSocketGateway(
+      granted,
+      {
+        isStillAuthorized: () => Promise.resolve(true),
+        authenticate: () =>
+          Promise.resolve({
+            userId: 'user-2',
+            email: 'lead@example.com',
+            tenantId: 'tenant-a',
+            role: 'AGENT',
+          }),
+      } as unknown as WebSocketAuth,
+      {
+        hasPermission: (user, permission) =>
+          Promise.resolve(user.userId === 'user-2' && permission === 'realtime:tenant'),
+      },
+    );
+    await new Promise<void>((resolve) => granted.listen(0, resolve));
+    const grantedPort = (granted.address() as AddressInfo).port;
+    const socket = new WebSocket(`ws://127.0.0.1:${grantedPort}/ws`);
+    const messages: Message[] = [];
+    socket.on('message', (raw) => messages.push(JSON.parse(String(raw)) as Message));
+    await new Promise<void>((resolve) => socket.once('open', () => resolve()));
+    await nextMessage(messages, 1);
+
+    socket.send(JSON.stringify({ event: 'subscribe', room: 'tenant:tenant-a' }));
+    expect((await nextMessage(messages, 2)).event).toBe('subscribed');
+    socket.send(JSON.stringify({ event: 'subscribe', room: 'tenant:tenant-b' }));
+    expect((await nextMessage(messages, 3)).event).toBe('error');
+
+    socket.close();
+    await permissionGateway.shutdown();
+    await new Promise<void>((resolve) => granted.close(() => resolve()));
   });
 });

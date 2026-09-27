@@ -62,7 +62,7 @@ export async function getAuthToken(
       data: {
         id: crypto.randomUUID(),
         name: `Test Org ${Date.now()}`,
-        slug: `test-org-${Date.now()}`,
+        slug: `test-org-${crypto.randomUUID()}`,
         status: 'ACTIVE',
         plan: 'starter',
         maxAgents: 10,
@@ -80,7 +80,7 @@ export async function getAuthToken(
     data: {
       id: crypto.randomUUID(),
       tenantId: tenant.id,
-      email: `test-${Date.now()}@test.com`,
+      email: `test-${crypto.randomUUID()}@test.com`,
       passwordHash,
       firstName: 'Test',
       lastName: 'User',
@@ -109,4 +109,31 @@ export async function getAuthToken(
   );
 
   return { token, userId: user.id, tenantId: tenant.id };
+}
+
+/** A tenant-less platform administrator and a signed access token for it. */
+export async function getPlatformAdminToken(): Promise<{
+  token: string;
+  userId: string;
+}> {
+  const prisma = getTestPrisma();
+  const user = await prisma.user.create({
+    data: {
+      id: crypto.randomUUID(),
+      tenantId: null,
+      email: `admin-${crypto.randomUUID()}@test.com`,
+      firstName: 'Platform',
+      lastName: 'Admin',
+      role: 'PLATFORM_ADMIN',
+      status: 'ACTIVE',
+      emailVerifiedAt: new Date(),
+    },
+  });
+  const jwt = await import('jsonwebtoken');
+  const token = jwt.sign(
+    { sub: user.id, email: user.email, role: user.role, type: 'access' },
+    process.env.JWT_ACCESS_SECRET!,
+    { expiresIn: '15m', issuer: 'omnisupport', audience: 'omnisupport-api' },
+  );
+  return { token, userId: user.id };
 }

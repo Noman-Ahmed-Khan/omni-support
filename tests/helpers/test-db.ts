@@ -29,6 +29,12 @@ export async function cleanupTestDatabase(): Promise<void> {
   // Delete in correct order respecting FK constraints
   // Keep system roles (tenantId: null) but delete tenant-specific data
   await prisma.$transaction([
+    prisma.userRoleMembership.deleteMany(),
+    prisma.operationalIntervention.deleteMany(),
+    prisma.operationalSetting.deleteMany(),
+    prisma.reportJob.deleteMany(),
+    prisma.invitation.deleteMany(),
+    prisma.customerLink.deleteMany(),
     prisma.outboxEvent.deleteMany(),
     prisma.aIResult.deleteMany(),
     prisma.analyticsSnapshot.deleteMany(),

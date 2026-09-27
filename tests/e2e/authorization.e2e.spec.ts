@@ -107,23 +107,7 @@ describe('Authorization & tenant isolation E2E', () => {
     });
   });
 
-  describe('self-registered accounts (SEC-02)', () => {
-    it('creates a CUSTOMER account without organization or staff access', async () => {
-      const register = await request(app).post('/api/v1/auth/register').send({
-        email: 'selfsignup@example.com',
-        password: 'TestPass@123!',
-        firstName: 'Self',
-        lastName: 'Signup',
-      });
-      expect(register.status).toBe(202);
-
-      const user = await prisma.user.findUniqueOrThrow({
-        where: { email: 'selfsignup@example.com' },
-      });
-      expect(user.role).toBe('CUSTOMER');
-      expect(user.tenantId).toBeNull();
-    });
-
+  describe('tenant-less accounts (SEC-02)', () => {
     it('does not let a tenant-less user list or read platform users', async () => {
       await getAuthToken(app, 'TENANT_MANAGER'); // another tenant's user exists
       const loner = await createUser('AGENT', null);
@@ -294,12 +278,14 @@ describe('Authorization & tenant isolation E2E', () => {
     });
   });
 
-  it('reports that report generation is not available (501)', async () => {
+  it('queues a report for the requesting tenant', async () => {
     const manager = await getAuthToken(app, 'TENANT_MANAGER');
     const response = await request(app)
       .post('/api/v1/reports/generate')
       .set('Authorization', `Bearer ${manager.token}`)
-      .send({ jobType: 'summary' });
-    expect(response.status).toBe(501);
+      .send({ subject: 'tickets', kind: 'summary', format: 'json' });
+    expect(response.status).toBe(202);
+    expect(response.body.data.tenantId).toBe(manager.tenantId);
+    expect(response.body.data.status).toBe('PENDING');
   });
 });

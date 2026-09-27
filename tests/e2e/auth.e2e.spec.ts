@@ -20,7 +20,7 @@ describe('Auth E2E', () => {
   });
 
   describe('POST /api/v1/auth/register', () => {
-    it('should register a new user', async () => {
+    it('no longer exists: accounts are issued through invitations', async () => {
       const response = await request(app).post('/api/v1/auth/register').send({
         email: 'newuser@example.com',
         password: 'TestPass@123!',
@@ -28,58 +28,10 @@ describe('Auth E2E', () => {
         lastName: 'User',
       });
 
-      expect(response.status).toBe(202);
-      expect(response.body.success).toBe(true);
-      const user = await prisma.user.findUnique({
-        where: { email: 'newuser@example.com' },
-      });
-      expect(user?.status).toBe('PENDING_VERIFICATION');
-    });
-
-    it('should return 400 for invalid email', async () => {
-      const response = await request(app).post('/api/v1/auth/register').send({
-        email: 'not-an-email',
-        password: 'TestPass@123!',
-        firstName: 'New',
-        lastName: 'User',
-      });
-
-      expect(response.status).toBe(400);
-      expect(response.body.status).toBe(400);
-      expect(response.body).toHaveProperty('errors');
-    });
-
-    it('should return 400 for weak password', async () => {
-      const response = await request(app).post('/api/v1/auth/register').send({
-        email: 'test@example.com',
-        password: 'weak',
-        firstName: 'New',
-        lastName: 'User',
-      });
-
-      expect(response.status).toBe(400);
-    });
-
-    it('responds the same for an already registered email (no enumeration)', async () => {
-      await request(app).post('/api/v1/auth/register').send({
-        email: 'duplicate@example.com',
-        password: 'TestPass@123!',
-        firstName: 'First',
-        lastName: 'User',
-      });
-
-      const response = await request(app).post('/api/v1/auth/register').send({
-        email: 'duplicate@example.com',
-        password: 'TestPass@123!',
-        firstName: 'Second',
-        lastName: 'User',
-      });
-
-      expect(response.status).toBe(202);
-      const user = await prisma.user.findUniqueOrThrow({
-        where: { email: 'duplicate@example.com' },
-      });
-      expect(user.firstName).toBe('First');
+      expect(response.status).toBe(404);
+      expect(
+        await prisma.user.findUnique({ where: { email: 'newuser@example.com' } }),
+      ).toBeNull();
     });
   });
 

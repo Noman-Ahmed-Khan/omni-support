@@ -11,7 +11,6 @@ import {
   UnauthorizedError,
   ForbiddenError,
 } from '../../../../src/shared/errors/application.error';
-import { ValidationError } from '../../../../src/shared/errors/domain.error';
 
 describe('AuthService', () => {
   let authService: AuthService;
@@ -35,68 +34,6 @@ describe('AuthService', () => {
       auditRepo,
       cacheService,
     );
-  });
-
-  describe('register()', () => {
-    const validRegisterDto = {
-      email: 'test@example.com',
-      password: 'TestPass@123!',
-      firstName: 'John',
-      lastName: 'Doe',
-    };
-
-    it('should register user successfully', async () => {
-      (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
-      (prisma.user.create as jest.Mock).mockResolvedValue({
-        id: 'user-id',
-        email: 'test@example.com',
-        firstName: 'John',
-        lastName: 'Doe',
-      });
-      (prisma.emailVerifyToken.create as jest.Mock).mockResolvedValue({});
-      (tokenService.generateSecureToken as jest.Mock).mockReturnValue('raw-token');
-      (tokenService.hashToken as jest.Mock).mockResolvedValue('hashed-token');
-      (emailQueue.addUrgent as jest.Mock).mockResolvedValue(undefined);
-      (auditRepo.create as jest.Mock).mockResolvedValue(undefined);
-
-      const result = await authService.register(validRegisterDto);
-
-      expect(result).toHaveProperty('userId');
-      expect(prisma.user.create).toHaveBeenCalledTimes(1);
-      expect(emailQueue.addUrgent).toHaveBeenCalledTimes(1);
-    });
-
-    it('does not reveal or modify an existing account (no enumeration)', async () => {
-      (prisma.user.findUnique as jest.Mock).mockResolvedValue({
-        id: 'existing-user',
-        email: 'test@example.com',
-      });
-
-      await expect(authService.register(validRegisterDto)).resolves.toEqual({
-        userId: null,
-      });
-      expect(prisma.user.create).not.toHaveBeenCalled();
-      expect(emailQueue.addUrgent).not.toHaveBeenCalled();
-    });
-
-    it('should throw ValidationError for weak password', async () => {
-      (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
-
-      await expect(
-        authService.register({ ...validRegisterDto, password: 'weak' }),
-      ).rejects.toThrow(ValidationError);
-    });
-
-    it('should throw ValidationError for missing uppercase', async () => {
-      (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
-
-      await expect(
-        authService.register({
-          ...validRegisterDto,
-          password: 'testpass@123!',
-        }),
-      ).rejects.toThrow(ValidationError);
-    });
   });
 
   describe('login()', () => {
